@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -15,48 +13,57 @@
   <h1>Welcome to the Mermaid Project</h1>
   <p>This is a test paragraph to ensure the HTML is being displayed correctly.</p>
 
-
-  <div id="diagram">
-    <pre class="mermaid">
-    graph TD;
-      A[Start] --> B{Decision 1};
-      B -->|Yes| C[Process 1];
-      B -->|No| D[Process 2];
-      C --> E[Process 3];
-      D --> E;
-      E --> F{Decision 2};
-      F -->|Yes| G[Process 4];
-      F -->|No| H[Process 5];
-      G --> I[Process 6];
-      H --> I;
-      I --> J{Decision 3};
-      J -->|Yes| K[Process 7];
-      J -->|No| L[Process 8];
-      K --> M[End];
-      L --> M;
-      subgraph Cluster1
-        C --> N[Sub-process 1];
-        N --> O[Sub-process 2];
-      end
-      subgraph Cluster2
-        H --> P[Sub-process 3];
-        P --> Q[Sub-process 4];
-      end
-      Q --> R[Process 9];
-      R --> M;
-    </pre>
-  </div>
-
+  <div id="diagram"></div>
 
   <!-- Include Mermaid JS file from node_modules -->
   <script src="node_modules/mermaid/dist/mermaid.min.js"></script>
-  <script>
-    // Initialize Mermaid
-    mermaid.initialize({ startOnLoad: true });
-  </script>
+  <!-- Include marked.js library -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <!-- Include other JS files from src -->
   <script src="src/grapher.js"></script>
   <script src="src/renderer.js"></script>
   <script src="src/index.js"></script>
+  <!-- Include Fetching and Rendering Script -->
+  <script>
+    // Initialize Mermaid
+    mermaid.initialize({ startOnLoad: true });
+
+    // Function to fetch and render the Markdown file content
+    async function fetchAndRenderMarkdown() {
+      try {
+        const response = await fetch('src/diagram.md');
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const text = await response.text();
+        console.log('Fetched Markdown content:', text);
+
+        // Parse the Markdown content to HTML
+        const htmlContent = marked.parse(text);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+
+        // Find Mermaid code blocks and transform them
+        const mermaidBlocks = tempDiv.querySelectorAll('code.language-mermaid');
+        mermaidBlocks.forEach(block => {
+          const mermaidDiv = document.createElement('div');
+          mermaidDiv.classList.add('mermaid');
+          mermaidDiv.textContent = block.textContent;
+          block.replaceWith(mermaidDiv);
+        });
+
+        // Append the parsed content to the diagram div
+        document.getElementById('diagram').appendChild(tempDiv);
+
+        // Initialize Mermaid for any found Mermaid code blocks
+        mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+      } catch (error) {
+        console.error('Error fetching the Markdown file:', error);
+      }
+    }
+
+    // Call the function to fetch and render the Markdown content
+    fetchAndRenderMarkdown();
+  </script>
 </body>
 </html>
