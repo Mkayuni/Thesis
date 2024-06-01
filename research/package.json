@@ -7,7 +7,8 @@
     "start": "http-server"
   },
   "dependencies": {
-    "mermaid": "^8.11.0"
+    "marked": "^12.0.2",
+    "mermaid": "^8.14.0"
   },
   "devDependencies": {
     "http-server": "^0.12.3"
