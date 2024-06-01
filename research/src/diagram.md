@@ -18,13 +18,13 @@ graph LR
   K --> M[End];
   L --> M;
 
-  subgraph ClusterMoses1
+  subgraph ClusterChiso1
     C --> N[Sub-process 1];
     N --> O[Sub-process 2];
     O --> P[Sub-process 3];
   end
 
-  subgraph ClusterMoses2
+  subgraph CLusterChiso2
     H --> Q[Sub-process 4];
     Q --> R[Sub-process 5];
     R --> S[Sub-process 6];

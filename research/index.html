@@ -8,21 +8,25 @@
   <link rel="stylesheet" href="src/mermaid.css">
   <!-- Link to favicon -->
   <link rel="icon" href="src/favicon.ico" type="image/x-icon">
+  <!-- Include jQuery library -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
   <h1>Welcome to the Mermaid Project</h1>
   <p>This is a test paragraph to ensure the HTML is being displayed correctly.</p>
 
   <div id="diagram"></div>
+  <div id="markDisplay" style="display: none;"></div> <!-- Ensure this element exists -->
+  <div id="studentInfo" style="display: none;"></div> <!-- Ensure this element exists -->
 
   <!-- Include Mermaid JS file from node_modules -->
-  <script src="node_modules/mermaid/dist/mermaid.min.js"></script>
+  <script src="node_modules/mermaid/dist/mermaid.min.js?v=1.0.1"></script>
   <!-- Include marked.js library -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <!-- Include other JS files from src -->
-  <script src="src/grapher.js"></script>
-  <script src="src/renderer.js"></script>
-  <script src="src/index.js"></script>
+  <script src="src/grapher.js?v=1.0.1"></script>
+  <script src="src/renderer.js?v=1.0.1"></script>
+  <script src="src/index.js?v=1.0.1"></script>
   <!-- Include Fetching and Rendering Script -->
   <script>
     // Initialize Mermaid

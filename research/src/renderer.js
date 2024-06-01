@@ -1,12 +1,10 @@
 $(document).ready(function () {
-  //QUESTION SETUP
+  // QUESTION SETUP
 
   let lis = [];
   let questionMarkdown;
 
-
   let firstLoad = true;
-
 
   let schema = new Map();
   let attributes = new Map();
@@ -18,7 +16,6 @@ $(document).ready(function () {
 
   // new added
   let cardinalityOptions_text = "_";
-
 
   function questionSetup() {
     //Getting the elements from markdown, setting opening submenus on click
@@ -75,7 +72,6 @@ $(document).ready(function () {
     update();
   }
 
-
   function setFirstLoad(l) {
     firstLoad = l;
   }
@@ -111,7 +107,6 @@ $(document).ready(function () {
     );
     let allEntities = [].concat(allEntities1, allEntities2);
     for (let i = 0; i < allEntities.length; i++) {
-      //console.log(allEntities[i].className + " ");
       if (allEntities[i].className.indexOf(' disabled-link') < 0) {
         allEntities[i].className = allEntities[i].className + ' disabled-link';
       }
@@ -135,7 +130,6 @@ $(document).ready(function () {
         } else {
           attributes[i] = att[i];
         }
-        //console.log("HERE? " + entity_name + " " + attributes[i] + " "  + key)
         addAttribute(entity_name, attributes[i], key);
       }
     }
@@ -183,6 +177,7 @@ $(document).ready(function () {
       setOldAnswer(oldAnswer);
     }
   };
+
   //Open dropdown menus
   window.openMenu = function (val) {
     closeMenus();
@@ -202,13 +197,10 @@ $(document).ready(function () {
     if (!event.target.matches('.dropbtn')) closeMenus();
   };
 
-
   //INTERFACE SETUP
-  let addModal = document.getElementById('addModal'); // TODO: extra space on the modal, rearrange elements/make smaller
+  let addModal = document.getElementById('addModal');
   let editModal = document.getElementById('editModal');
   let attModal = document.getElementById('attributeModal');
-  //editAttModal for editing attribute keys
-
   let markDetailsModal = document.getElementById('markDetailsModal');
   let helpModal = document.getElementById('helpModal');
   let umlModal = document.getElementById('umlModal');
@@ -216,15 +208,12 @@ $(document).ready(function () {
   //Navigation bar
   let manageRelBtn = document.getElementById('manageRelBtn');
   let manageEntBtn = document.getElementById('manageEntBtn');
-
   let manageSmRelBtn = document.getElementById('manageSmRelBtn');
   let manageSmEntBtn = document.getElementById('manageSmEntBtn');
 
   //SAVE ANSWER AS TEXT FILE & MARK DISPLAY SETUP
-
   let saveBtn = document.getElementById('saveBtn');
   let helpBtn = document.getElementById('helpBtn');
-
   let continueBtn = document.getElementById('continueBtn');
   let markDisplay = document.getElementById('markDisplay');
   let studentInfo = document.getElementById('studentInfo');
@@ -242,21 +231,20 @@ $(document).ready(function () {
     markDisplay.style.display = 'none';
     continueBtn.style.display = 'none';
     studentInfo.style.display = 'none';
-
     enableQuestionEditing();
   };
+
   helpBtn.onclick = function () {
     helpModal.style.display = 'block';
   };
 
-  umlDisplay.onclick = function(){
+  umlDisplay.onclick = function () {
     umlModal.style.display = 'block';
-
   };
 
-  copyBtn.onclick = function(){
+  copyBtn.onclick = function () {
     navigator.clipboard.writeText(umlDisplayText.textContent);
-  }
+  };
 
   //Save buttons in the modals
   let addRelBtn = document.getElementById('addRelBtn');
@@ -267,7 +255,6 @@ $(document).ready(function () {
   let addSpan = document.getElementsByClassName('close')[0];
   let editSpan = document.getElementsByClassName('close')[1];
   let attSpan = document.getElementsByClassName('close')[2];
-
   let markDetailsSpan = document.getElementsByClassName('close')[3];
   let helpSpan = document.getElementsByClassName('close')[4];
   let umlSpan = document.getElementsByClassName('close')[5];
@@ -275,7 +262,6 @@ $(document).ready(function () {
   //Menus for managing entities and relationships
   let rel = document.getElementById('relContent');
   let ent = document.getElementById('entContent');
-
   let manager = document.getElementById('managerScrollable');
   let mainContainer = document.getElementById('mainContainer');
   let closeBtn = document.getElementsByClassName('closebtn')[0];
@@ -334,15 +320,14 @@ $(document).ready(function () {
     updateRelManager();
     if (!this.className.includes('active')) {
       manager.style.width = sidebarWidth;
-      //mainContainer.style.marginRight = sidebarWidth;
       relationshipActive();
     }
   };
+
   manageEntBtn.onclick = function () {
     updateEntManager();
     if (!this.className.includes('active')) {
       manager.style.width = sidebarWidth;
-      //mainContainer.style.marginRight = sidebarWidth;
       entityActive();
     }
   };
@@ -362,7 +347,6 @@ $(document).ready(function () {
       manager.style.width = '100%';
     } else if (closeBtn.style.display != 'none') {
       manager.style.width = sidebarWidth;
-      //mainContainer.style.marginRight = sidebarWidth;
     } else {
       manager.style.width = '0';
     }
@@ -375,6 +359,7 @@ $(document).ready(function () {
       relationshipActive();
     }
   };
+
   manageSmEntBtn.onclick = function () {
     updateEntManager();
     if (!this.className.includes('active')) {
@@ -384,37 +369,29 @@ $(document).ready(function () {
   };
 
   //Save buttons for the modals onclick setup
-  // Adding new relationship
   addRelBtn.onclick = function () {
     let relationA = document.getElementById('relationA').value;
     let relationB = document.getElementById('relationB').value;
     let cardinalityA = document.getElementById('cardinalityA').value;
     let cardinalityB = document.getElementById('cardinalityB').value;
-     // new added
     let cardinality_Text = document.getElementById('cardinality_Text').value;
-    addRelationship(relationA, relationB,  cardinalityA, cardinalityB ,cardinality_Text);
-//    addRelationship(relationA, relationB, cardinalityA, cardinalityB);
+    addRelationship(relationA, relationB, cardinalityA, cardinalityB, cardinality_Text);
     addModal.style.display = 'none';
     manageRelBtn.onclick();
   };
 
-  //Editing existing relationship
   editRelBtn.onclick = function () {
     let id = parseInt(document.getElementById('relInfo').getAttribute('value'));
-
     let relationA = document.getElementById('newRelationA').value;
     let relationB = document.getElementById('newRelationB').value;
     let cardinalityA = document.getElementById('newCardinalityA').value;
     let cardinalityB = document.getElementById('newCardinalityB').value;
-      // new added
     let cardinality_Text = document.getElementById('newCardinality_Text').value;
-
-//    editRelationship(id, relationA, relationB, cardinalityA, cardinalityB);
-    editRelationship(id, relationA, relationB, cardinalityA, cardinalityB,cardinality_Text);
+    editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, cardinality_Text);
     editModal.style.display = 'none';
     manageRelBtn.onclick();
   };
-  //Adding new attribute (after choosing PK or PPK options)
+
   addAttBtn.onclick = function () {
     let isPK = document.getElementById('PK').checked;
     let isPPK = document.getElementById('PPK').checked;
@@ -430,13 +407,11 @@ $(document).ready(function () {
     } else if (isAK) {
       key = '{AK}';
     }
-    //attributeName = attributeName + key;
     addAttribute(entityName, attributeName, key);
     attModal.style.display = 'none';
     manageEntBtn.onclick();
   };
 
-  // Closing modals
   addSpan.onclick = function () {
     addModal.style.display = 'none';
     manageRelBtn.onclick();
@@ -446,6 +421,7 @@ $(document).ready(function () {
     editModal.style.display = 'none';
     manageRelBtn.onclick();
   };
+
   attSpan.onclick = function () {
     attModal.style.display = 'none';
     manageEntBtn.onclick();
@@ -459,11 +435,10 @@ $(document).ready(function () {
     helpModal.style.display = 'none';
   };
 
-  umlSpan.onclick = function() {
+  umlSpan.onclick = function () {
     umlModal.style.display = 'none';
   };
 
-  // Functions to open modals
   window.openAddModal = function () {
     updateAddRelModal();
     addModal.style.display = 'block';
@@ -490,9 +465,6 @@ $(document).ready(function () {
     window.closeNav();
   };
 
-  //ENTITY FUNCTIONS
-
-  // Add entity to the schema
   window.addEntity = function (element) {
     let cN = element.className.split(' ');
     let type = cN[0];
@@ -510,7 +482,6 @@ $(document).ready(function () {
     update();
   };
 
-  //Remove entity from the schema
   window.removeEntity = function (entityName, i, j) {
     schema.delete(entityName);
     removeEntityRelationshipReferences(entityName);
@@ -532,7 +503,6 @@ $(document).ready(function () {
     update();
   };
 
-  //Removes all relationships associated with the entity
   function removeEntityRelationshipReferences(entityName) {
     relationships.forEach(function (rel, key) {
       if (rel.relationA == entityName || rel.relationB == entityName) {
@@ -542,10 +512,6 @@ $(document).ready(function () {
     update();
   }
 
-  //ATTRIBUTE FUNCTIONS
-  //TODO: treat attributeName{PK} and attributeName as the same attribute (code fails now)
-
-  //Add attribute to an entity
   window.addAttribute = function (entityName, attName, key = '') {
     let enObj = schema.get(entityName);
 
@@ -564,7 +530,6 @@ $(document).ready(function () {
     update();
   };
 
-  // Removing attribute from an entity (called from entity manager)
   window.removeAtt = function (entityName, attName) {
     let enObj = schema.get(entityName);
     let attObj = attributes.get(attName);
@@ -580,12 +545,7 @@ $(document).ready(function () {
     update();
   };
 
-  // RELATIONSHIP FUNCTIONS
-
-  //Add relationship to schema
-//  function addRelationship(relationA, relationB, cardinalityA, cardinalityB) {
-   function addRelationship(relationA, relationB, cardinalityA, cardinalityB,cardinality_Text) {
-    // Check if relationship between entities exists in same order
+  function addRelationship(relationA, relationB, cardinalityA, cardinalityB, cardinality_Text) {
     if (relationA != '' && relationB != '') {
       for (let value of relationships) {
         if (value[1].relationA === relationA && value[1].relationB == relationB) {
@@ -615,9 +575,7 @@ $(document).ready(function () {
     }
   }
 
-  //Edit existing relationship
-//  function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB) {
-function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, cardinality_Text) {
+  function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, cardinality_Text) {
     if (relationA != '' && relationB != '') {
       let relationship = {
         id: id,
@@ -625,28 +583,22 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
         cardinalityA: cardinalityA,
         cardinalityB: cardinalityB,
         relationB: relationB,
-        cardinality_Text:cardinality_Text
+        cardinality_Text: cardinality_Text
       };
       relationships.delete(id);
       relationships.set(id, relationship);
-
       update();
     } else {
       alert('Please choose two valid entities.');
     }
   }
 
-  //Remove relationship from schema
   window.removeRelationship = function (id) {
     relationships.delete(id);
     relCount--;
-
     update();
   };
 
-  // UPDATE FUNCTIONS
-
-  //Toggle between showing add attribute option
   function showAddAttribute() {
     for (let i = 0; i < lis.length; i++) {
       divs = lis[i].children;
@@ -661,7 +613,6 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
     }
   }
 
-  //Updates entity in dropdown
   function updateEntityMenu(i, j, clicked) {
     let entityElement = document.getElementById('sm-entity-' + i + '-' + j);
     entityElement.innerHTML =
@@ -678,7 +629,6 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
     }
   }
 
-  //Update dropdown menu with Add attirbute and Remove attribute
   function updateAttMenu(i, j) {
     let attHTML = '';
     let attName = toAttributeName(
@@ -686,7 +636,6 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
     );
     let attObj = attributes.get(attName);
 
-    // Add attribute menu
     attHTML +=
       '<a class="attribute ' +
       i +
@@ -731,12 +680,9 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
       }
     });
     attHTML += '</div>';
-
     document.getElementById('sm-att-' + i + '-' + j).innerHTML = attHTML;
-
   }
 
-  //Updates relationship list in the Manage relationships menu
   function updateRelManager() {
     let content = '';
     if (schema.size == 0) {
@@ -744,30 +690,30 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
     } else {
       relationships.forEach(function (value, key) {
         content += '<div class="relWrapper">';
-        if (( value['cardinality_Text']).includes('['))
-          {value['cardinality_Text']="";  }
-          content +=
-            '<div class="relColumn"><div>' +
-            value['relationA'] +
-            '  ' +
-            value['cardinalityA'] +
-  //          ' - ' +
-            ' -- ' +
-            value['cardinality_Text'] +
-            ' --' +
-            value['cardinalityB'] +
-            '  ' +
-            value['relationB'] +
-            '</div></div>';
-          content +=
-            '<div class="relColumn"><div class="manageRelBtns"><button type="button" onclick="openEditModal(' +
-            value['id'] +
-            ')" class="myBtnSmall"><i class="far fa-edit"></i></button>';
-          content +=
-            '<button type="button" onclick="removeRelationship(' +
-            value['id'] +
-            ')" class="myBtnSmall"><i class="far fa-trash-alt"></i></button></div></div>';
-          content += '</div>';
+        if ((value['cardinality_Text']).includes('[')) {
+          value['cardinality_Text'] = "";
+        }
+        content +=
+          '<div class="relColumn"><div>' +
+          value['relationA'] +
+          '  ' +
+          value['cardinalityA'] +
+          ' -- ' +
+          value['cardinality_Text'] +
+          ' --' +
+          value['cardinalityB'] +
+          '  ' +
+          value['relationB'] +
+          '</div></div>';
+        content +=
+          '<div class="relColumn"><div class="manageRelBtns"><button type="button" onclick="openEditModal(' +
+          value['id'] +
+          ')" class="myBtnSmall"><i class="far fa-edit"></i></button>';
+        content +=
+          '<button type="button" onclick="removeRelationship(' +
+          value['id'] +
+          ')" class="myBtnSmall"><i class="far fa-trash-alt"></i></button></div></div>';
+        content += '</div>';
       });
 
       if (relationships.size == 0) {
@@ -781,9 +727,6 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
     }
     document.getElementById('relContent').innerHTML = content;
   }
-
-  //Updates entities list in the Manage entities menu
-  // TODO: add edit attribute and remove attribute functionality to the entity manager (do we need extensive dropdown menus then?)
 
   function updateEntManager() {
     let content = '';
@@ -829,15 +772,11 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
     document.getElementById('entContent').innerHTML = content;
   }
 
-  //Updates entity list in the addRelModal
-  //TODO: look if this can be more concise
   function updateAddRelModal() {
     let content = '';
     let entityOptions = '';
     let cardinalityOptions = '';
-    // new added
     let cardinalityOptions_text = '';
-
 
     schema.forEach(function (value, key) {
       let entityName = value['entity'];
@@ -863,19 +802,24 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
       '</select></span>';
     content += '</p>';
 
-      // new added
     content += '<p>';
     content += '<span>Cardinality Text: &nbsp;&nbsp;</span>';
-     if (cardinalityOptions_text!=""){
-     if (cardinalityOptions_text.includes('_')){ cardinalityOptions_text=cardinalityOptions_text.replaceAll('_', ''); }
-     if ((rel.cardinality_Text).includes('[')){rel.cardinality_Text="";  }
+    if (cardinalityOptions_text != "") {
+      if (cardinalityOptions_text.includes('_')) {
+        cardinalityOptions_text = cardinalityOptions_text.replaceAll('_', '');
+      }
+      if ((rel.cardinality_Text).includes('[')) {
+        rel.cardinality_Text = "";
+      }
       content +=
-      '<input type="text"  name="cardinality_Text" id="cardinality_Text" size="10" value='+rel.cardinality_Text+'>' ;
+        '<input type="text"  name="cardinality_Text" id="cardinality_Text" size="10" value=' + rel.cardinality_Text + '>';
     }
-     else {content +=
-      '<input type="text"  name="cardinality_Text" id="cardinality_Text" size="10">' ;}
+    else {
+      content +=
+        '<input type="text"  name="cardinality_Text" id="cardinality_Text" size="10">';
+    }
 
-    content += cardinalityOptions_text ;
+    content += cardinalityOptions_text;
     content += '</p>';
     content += '<p>';
     content += '<span>Cardinality B: &nbsp;&nbsp;</span>';
@@ -892,11 +836,8 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
     content += '</p>';
 
     document.getElementById('addModalContent').innerHTML = content;
-
   }
 
-  //Update edit relationship modal
-  //TODO: can we make it consice? we can
   function updateEditRelModal(id) {
     let rel = relationships.get(id);
 
@@ -937,22 +878,25 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
     content += cardinalityOptions + '</select></span>';
     content += '</p>';
 
-      // new added
     content += '<p>';
     content += '<span>Cardinality Text: &nbsp;&nbsp;</span>';
-    if (cardinalityOptions_text!=""){
-     if (cardinalityOptions_text.includes('_')){ cardinalityOptions_text=cardinalityOptions_text.replaceAll('_', ''); }
-     if ((rel.cardinality_Text).includes('[')){rel.cardinality_Text="";   }
+    if (cardinalityOptions_text != "") {
+      if (cardinalityOptions_text.includes('_')) {
+        cardinalityOptions_text = cardinalityOptions_text.replaceAll('_', '');
+      }
+      if ((rel.cardinality_Text).includes('[')) {
+        rel.cardinality_Text = "";
+      }
       content +=
-      '<input type="text"  name="cardinality_Text" id="newCardinality_Text" size="10"  onkeypress="return /[a-z]/i.test(event.key)" value='+rel.cardinality_Text+'>' ;
+        '<input type="text"  name="cardinality_Text" id="newCardinality_Text" size="10"  onkeypress="return /[a-z]/i.test(event.key)" value=' + rel.cardinality_Text + '>';
     }
-    else {content +=
-      '<input type="text"  name="cardinality_Text" id="newCardinality_Text" size="10" onkeypress="return /[a-z]/i.test(event.key)">' ;
-         }
+    else {
+      content +=
+        '<input type="text"  name="cardinality_Text" id="newCardinality_Text" size="10" onkeypress="return /[a-z]/i.test(event.key)">';
+    }
 
-    content += cardinalityOptions_text ;
+    content += cardinalityOptions_text;
     content += '</p>';
-
 
     content += '<p>';
     content += '<span>Cardinality B: &nbsp;&nbsp;</span>';
@@ -981,7 +925,6 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
     document.getElementById('editModalContent').innerHTML = content;
   }
 
-  //Updating add attribute modal with info on what attribute is been added to what entity
   function updateAttModal(entityName, attributeName) {
     let content = '';
     content +=
@@ -997,10 +940,7 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
     document.getElementById('attributeInfo').innerHTML = content;
   }
 
-  // Populate the ER diagram, update manager menus dependent on the diagram
   function update() {
-
-
     let answer = schemaToNomnomlSource();
     umlDisplayText.textContent = answer;
     studentAnswerBox.value = answer;
@@ -1014,18 +954,14 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
         document.getElementById('diagram').innerHTML = svgGraph;
       };
       mermaid.mermaidAPI.render('umlDiagram', source, cb);
-    }
-    else {
+    } else {
       document.getElementById('diagram').innerHTML = null;
     }
-    //Updating manager menus
     updateRelManager();
     updateEntManager();
   }
 
-  // Converts current schema to string for Mermaid source
   function schemaToMermaidSource() {
-    // If we want to use CSS, deal with it so it does not save to the file
     let schemaText = [];
     schema.forEach(function (schemaItem, entKey) {
       let item = 'class ' + schemaItem.entity + ':::styling' + '{ ';
@@ -1041,8 +977,7 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
       item += '}';
       schemaText.push(item);
     });
-    relationships.forEach(function (rel) { // this part is following the mermaid syntax to build the graph
-
+    relationships.forEach(function (rel) {
       let item =
         rel.relationA +
         '"' +
@@ -1053,26 +988,21 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
         rel.cardinalityB +
         '"' +
         rel.relationB;
-//        +
-//        ' : '+
-//        rel.cardinality_Text;
 
-       if (rel.cardinality_Text===undefined){
-          rel.cardinality_Text= document.getElementById('cardinality_Text').value;
-        }
+      if (rel.cardinality_Text === undefined) {
+        rel.cardinality_Text = document.getElementById('cardinality_Text').value;
+      }
 
-       if (rel.cardinality_Text!="" &&  ! (rel.cardinality_Text).includes('___')){
-          item+=
-         ' : '+
-         rel.cardinality_Text;}
-
-       else {
-        item+=
-        ':___';
-       }
+      if (rel.cardinality_Text != "" && !(rel.cardinality_Text).includes('___')) {
+        item +=
+          ' : ' +
+          rel.cardinality_Text;
+      } else {
+        item +=
+          ':___';
+      }
       schemaText.push(item);
     });
-    //diagram message & sourceCss
     let diagramMessage = document.getElementById('diagramMessage');
 
     if (schemaText.length == 0) {
@@ -1086,12 +1016,9 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
   }
 
   function schemaToNomnomlSource() {
-    // If we want to use CSS, deal with it so it does not save to the file
     let schemaText = [];
     schema.forEach(function (schemaItem, entKey) {
       let item = '[' + schemaItem.entity + '|';
-      //console.log(schemaItem);
-      //console.log(schemaItem.attribute);
       schemaItem.attribute.forEach(function (attItem, attKey) {
         if (!attItem.key == '') {
           item += attItem.attribute + ' ' + attItem.key;
@@ -1105,7 +1032,6 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
       schemaText.push(item);
     });
     relationships.forEach(function (rel) {
-
       let item =
         '[' +
         rel.relationA +
@@ -1116,26 +1042,20 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
         '[' +
         rel.relationB +
         ']';
-//        +' : '+
-//        rel.cardinality_Text;
 
-     if (rel.cardinality_Text===undefined){
-        rel.cardinality_Text= document.getElementById('cardinality_Text').value;
+      if (rel.cardinality_Text === undefined) {
+        rel.cardinality_Text = document.getElementById('cardinality_Text').value;
       }
 
-
-      if (rel.cardinality_Text!="" &&  ! ((rel.cardinality_Text).includes('___') )){
-          item+=
-         ' : '+
-         rel.cardinality_Text;
-          }
-      else
-          item+="";
-
+      if (rel.cardinality_Text != "" && !((rel.cardinality_Text).includes('___'))) {
+        item +=
+          ' : ' +
+          rel.cardinality_Text;
+      } else {
+        item += "";
+      }
       schemaText.push(item);
-
     });
-    //diagram message & sourceCss
     let diagramMessage = document.getElementById('diagramMessage');
 
     if (schemaText.length == 0) {
@@ -1148,18 +1068,14 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
     return source;
   }
 
-  // STRING PROCESSING FUNCTIONS
-  // Changing markdown string to HTML code (add string displayed to user in div, put markdown name of element in the nameER attribute for div)
   function markdownToHTML(question) {
-    let questionHTML = ''; // resulting string
+    let questionHTML = ''; 
     let insideSquare = false;
     let insideCircle = false;
-    let innerHTML = ''; // innerHTML displayed to user
-    let nameInER = ''; // name when element added to ER
+    let innerHTML = '';
+    let nameInER = '';
     questionHTML = questionHTML.concat('<li>');
     for (let i = 0; i < question.length; i++) {
-      // Go through the string, adding all characters, surround elements in square brackets with <div>,
-      // put elements in circle brackets as nameER attribute for the corresponding <div>
       if (question.charAt(i) == '\n') {
         questionHTML = questionHTML.concat('</li><li>');
       }
@@ -1168,7 +1084,6 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
       } else if (question.charAt(i) == ']') {
         insideSquare = false;
       } else if (question.charAt(i) == '(') {
-        // if markdown and not question punctuation
         if (question.charAt(i - 1) == ']') {
           insideCircle = true;
         } else {
@@ -1199,37 +1114,25 @@ function editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, 
     return questionHTML;
   }
 
-  //Format name of an element as an entity name
   function toEntityName(string) {
-    //let lowercase = string.toLowerCase();
     let uppercase = string.toUpperCase();
-
-    //return uppercase.substring(0, 1) + lowercase.substring(1, string.length);
     return uppercase.substring(0, 1) + string.substring(1, string.length);
   }
 
-  //Format name of an element as an attribute name
   function toAttributeName(string) {
     let lowercase = string.toLowerCase();
-
     return lowercase.substring(0, 1) + string.substring(1, string.length);
   }
 
-  //Listeners
-
-  //Listener for closing entity and relationship protal menus.
   window.addEventListener('mouseup', function (event) {
-    //Try catch is needed as .parentnode will fail if null so this will catch this case.
-    try{
+    try {
       let entityBoxCatcher = event.target.parentNode.parentNode.parentNode.parentNode.parentNode;
       let relationshipBoxCatcher = event.target.parentNode.parentNode;
       let clickedElementParent = event.target.parentNode;
-      //Tests what was clicked and the related parents to see if it need to close
-      //Tests what was clicked and the related parents to see if it need to close
       if (event.target != manager && clickedElementParent != manager)
         if (relationshipBoxCatcher != manager && entityBoxCatcher != ent)
           window.closeNav();
-    }catch(err){
+    } catch (err) {
       window.closeNav();
     }
   });
