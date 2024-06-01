@@ -1,0 +1,15 @@
+/* src/mermaid.css */
+.styling > rect {
+    fill: #ffffff !important;
+    stroke: #000000 !important;
+    color: #000000 !important;
+}
+span.nodeLabel{
+    font-family: "Lato", serif !important;
+}
+span.edgeLabel {
+    font-size: 50px;
+    font-weight: bolder;
+    background-color: #ffffff !important;
+    font-family: "Lato", serif !important;
+}

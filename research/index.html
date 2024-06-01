@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mermaid Project</title>
+  <!-- Include Mermaid CSS file -->
+  <link rel="stylesheet" href="src/mermaid.css">
+  <!-- Link to favicon -->
+  <link rel="icon" href="src/favicon.ico" type="image/x-icon">
+</head>
+<body>
+  <h1>Welcome to the Mermaid Project</h1>
+  <p>This is a test paragraph to ensure the HTML Connects!!!!!!</p>
+
+  <div id="diagram">
+    <pre class="mermaid">
+    graph TD;
+      A-->B;
+      A-->C;
+      B-->D;
+      C-->D;
+    </pre>
+  </div>
+
+  <!-- Include Mermaid JS file from node_modules -->
+  <script src="node_modules/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    // Initialize Mermaid
+    mermaid.initialize({ startOnLoad: true });
+  </script>
+  <!-- Include other JS files from src -->
+  <script src="src/grapher.js"></script>
+  <script src="src/index.js"></script>
+  <script src="src/renderer.js"></script>
+</body>
+</html>
+
+
+
+

@@ -1,0 +1,17 @@
+{
+  "name": "research_project",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "http-server"
+  },
+  "dependencies": {
+    "mermaid": "^8.11.0"
+  },
+  "devDependencies": {
+    "http-server": "^0.12.3"
+  },
+  "author": "",
+  "license": "ISC"
+}
