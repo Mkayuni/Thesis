@@ -1,7 +1,21 @@
-<pl-uml-element random="False" max-grade="10">
-    <uml-question>Construct a database design in UML for a fish store where:
-        A fish store maintains a number of [aquaria](tank), each with a [number](number), [name](name), [volume](volume) and [color](color).
-        Each [tank](tank) contains a number of [fish](fish), each with an [id](id), [name](name), [color](color), and [weight](weight).
-        Each [fish](fish) is of a particular [species](species), which has a [id](id), [name](name), and [preferred food](preferredFood).
-        Each individual [fish](fish) has a number of [events](event) in its life, involving a [date](date) and a [note](note) relating to the event.</uml-question>
+<pl-uml-element random="False" max-grade = "10">
+    <uml-question>Design an ER diagram for keeping track of information about votes taken in the U.S. House of Representatives during the current two-year congressional session.
+        The database needs to keep track of each U.S [State](State) [name](name) including [region](Region).
+        The [region](Region) has a [name](name) from the domain of {Northeast, Midwest, Southeast, Southwest, and West} and a [description](description) of the region.
+        Each [congressperson](Congressperson) in the House is described by [name](name), [district](district) represented, [start date](startDate), and political [party](party).
+        Each [state](State) is represented by at least one [congressperson](Congressperson).
+        The database keeps track of each [bill](Bill) (proposed law) including bill [name](name), [date](voteDate) of vote, [passed or failed](status), and the sponsor [congressperson](Congressperson) of the bill.
+        The database keeps track of how each [congressperson](Congressperson) [voted on](VotesOn) each bill [{Yes, No, Abstain, Absent}](vote). State clearly any assumptions.
+</uml-question>
+    <uml-answer>[Region|name{PK}; description]
+[State|name {PK}]
+[Congressperson|name{PK}; district{PK}; startDate; party]
+[Bill|name {PK}; voteDate; status]
+[VotesOn| vote]
+[Region] 1..1 - 1..*[State]
+[State] 1..1 - 1..*[Congressperson]
+[Congressperson] 1..1 - 0..*[Bill]
+[Congressperson]1..1 - 0..*[VotesOn]
+[VotesOn]0..* - 1..1[Bill]</uml-answer>
+    <uml-marking entity-name="0.2" entity-attributes="0.1" entity-key="0.2" extra-entity-penalty="0.25" weak_entity="0.5" relationship="0.5" cardinality="0.25" extra-relationship-penalty="0.25"></uml-marking>
 </pl-uml-element>

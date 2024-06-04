@@ -3,9 +3,9 @@ import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-# Add the src directory to the system path
-src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src'))
-sys.path.insert(0, src_path)
+# Add the server directory to the system path
+server_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'server'))
+sys.path.insert(0, server_path)
 
 from umlTranslator import convert_html_to_mermaid
 
@@ -15,6 +15,8 @@ CORS(app)
 @app.route('/convert', methods=['GET'])
 def convert():
     try:
+        # Open and read the diagram.md file
+        src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src'))
         with open(os.path.join(src_path, 'diagram.md'), 'r') as file:
             input_html = file.read()
 

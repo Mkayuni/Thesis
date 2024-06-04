@@ -5,25 +5,21 @@ def extract_entities_and_relationships(input_str):
     relationships = []
 
     # Extract entities and their attributes
-    entity_pattern = r"\[(\w+)\]\((\w+)\)"
+    entity_pattern = r"\[(\w+)\|([^]]+)\]"
     entity_matches = re.findall(entity_pattern, input_str)
 
     for match in entity_matches:
-        attribute, entity = match
-        if entity not in entities:
-            entities[entity] = []
-        if attribute not in entities[entity]:  # Avoid duplicate attributes
-            entities[entity].append(attribute)
+        entity, attributes = match
+        attributes_list = [attr.strip() for attr in attributes.split(';')]
+        entities[entity] = attributes_list
 
     # Extract relationships from the text
-    lines = input_str.split("\n")
-    for line in lines:
-        relationship_pattern = r"Each (\[\w+\]\(\w+\)) (\w+) a number of (\[\w+\]\(\w+\))"
-        relationship_match = re.search(relationship_pattern, line)
-        if relationship_match:
-            parent = relationship_match.group(1)
-            child = relationship_match.group(3)
-            relationships.append((parent, child))
+    relationship_pattern = r"\[(\w+)\] (\d+\.\.\d+) - (\d+\.\d+)\[(\w+)\]"
+    relationship_matches = re.findall(relationship_pattern, input_str)
+
+    for match in relationship_matches:
+        parent_entity, parent_cardinality, child_cardinality, child_entity = match
+        relationships.append((parent_entity, parent_cardinality, child_cardinality, child_entity))
 
     return entities, relationships
 
@@ -34,14 +30,25 @@ def generate_mermaid_code(entities, relationships):
     for entity, attributes in entities.items():
         mermaid_code += f"    {entity.upper()} {{\n"
         for attribute in attributes:
+            if "PK" in attribute:
+                attribute = attribute.replace("{PK}", "") + " PK"
             mermaid_code += f"        string {attribute}\n"
         mermaid_code += f"    }}\n\n"
 
     # Generate relationships
-    for parent, child in relationships:
-        parent_entity = re.search(r"\((\w+)\)", parent).group(1).upper()
-        child_entity = re.search(r"\((\w+)\)", child).group(1).upper()
-        mermaid_code += f"    {parent_entity} ||--o{{ {child_entity} : has\n"
+    for parent, parent_cardinality, child_cardinality, child in relationships:
+        relationship_label = "relates"
+        if parent.upper() == "REGION" and child.upper() == "STATE":
+            relationship_label = "includes"
+        elif parent.upper() == "STATE" and child.upper() == "CONGRESSPERSON":
+            relationship_label = "has"
+        elif parent.upper() == "CONGRESSPERSON" and child.upper() == "BILL":
+            relationship_label = "sponsors"
+        elif parent.upper() == "CONGRESSPERSON" and child.upper() == "VOTES_ON":
+            relationship_label = "casts"
+        elif parent.upper() == "BILL" and child.upper() == "VOTES_ON":
+            relationship_label = "receives"
+        mermaid_code += f"    {parent.upper()} {parent_cardinality} -- {child_cardinality} {child.upper()} : \"{relationship_label}\"\n"
 
     return mermaid_code
 
@@ -54,9 +61,17 @@ def convert_html_to_mermaid(input_html):
 
     question_content = question_match.group(1).strip()
     
-    # Clean up the question text for display
-    clean_question = re.sub(r"\[\w+\]\(\w+\)", lambda m: m.group(0).split('](')[0][1:], question_content)
+    # Clean up the question text for display and make important words bold and underlined
+    clean_question = re.sub(r"\[([^\]]+)\]\((\w+)\)", r"<strong><u>\2</u></strong>", question_content)
 
-    entities, relationships = extract_entities_and_relationships(question_content)
+    # Extract the UML answer content
+    answer_pattern = r"<uml-answer>(.*?)<\/uml-answer>"
+    answer_match = re.search(answer_pattern, input_html, re.DOTALL)
+    if not answer_match:
+        return "Invalid input format"
+
+    answer_content = answer_match.group(1).strip()
+
+    entities, relationships = extract_entities_and_relationships(answer_content)
     mermaid_code = generate_mermaid_code(entities, relationships)
     return clean_question, mermaid_code
