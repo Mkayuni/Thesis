@@ -54,30 +54,30 @@ def generate_mermaid_code(entities, relationships):
 
     logging.debug(f"Generated Mermaid entity definitions: {mermaid_code}")
 
-    for parent, parent_cardinality, child_cardinality, child in relationships:
-        if parent_cardinality == "1..1" and child_cardinality == "0..*":
-            parent_card = "||"
-            child_card = "o|"
-        elif parent_cardinality == "1..1" and child_cardinality == "1..1":
-            parent_card = "||"
-            child_card = "||"
-        elif parent_cardinality == "1..*" and child_cardinality == "1..1":
-            parent_card = "|o"
-            child_card = "||"
-        elif parent_cardinality == "1..1" and child_cardinality == "0..*":
-            parent_card = "||"
-            child_card = "o|"
-        elif parent_cardinality == "1..*" and child_cardinality == "1..1":
-            parent_card = "|o"
-            child_card = "||"
-        elif parent_cardinality == "1..1" and child_cardinality == "0..*":
-            parent_card = "||"
-            child_card = "o|"
-        else:
-            parent_card = "|o"
-            child_card = "|o"
+    # Mapping relationships to meaningful labels
+    relationship_labels = {
+        ('Region', 'State'): 'has',
+        ('State', 'Congressperson'): 'represents',
+        ('Congressperson', 'Bill'): 'sponsors',
+        ('Congressperson', 'VotesOn'): 'votes',
+        ('VotesOn', 'Bill'): 'is on'
+    }
 
-        mermaid_code += f"    {parent.upper()} {parent_card}--{child_card} {child.upper()} : \"relates\"\n"
+    for parent, parent_cardinality, child_cardinality, child in relationships:
+        # Determine the cardinality symbols
+        parent_card = "|o"
+        child_card = "|o"
+        if parent_cardinality == "1..1":
+            parent_card = "||"
+        if child_cardinality == "1..1":
+            child_card = "||"
+        if parent_cardinality == "0..*":
+            parent_card = "o|"
+        if child_cardinality == "0..*":
+            child_card = "o|"
+
+        label = relationship_labels.get((parent, child), "relates")
+        mermaid_code += f"    {parent.upper()} {parent_card}--{child_card} {child.upper()} : \"{label}\"\n"
 
     logging.debug(f"Generated Mermaid relationships: {mermaid_code}")
 
@@ -92,6 +92,12 @@ def convert_html_to_mermaid(input_html):
 
     question_content = question_match.group(1).strip()
     logging.debug(f"Extracted question content: {question_content}")
+
+    # Remove square brackets and their content
+    question_content = re.sub(r'\[[^\]]+\]', '', question_content)  # Remove [content]
+
+    # Bold and underline text inside parentheses
+    question_content = re.sub(r'\(([^)]+)\)', r'<strong><u>\1</u></strong>', question_content)
 
     answer_pattern = r"<uml-answer>(.*?)<\/uml-answer>"
     answer_match = re.search(answer_pattern, input_html, re.DOTALL)
@@ -111,14 +117,23 @@ def convert_html_to_mermaid(input_html):
 # Sample usage for debugging
 if __name__ == '__main__':
     sample_input_html = """
-    <uml-question>Construct a database design in UML for a fish store where...</uml-question>
-    <uml-answer>[Tank|number {PK};name;volume;color]
-    [Fish|id {PK};name;color;weight]
-    [Species|id {PK};name;preferredFood]
-    [Event|date {PPK};note]
-    [Tank] 1..1 - 0..* [Fish]
-    [Fish] 1..* - 1..1 [Species]
-    [Fish] 1..1 - 0..* [Event]</uml-answer>
+    <uml-question>Design an ER diagram for keeping track of information about votes taken in the U.S. House of Representatives during the current two-year congressional session.
+    The database needs to keep track of each U.S [State](State) [name](name) including [region](Region).
+    The [region](Region) has a [name](name) from the domain of {Northeast, Midwest, Southeast, Southwest, and West} and a [description](description) of the region.
+    Each [congressperson](Congressperson) in the House is described by [name](name), [district](district) represented, [start date](startDate), and political [party](party).
+    Each [state](State) is represented by at least one [congressperson](Congressperson).
+    The database keeps track of each [bill](Bill) (proposed law) including bill [name](name), [date](voteDate) of vote, [passed or failed](status), and the sponsor [congressperson](Congressperson) of the bill.
+    The database keeps track of how each [congressperson](Congressperson) [voted on](VotesOn) each bill [{Yes, No, Abstain, Absent}](vote). State clearly any assumptions.</uml-question>
+    <uml-answer>[Region|name{PK}; description]
+    [State|name {PK}]
+    [Congressperson|name{PK}; district{PK}; startDate; party]
+    [Bill|name {PK}; voteDate; status]
+    [VotesOn| vote]
+    [Region] 1..1 - 1..*[State]
+    [State] 1..1 - 1..*[Congressperson]
+    [Congressperson] 1..1 - 0..*[Bill]
+    [Congressperson]1..1 - 0..*[VotesOn]
+    [VotesOn]0..* - 1..1[Bill]</uml-answer>
     """
     question, mermaid = convert_html_to_mermaid(sample_input_html)
     print(f"Question: {question}")
