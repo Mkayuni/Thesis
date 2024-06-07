@@ -21,11 +21,16 @@
   <!-- Include Mermaid JS file from node_modules -->
   <script src="node_modules/mermaid/dist/mermaid.min.js?v=1.0.1"></script>
   <script>
+    // Initialize Mermaid
     mermaid.initialize({ startOnLoad: true });
 
     async function fetchAndRenderContent() {
       try {
-        const response = await fetch('http://127.0.0.1:5000/convert');
+        const response = await fetch('http://127.0.0.1:5000/convert_file');
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
         const data = await response.json();
         if (data.error) {
           throw new Error(data.error);
@@ -34,7 +39,7 @@
         // Display the question content
         document.getElementById('question').innerHTML = `<p>${data.question}</p>`;
 
-        // Display the mermaid diagram
+        // Display the Mermaid diagram
         document.getElementById('diagram').innerHTML = `<div class="mermaid">${data.mermaid_code}</div>`;
         mermaid.init(undefined, document.querySelectorAll('.mermaid'));
       } catch (error) {

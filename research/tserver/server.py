@@ -1,6 +1,6 @@
 import sys
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify
 from flask_cors import CORS
 
 # Add the server directory to the system path
@@ -12,16 +12,27 @@ from umlTranslator import convert_html_to_mermaid
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/convert', methods=['GET'])
-def convert():
+@app.route('/convert_file', methods=['GET'])
+def convert_file():
+    """Convert UML HTML content from a diagram.md file"""
     try:
-        # Open and read the diagram.md file
+        # Path to the diagram.md file
         src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src'))
-        with open(os.path.join(src_path, 'diagram.md'), 'r') as file:
+        file_path = os.path.join(src_path, 'diagram.md')
+
+        # Read the file
+        if not os.path.exists(file_path):
+            return jsonify({'error': 'diagram.md file not found'}), 404
+        
+        with open(file_path, 'r') as file:
             input_html = file.read()
 
+        # Convert the content to Mermaid code
         question_content, mermaid_code = convert_html_to_mermaid(input_html)
-        return jsonify({'question': question_content, 'mermaid_code': mermaid_code})
+        return jsonify({
+            'question': question_content,
+            'mermaid_code': mermaid_code
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
