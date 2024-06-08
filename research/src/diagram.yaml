@@ -21,12 +21,28 @@ entities:
       - testName PK
       - cost
       - outcome
+  - name: LocatedIn
+    attributes:
+      - officeNum
+      - salary
 
 relationships:
   - parent: Hospital
     parent_cardinality: 1..1
     child_cardinality: 0..*
+    child: LocatedIn
+  - parent: Doctor
+    parent_cardinality: 1..1
+    child_cardinality: 0..*
+    child: LocatedIn
+  - parent: Hospital
+    parent_cardinality: 1..1
+    child_cardinality: 1..1
     child: Doctor
+  - parent: Hospital
+    parent_cardinality: 1..1
+    child_cardinality: 0..*
+    child: Visit
   - parent: Doctor
     parent_cardinality: 1..1
     child_cardinality: 0..*

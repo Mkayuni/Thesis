@@ -4,9 +4,14 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import yamlTranslator  # Import the new YAML translator module
 from umlTranslator import convert_html_to_mermaid
+import logging
 
+# Initialize Flask app
 app = Flask(__name__)
 CORS(app)
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 @app.route('/convert_file', methods=['GET'])
 def convert_file():
@@ -18,6 +23,7 @@ def convert_file():
 
         # Read the file
         if not os.path.exists(file_path):
+            logging.error(f"File not found: {file_path}")
             return jsonify({'error': 'diagram.md file not found'}), 404
         
         with open(file_path, 'r') as file:
@@ -30,6 +36,7 @@ def convert_file():
             'mermaid_code': mermaid_code
         })
     except Exception as e:
+        logging.error(f"Error converting UML file: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/convert_yaml_file', methods=['GET'])
@@ -42,22 +49,22 @@ def convert_yaml_file():
 
         # Read the file
         if not os.path.exists(file_path):
+            logging.error(f"File not found: {file_path}")
             return jsonify({'error': 'diagram.yaml file not found'}), 404
 
         with open(file_path, 'r') as file:
             yaml_content = file.read()
 
         # Parse and convert YAML to Mermaid code
-        entities, relationships = yamlTranslator.parse_yaml(yaml_content)
+        entities, relationships = yamlTranslator.extract_entities_and_relationships(yaml_content)
         mermaid_code = yamlTranslator.generate_mermaid_code(entities, relationships)
 
         return jsonify({
             'mermaid_code': mermaid_code
         })
     except Exception as e:
+        logging.error(f"Error converting YAML file: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
-
 
 if __name__ == '__main__':
     app.run(debug=True)

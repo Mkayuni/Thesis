@@ -1,19 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mermaid Project</title>
-  <!-- Include Mermaid CSS file -->
-  <link rel="stylesheet" href="src/mermaid.css">
-  <!-- Link to favicon -->
-  <link rel="icon" href="src/favicon.ico" type="image/x-icon">
-  <!-- Include jQuery library -->
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-</head>
 <body>
   <h1>Welcome to the Mermaid Project</h1>
   <p>This is a test paragraph to ensure the HTML is being displayed correctly.</p>
+
+  <button id="load-uml">Load UML Diagram</button>
+  <button id="load-yaml">Load YAML Diagram</button>
 
   <div id="question"></div>
   <div id="diagram"></div>
@@ -24,7 +14,11 @@
     // Initialize Mermaid
     mermaid.initialize({ startOnLoad: true });
 
-    async function fetchAndRenderContent() {
+    document.getElementById('load-uml').addEventListener('click', fetchAndRenderUMLContent);
+    document.getElementById('load-yaml').addEventListener('click', fetchAndRenderYAMLContent);
+
+    // Function to fetch and render UML content
+    async function fetchAndRenderUMLContent() {
       try {
         const response = await fetch('http://127.0.0.1:5000/convert_file');
         if (!response.ok) {
@@ -43,12 +37,29 @@
         document.getElementById('diagram').innerHTML = `<div class="mermaid">${data.mermaid_code}</div>`;
         mermaid.init(undefined, document.querySelectorAll('.mermaid'));
       } catch (error) {
-        console.error('Error fetching and rendering content:', error);
+        console.error('Error fetching and rendering UML content:', error);
       }
     }
 
-    // Fetch and render the content on page load
-    fetchAndRenderContent();
+    // Function to fetch and render YAML content
+    async function fetchAndRenderYAMLContent() {
+      try {
+        const response = await fetch('http://127.0.0.1:5000/convert_yaml_file');
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        // Display the YAML conversion result as a Mermaid diagram
+        document.getElementById('diagram').innerHTML = `<div class="mermaid">${data.mermaid_code}</div>`;
+        mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+      } catch (error) {
+        console.error('Error fetching and rendering YAML content:', error);
+      }
+    }
   </script>
 </body>
-</html>
