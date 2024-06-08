@@ -1,12 +1,8 @@
 import sys
 import os
-from flask import Flask, jsonify
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-
-# Add the server directory to the system path
-server_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'server'))
-sys.path.insert(0, server_path)
-
+import yamlTranslator  # Import the new YAML translator module
 from umlTranslator import convert_html_to_mermaid
 
 app = Flask(__name__)
@@ -35,6 +31,33 @@ def convert_file():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/convert_yaml_file', methods=['GET'])
+def convert_yaml_file():
+    """Convert YAML content from a diagram.yaml file"""
+    try:
+        # Path to the diagram.yaml file
+        src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src'))
+        file_path = os.path.join(src_path, 'diagram.yaml')
+
+        # Read the file
+        if not os.path.exists(file_path):
+            return jsonify({'error': 'diagram.yaml file not found'}), 404
+
+        with open(file_path, 'r') as file:
+            yaml_content = file.read()
+
+        # Parse and convert YAML to Mermaid code
+        entities, relationships = yamlTranslator.parse_yaml(yaml_content)
+        mermaid_code = yamlTranslator.generate_mermaid_code(entities, relationships)
+
+        return jsonify({
+            'mermaid_code': mermaid_code
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)

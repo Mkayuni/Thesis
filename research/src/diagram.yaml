@@ -1,0 +1,41 @@
+entities:
+  - name: Hospital
+    attributes:
+      - hospitalName PK
+      - location
+  - name: Doctor
+    attributes:
+      - medicalNum PK
+      - name
+  - name: Visit
+    attributes:
+      - visitId PK
+      - visitDate
+  - name: Patient
+    attributes:
+      - healthId PK
+      - name
+      - gender
+  - name: Test
+    attributes:
+      - testName PK
+      - cost
+      - outcome
+
+relationships:
+  - parent: Hospital
+    parent_cardinality: 1..1
+    child_cardinality: 0..*
+    child: Doctor
+  - parent: Doctor
+    parent_cardinality: 1..1
+    child_cardinality: 0..*
+    child: Visit
+  - parent: Patient
+    parent_cardinality: 1..1
+    child_cardinality: 0..*
+    child: Visit
+  - parent: Visit
+    parent_cardinality: 1..1
+    child_cardinality: 0..*
+    child: Test
