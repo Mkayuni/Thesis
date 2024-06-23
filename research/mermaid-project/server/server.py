@@ -18,14 +18,14 @@ def convert_file():
     """Convert UML HTML content from a diagram.md file"""
     try:
         # Path to the diagram.md file
-        src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src'))
-        file_path = os.path.join(src_path, 'diagram.md')
+        data_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data'))
+        file_path = os.path.join(data_path, 'diagram.md')
 
         # Read the file
         if not os.path.exists(file_path):
             logging.error(f"File not found: {file_path}")
             return jsonify({'error': 'diagram.md file not found'}), 404
-        
+
         with open(file_path, 'r') as file:
             input_html = file.read()
 
@@ -44,8 +44,8 @@ def convert_yaml_file():
     """Convert YAML content from a diagram.yaml file"""
     try:
         # Path to the diagram.yaml file
-        src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src'))
-        file_path = os.path.join(src_path, 'diagram.yaml')
+        data_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data'))
+        file_path = os.path.join(data_path, 'diagram.yaml')
 
         # Read the file
         if not os.path.exists(file_path):
