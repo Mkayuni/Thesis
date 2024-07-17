@@ -1,59 +1,69 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 const EntityManager = ({ schema, setSchema, attributes, setAttributes, addEntity, removeEntity, addAttribute, removeAttribute }) => {
+  const questionRef = useRef(null);
 
   const toAttributeName = (string) => {
     return string.charAt(0).toLowerCase() + string.slice(1);
   };
 
   const updateEntityMenu = (i, j, clicked) => {
-    let entityElement = document.getElementById(`sm-entity-${i}-${j}`);
-    entityElement.innerHTML = `<a onclick="addEntity(this)" class="entity ${i}-${j}">Add entity</a>`;
-    let entity = entityElement.className.split(' ')[1];
-
-    let allEntities = document.getElementsByClassName(entity);
-    for (let k = 0; k < allEntities.length; k++) {
-      if (clicked) {
-        allEntities[k].className += ' disabled-link';
-      } else {
-        allEntities[k].className = allEntities[k].className.replace(' disabled-link', '');
+    const entityElement = document.getElementById(`sm-entity-${i}-${j}`);
+    if (entityElement) {
+      entityElement.innerHTML = `<a onclick="addEntity(this)" class="entity ${i}-${j}">Add entity</a>`;
+      const entity = entityElement.className.split(' ')[1];
+  
+      const allEntities = document.getElementsByClassName(entity);
+      for (let k = 0; k < allEntities.length; k++) {
+        if (clicked) {
+          allEntities[k].className += ' disabled-link';
+        } else {
+          allEntities[k].className = allEntities[k].className.replace(' disabled-link', '');
+        }
       }
     }
   };
 
   const showAddAttribute = () => {
-    const lis = document.getElementById('question').getElementsByTagName('li');
-    for (let i = 0; i < lis.length; i++) {
-      const divs = lis[i].children;
-      for (let j = 0; j < divs.length; j++) {
-        if (schema.size === 0) {
-          document.getElementById(`sm-att-${i}-${j}`).innerHTML = `<a class="disabled-link attribute ${i}-${j}">Add attribute</a>`;
-        } else {
-          updateAttMenu(i, j);
+    const questionElement = questionRef.current;
+    if (questionElement) {
+      const lis = questionElement.getElementsByTagName('li');
+      for (let i = 0; i < lis.length; i++) {
+        const divs = lis[i].children;
+        for (let j = 0; j < divs.length; j++) {
+          if (schema.size === 0) {
+            const attElement = document.getElementById(`sm-att-${i}-${j}`);
+            if (attElement) {
+              attElement.innerHTML = `<a class="disabled-link attribute ${i}-${j}">Add attribute</a>`;
+            }
+          } else {
+            updateAttMenu(i, j);
+          }
         }
       }
     }
   };
 
   const updateAttMenu = (i, j) => {
-    let attHTML = '';
-    let attName = toAttributeName(document.getElementById(`sm-att-${i}-${j}`).parentElement.getAttribute('nameer'));
-    let attObj = attributes.get(attName);
-
-    attHTML +=
-      `<a class="attribute ${i}-${j}" >Add attribute </a>` +
-      `<div id="submenu-${i}-${j}" class="submenu-content">`;
-    schema.forEach((value, key) => {
-      let enObj = schema.get(key);
-      if (typeof enObj['attribute'].get(attName) === 'undefined') {
-        attHTML += `<a onclick="addAttribute(this.className, '${attName}')" class="${key}" id="attribute${i}-${j}-${key}">${value.entity}</a>`;
-      } else {
-        attHTML += `<a class="disabled-link ${key}" id="attribute${i}-${j}-${key}">${value.entity}</a>`;
-      }
-    });
-    attHTML += '</div>';
-
-    document.getElementById(`sm-att-${i}-${j}`).innerHTML = attHTML;
+    const attElement = document.getElementById(`sm-att-${i}-${j}`);
+    if (attElement) {
+      let attHTML = '';
+      const attName = toAttributeName(attElement.parentElement.getAttribute('nameer'));
+      const attObj = attributes.get(attName);
+  
+      attHTML += `<a class="attribute ${i}-${j}" >Add attribute </a>` + `<div id="submenu-${i}-${j}" class="submenu-content">`;
+      schema.forEach((value, key) => {
+        const enObj = schema.get(key);
+        if (typeof enObj['attribute'].get(attName) === 'undefined') {
+          attHTML += `<a onclick="addAttribute(this.className, '${attName}')" class="${key}" id="attribute${i}-${j}-${key}">${value.entity}</a>`;
+        } else {
+          attHTML += `<a class="disabled-link ${key}" id="attribute${i}-${j}-${key}">${value.entity}</a>`;
+        }
+      });
+      attHTML += '</div>';
+  
+      attElement.innerHTML = attHTML;
+    }
   };
 
   const handleAddEntity = () => {

@@ -17,7 +17,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema }) =
     }
 
     function markdownToHTML(question) {
-      let questionHTML = '<li>';
+      let questionHTML = '';
       let insideSquare = false;
       let insideCircle = false;
       let innerHTML = '';
@@ -25,7 +25,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema }) =
 
       for (let i = 0; i < question.length; i++) {
         if (question.charAt(i) === '\n') {
-          questionHTML += '</li><li>';
+          questionHTML += ' ';
         }
         if (question.charAt(i) === '[') {
           insideSquare = true;
@@ -57,7 +57,6 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema }) =
         }
       }
 
-      questionHTML += '</li>';
       return questionHTML;
     }
 

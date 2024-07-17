@@ -30,6 +30,7 @@ def add_entity():
         if not entity_name:
             raise ValueError('Entity name is required')
         mock_entities.append({'name': entity_name})
+        logging.debug(f"Added entity: {entity_name}")
         return jsonify({'status': 'Entity added successfully', 'entities': mock_entities})
     except Exception as e:
         logging.error(f"Error adding entity: {str(e)}")
@@ -48,6 +49,7 @@ def add_attribute():
         if not entity:
             raise ValueError('Entity not found')
         mock_attributes.append({'entity': entity_name, 'name': attribute_name, 'key': key})
+        logging.debug(f"Added attribute: {attribute_name} to entity: {entity_name}")
         return jsonify({'status': 'Attribute added successfully', 'attributes': mock_attributes})
     except Exception as e:
         logging.error(f"Error adding attribute: {str(e)}")
@@ -73,6 +75,7 @@ def add_relationship():
             'parent_cardinality': parent_cardinality,
             'child_cardinality': child_cardinality
         })
+        logging.debug(f"Added relationship: {parent_entity} ({parent_cardinality}) -> {child_entity} ({child_cardinality})")
         return jsonify({'status': 'Relationship added successfully', 'relationships': mock_relationships})
     except Exception as e:
         logging.error(f"Error adding relationship: {str(e)}")
