@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import mermaid from 'mermaid';
-import { Box, Container, Typography, TextField } from '@mui/material';
+import { Box, Container, Typography, TextField, Drawer, Divider } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import QuestionSetup from './questionSetup/QuestionSetup';
 import EntityManager from './entityManager/EntityManager';
@@ -147,10 +147,11 @@ const UMLComponent = () => {
     boxShadow: theme.shadows[3],
     height: '100vh',
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'row',
     gap: theme.spacing(2),
     [theme.breakpoints.down('sm')]: {
       padding: theme.spacing(1),
+      flexDirection: 'column',
     },
   }));
 
@@ -159,59 +160,81 @@ const UMLComponent = () => {
     backgroundColor: '#f5f5f5',
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[2],
+    flex: 3,
+    overflow: 'auto',
+  }));
+
+  const DrawerContainer = styled(Box)(({ theme }) => ({
+    padding: theme.spacing(2),
+    backgroundColor: '#ffffff',
+    borderRadius: theme.shape.borderRadius,
+    boxShadow: theme.shadows[3],
+    height: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing(2),
     flex: 1,
     overflow: 'auto',
   }));
 
   return (
     <MainContainer>
-      <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0066ff' }}>
-        Welcome to the UML Project
-      </Typography>
-      <Typography variant="body1" sx={{ color: '#333' }}>
-        This is a test paragraph to ensure the HTML is being displayed correctly.
-      </Typography>
+      <DrawerContainer>
+        <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0066ff', marginBottom: '16px' }}>
+          Controls
+        </Typography>
+        <TextField
+          placeholder="Enter UML question here"
+          value={questionMarkdown}
+          onChange={(e) => setQuestionMarkdown(e.target.value)}
+          multiline
+          rows={4}
+          fullWidth
+          sx={{ marginBottom: '24px' }}
+        />
+        <QuestionSetup
+          questionMarkdown={questionMarkdown}
+          setQuestionMarkdown={setQuestionMarkdown}
+          schema={schema}
+          setSchema={setSchema}
+          attributes={attributes}
+          setAttributes={setAttributes}
+        />
+        <Divider />
+        <Typography variant="h6" sx={{ marginBottom: '16px' }}>
+          Entity Manager
+        </Typography>
+        <EntityManager
+          schema={schema}
+          setSchema={setSchema}
+          attributes={attributes}
+          setAttributes={setAttributes}
+          addEntity={addEntity}
+          removeEntity={removeEntity}
+          addAttribute={addAttribute}
+          removeAttribute={removeAttribute}
+        />
+        <Divider />
+        <Typography variant="h6" sx={{ marginBottom: '16px' }}>
+          Relationship Manager
+        </Typography>
+        <RelationshipManager
+          relationships={relationships}
+          setRelationships={setRelationships}
+          addRelationship={addRelationship}
+          editRelationship={editRelationship}
+          removeRelationship={removeRelationship}
+        />
+      </DrawerContainer>
 
-      <TextField
-        placeholder="Enter UML question here"
-        value={questionMarkdown}
-        onChange={(e) => setQuestionMarkdown(e.target.value)}
-        multiline
-        rows={4}
-        fullWidth
-        sx={{ marginBottom: '24px' }}
-      />
-
-      <Box ref={questionRef} id="question" sx={{ marginBottom: '24px', padding: '16px', backgroundColor: '#fff', borderRadius: '4px', boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)' }} />
-
-      <DiagramBox ref={diagramRef} id="diagram" />
-
-      <QuestionSetup
-        questionMarkdown={questionMarkdown}
-        setQuestionMarkdown={setQuestionMarkdown}
-        schema={schema}
-        setSchema={setSchema}
-        attributes={attributes}
-        setAttributes={setAttributes}
-      />
-      <EntityManager
-        schema={schema}
-        setSchema={setSchema}
-        attributes={attributes}
-        setAttributes={setAttributes}
-        addEntity={addEntity}
-        removeEntity={removeEntity}
-        addAttribute={addAttribute}
-        removeAttribute={removeAttribute}
-      />
-      <RelationshipManager
-        relationships={relationships}
-        setRelationships={setRelationships}
-        addRelationship={addRelationship}
-        editRelationship={editRelationship}
-        removeRelationship={removeRelationship}
-      />
-      <MermaidDiagram schema={schema} relationships={relationships} />
+      <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column' }}>
+        <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0066ff', marginBottom: '16px' }}>
+          UML Diagram
+        </Typography>
+        <Box ref={questionRef} id="question" sx={{ marginBottom: '24px', padding: '16px', backgroundColor: '#fff', borderRadius: '4px', boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)' }} />
+        <DiagramBox ref={diagramRef} id="diagram" />
+        <MermaidDiagram schema={schema} relationships={relationships} />
+      </Box>
     </MainContainer>
   );
 };
