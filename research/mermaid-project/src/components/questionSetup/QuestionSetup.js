@@ -69,10 +69,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema, sho
         if (entities.has(nameInER)) {
           addEntity(nameInER);
         } else if (attributes.has(nameInER)) {
-          const lastEntity = Array.from(schema.keys()).pop();
-          if (lastEntity) {
-            addAttribute(lastEntity, nameInER);
-          }
+          showPopup(nameInER);
         }
       };
     }

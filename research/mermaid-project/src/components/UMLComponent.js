@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import mermaid from 'mermaid';
 import { Box, Typography, TextField, Divider } from '@mui/material';
 import { styled } from '@mui/material/styles';
@@ -15,12 +15,82 @@ const UMLComponent = () => {
   const [relationships, setRelationships] = useState(new Map());
 
   const diagramRef = useRef(null);
-  const [popup, setPopup] = useState({ visible: false, x: 0, y: 0, entity: '' });
+  const controlsRef = useRef(null);
+  const [popup, setPopup] = useState({ visible: false, x: 0, y: 0, entityOrAttribute: '', type: '', entities: [] });
+  const [subPopup, setSubPopup] = useState({ visible: false, x: 0, y: 0, entityOrAttribute: '', entities: [] });
 
-  const showPopup = (e, entity) => {
-    e.preventDefault();
-    const rect = e.target.getBoundingClientRect();
-    setPopup({ visible: true, x: rect.left, y: rect.bottom, entity });
+  const showPopup = useCallback((e, entityOrAttribute, type) => {
+    if (e.preventDefault) e.preventDefault(); // Check if preventDefault exists
+    const rect = e.target ? e.target.getBoundingClientRect() : { left: 0, bottom: 0, right: 0, top: 0 };
+
+    const popupWidth = 200; // Approximate width of the popup, adjust as necessary
+    const popupHeight = 100; // Approximate height of the popup, adjust as necessary
+
+    const controlsRect = controlsRef.current.getBoundingClientRect();
+
+    let x = rect.left; // Start right below the selected word
+    let y = rect.bottom; // Align the top of the popup with the bottom of the button
+
+    if (x + popupWidth > controlsRect.right) {
+      x = controlsRect.right - popupWidth - 10; // Move to the left if it overflows
+    }
+    if (y + popupHeight > controlsRect.bottom) {
+      y = controlsRect.bottom - popupHeight - 10; // Adjust if it overflows vertically
+    }
+
+    setPopup({
+      visible: true,
+      x,
+      y,
+      entityOrAttribute,
+      type,
+      entities: Array.from(schema.keys()),
+    });
+  }, [schema]);
+
+  const hidePopup = () => {
+    setPopup({ visible: false, x: 0, y: 0, entityOrAttribute: '', type: '', entities: [] });
+    setSubPopup({ visible: false, x: 0, y: 0, entityOrAttribute: '', entities: [] });
+  };
+
+  const adjustPopupPosition = (x, y, popupWidth, popupHeight) => {
+    const controlsRect = controlsRef.current.getBoundingClientRect();
+    if (x + popupWidth > controlsRect.right) {
+      x = controlsRect.right - popupWidth - 10; // 10px padding
+    }
+    if (y + popupHeight > controlsRect.bottom) {
+      y = controlsRect.bottom - popupHeight - 10; // 10px padding
+    }
+    return { x, y };
+  };
+
+  const showSubPopup = (entityOrAttribute, position = 'right', spacing = 5) => {
+    const popupElement = document.querySelector('.popup');
+    const popupWidth = popupElement ? popupElement.offsetWidth : 0;
+    const popupHeight = popupElement ? popupElement.offsetHeight : 0;
+
+    let x = popup.x;
+    let y = popup.y;
+
+    if (position === 'right') {
+      x += popupWidth + spacing; // Adding adjustable spacing
+    } else if (position === 'left') {
+      x -= (popupWidth + spacing); // Adjust to move left
+    } else if (position === 'above') {
+      y -= (popupHeight + spacing); // Adjust to move above
+    } else if (position === 'below') {
+      y += popupHeight + spacing; // Adding adjustable spacing
+    }
+
+    const adjustedPosition = adjustPopupPosition(x, y, popupWidth, popupHeight);
+
+    setSubPopup({
+      visible: true,
+      x: adjustedPosition.x,
+      y: adjustedPosition.y,
+      entityOrAttribute,
+      entities: popup.entities,
+    });
   };
 
   useEffect(() => {
@@ -34,16 +104,16 @@ const UMLComponent = () => {
     }
   }, [schema, relationships]);
 
-  const addEntity = (entity) => {
+  const addEntity = useCallback((entity) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       newSchema.set(entity, { entity, attribute: new Map() });
       return newSchema;
     });
-    setPopup({ visible: false, x: 0, y: 0, entity: '' });
-  };
+    hidePopup();
+  }, []);
 
-  const addAttribute = (entity, attribute, key = '') => {
+  const addAttribute = useCallback((entity, attribute, key = '') => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
@@ -66,10 +136,10 @@ const UMLComponent = () => {
       }
       return newAttributes;
     });
-    setPopup({ visible: false, x: 0, y: 0, entity: '' });
-  };
+    hidePopup();
+  }, []);
 
-  const addRelationship = (relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
+  const addRelationship = useCallback((relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
     setRelationships((prevRelationships) => {
       const newRelationships = new Map(prevRelationships);
       const relCount = newRelationships.size;
@@ -84,9 +154,9 @@ const UMLComponent = () => {
       newRelationships.set(relCount, relationship);
       return newRelationships;
     });
-  };
+  }, []);
 
-  const editRelationship = (id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
+  const editRelationship = useCallback((id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
     setRelationships((prevRelationships) => {
       const newRelationships = new Map(prevRelationships);
       const relationship = {
@@ -100,15 +170,15 @@ const UMLComponent = () => {
       newRelationships.set(id, relationship);
       return newRelationships;
     });
-  };
+  }, []);
 
-  const removeRelationship = (id) => {
+  const removeRelationship = useCallback((id) => {
     setRelationships((prevRelationships) => {
       const newRelationships = new Map(prevRelationships);
       newRelationships.delete(id);
       return newRelationships;
     });
-  };
+  }, []);
 
   const MainContainer = styled(Box)(({ theme }) => ({
     padding: theme.spacing(2),
@@ -185,7 +255,7 @@ const UMLComponent = () => {
     <MainContainer>
       <Header>AutoER-Kayuni</Header>
       <Box sx={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden', width: '100%' }}>
-        <DrawerContainer>
+        <DrawerContainer ref={controlsRef}>
           <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2', marginBottom: '16px' }}>
             Controls
           </Typography>
@@ -247,6 +317,7 @@ const UMLComponent = () => {
       </Footer>
       {popup.visible && (
         <div
+          className="popup" // Added a class for the popup
           style={{
             position: 'absolute',
             top: popup.y,
@@ -255,14 +326,48 @@ const UMLComponent = () => {
             border: '1px solid #ccc',
             padding: '10px',
             zIndex: 1000,
+            maxWidth: '100%', // Ensure it doesn't overflow
+            maxHeight: '100%', // Ensure it doesn't overflow
           }}
         >
-          <div>
-            <button onClick={() => addEntity(popup.entity)}>Add Entity</button>
-          </div>
-          <div>
-            <button onClick={() => addAttribute(popup.entity)}>Add Attribute</button>
-          </div>
+          {popup.type === 'attribute' ? (
+            popup.entities.map((entity) => (
+              <div key={entity}>
+                <button onClick={() => addAttribute(entity, popup.entityOrAttribute)}>{entity}</button>
+              </div>
+            ))
+          ) : (
+            <>
+              <div>
+                <button onClick={() => addEntity(popup.entityOrAttribute)}>Add Entity</button>
+              </div>
+              <div>
+                <button onClick={() => showSubPopup(popup.entityOrAttribute, 'right', 5)}>Add Attribute</button>
+                {/* You can call showSubPopup with different positions and spacings */}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      {subPopup.visible && (
+        <div
+          style={{
+            position: 'absolute',
+            top: subPopup.y,
+            left: subPopup.x,
+            backgroundColor: 'white',
+            border: '1px solid #ccc',
+            padding: '10px',
+            zIndex: 1000,
+            maxWidth: '100%', // Ensure it doesn't overflow
+            maxHeight: '100%', // Ensure it doesn't overflow
+          }}
+        >
+          {subPopup.entities.map((entity) => (
+            <div key={entity}>
+              <button onClick={() => addAttribute(entity, subPopup.entityOrAttribute)}>{entity}</button>
+            </div>
+          ))}
         </div>
       )}
     </MainContainer>
