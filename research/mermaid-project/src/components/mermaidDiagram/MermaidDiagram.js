@@ -10,9 +10,8 @@ const MermaidDiagram = ({ schema, relationships }) => {
       let schemaText = [];
       schema.forEach((schemaItem, entKey) => {
         let item = `class ${schemaItem.entity} {\n`;
-        item += `    <text class="entity-name">${schemaItem.entity}</text>\n`; // Entity name with custom class
         schemaItem.attribute.forEach((attItem, attKey) => {
-          item += `    <text class="attribute">${attItem.attribute} ${attItem.key ? `(${attItem.key})` : ''}</text>\n`; // Attribute with custom class
+          item += `    ${attItem.attribute} ${attItem.key ? `(${attItem.key})` : ''}\n`; // Correctly format attributes
         });
         item += '}';
         schemaText.push(item);
