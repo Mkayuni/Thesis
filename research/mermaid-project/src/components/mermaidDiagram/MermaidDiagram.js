@@ -1,15 +1,18 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import mermaid from 'mermaid';
+import '../mermaid.css'; // Ensure this path points to your CSS file
 
 const MermaidDiagram = ({ schema, relationships }) => {
+  const diagramRef = useRef(null);
+
   useEffect(() => {
     const schemaToMermaidSource = () => {
       let schemaText = [];
       schema.forEach((schemaItem, entKey) => {
-        let item = `class ${schemaItem.entity}:::styling { `;
+        let item = `class ${schemaItem.entity} {\n`;
+        item += `    <text class="entity-name">${schemaItem.entity}</text>\n`; // Entity name with custom class
         schemaItem.attribute.forEach((attItem, attKey) => {
-          let key = attItem.key ? `&#123${attItem.key.substring(1, attItem.key.length - 1)}&#125` : '';
-          item += `${attItem.attribute} ${key}\n`;
+          item += `    <text class="attribute">${attItem.attribute} ${attItem.key ? `(${attItem.key})` : ''}</text>\n`; // Attribute with custom class
         });
         item += '}';
         schemaText.push(item);
@@ -29,21 +32,27 @@ const MermaidDiagram = ({ schema, relationships }) => {
     };
 
     const renderDiagram = () => {
-      const source = `classDiagram\ndirection TD\n${schemaToMermaidSource()}`;
+      const source = `classDiagram\n${schemaToMermaidSource()}`;
       mermaid.mermaidAPI.initialize({ startOnLoad: false });
       mermaid.mermaidAPI.render('umlDiagram', source, (svgGraph) => {
-        document.getElementById('diagram').innerHTML = svgGraph;
+        const diagramElement = diagramRef.current;
+        if (diagramElement) {
+          diagramElement.innerHTML = svgGraph;
+        }
       });
     };
 
     if (schema.size !== 0) {
       renderDiagram();
     } else {
-      document.getElementById('diagram').innerHTML = null;
+      const diagramElement = diagramRef.current;
+      if (diagramElement) {
+        diagramElement.innerHTML = null;
+      }
     }
   }, [schema, relationships]);
 
-  return <div id="diagram"></div>;
+  return <div id="diagram" ref={diagramRef}></div>;
 };
 
 export default MermaidDiagram;

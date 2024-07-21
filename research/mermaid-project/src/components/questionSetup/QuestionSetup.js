@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 
-const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema }) => {
+const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema, showPopup }) => {
   useEffect(() => {
     function extractEntitiesAndAttributes(question) {
       const entityAttributePattern = /\[(.*?)\]\((.*?)\)/g;
@@ -41,8 +41,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema }) =
           if (insideCircle) {
             insideCircle = false;
             const boldText = innerHTML;
-            const clickHandler = `addEntityOrAttribute('${nameInER}')`;
-            questionHTML += `<strong onclick="${clickHandler}">${boldText}</strong>`;
+            questionHTML += `<strong><a href="#" onclick="event.preventDefault(); window.showPopup(event, '${nameInER}')">${boldText}</a></strong>`;
             nameInER = '';
             innerHTML = '';
           } else {
@@ -65,6 +64,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema }) =
       const question = document.getElementById('question');
       question.innerHTML = markdownToHTML(questionMarkdown);
 
+      window.showPopup = showPopup;
       window.addEntityOrAttribute = (nameInER) => {
         if (entities.has(nameInER)) {
           addEntity(nameInER);
@@ -84,7 +84,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema }) =
     if (questionMarkdown) {
       initQuestionSetup();
     }
-  }, [questionMarkdown, schema]);
+  }, [questionMarkdown, schema, showPopup]);
 
   const addEntity = (entityName) => {
     setSchema((prevSchema) => {

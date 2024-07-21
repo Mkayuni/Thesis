@@ -1,26 +1,30 @@
 import React, { useEffect, useRef } from 'react';
 
-const EntityManager = ({ schema, setSchema, attributes, setAttributes, addEntity, removeEntity, addAttribute, removeAttribute }) => {
+const EntityManager = ({ schema, setSchema, attributes, setAttributes, addEntity, addAttribute, showPopup }) => {
   const questionRef = useRef(null);
 
   const toAttributeName = (string) => {
     return string.charAt(0).toLowerCase() + string.slice(1);
   };
 
-  const updateEntityMenu = (i, j, clicked) => {
-    const entityElement = document.getElementById(`sm-entity-${i}-${j}`);
-    if (entityElement) {
-      entityElement.innerHTML = `<a onclick="addEntity(this)" class="entity ${i}-${j}">Add entity</a>`;
-      const entity = entityElement.className.split(' ')[1];
-  
-      const allEntities = document.getElementsByClassName(entity);
-      for (let k = 0; k < allEntities.length; k++) {
-        if (clicked) {
-          allEntities[k].className += ' disabled-link';
+  const updateAttMenu = (i, j) => {
+    const attElement = document.getElementById(`sm-att-${i}-${j}`);
+    if (attElement) {
+      let attHTML = '';
+      const attName = toAttributeName(attElement.parentElement.getAttribute('nameer'));
+
+      attHTML += `<a class="attribute ${i}-${j}" >Add attribute </a><div id="submenu-${i}-${j}" class="submenu-content">`;
+      schema.forEach((value, key) => {
+        const enObj = schema.get(key);
+        if (typeof enObj['attribute'].get(attName) === 'undefined') {
+          attHTML += `<a href="#" onclick="event.preventDefault();" class="${key}" id="attribute${i}-${j}-${key}">${value.entity}</a>`;
         } else {
-          allEntities[k].className = allEntities[k].className.replace(' disabled-link', '');
+          attHTML += `<a href="#" class="disabled-link ${key}" id="attribute${i}-${j}-${key}">${value.entity}</a>`;
         }
-      }
+      });
+      attHTML += '</div>';
+  
+      attElement.innerHTML = attHTML;
     }
   };
 
@@ -44,114 +48,13 @@ const EntityManager = ({ schema, setSchema, attributes, setAttributes, addEntity
     }
   };
 
-  const updateAttMenu = (i, j) => {
-    const attElement = document.getElementById(`sm-att-${i}-${j}`);
-    if (attElement) {
-      let attHTML = '';
-      const attName = toAttributeName(attElement.parentElement.getAttribute('nameer'));
-      const attObj = attributes.get(attName);
-  
-      attHTML += `<a class="attribute ${i}-${j}" >Add attribute </a>` + `<div id="submenu-${i}-${j}" class="submenu-content">`;
-      schema.forEach((value, key) => {
-        const enObj = schema.get(key);
-        if (typeof enObj['attribute'].get(attName) === 'undefined') {
-          attHTML += `<a onclick="addAttribute(this.className, '${attName}')" class="${key}" id="attribute${i}-${j}-${key}">${value.entity}</a>`;
-        } else {
-          attHTML += `<a class="disabled-link ${key}" id="attribute${i}-${j}-${key}">${value.entity}</a>`;
-        }
-      });
-      attHTML += '</div>';
-  
-      attElement.innerHTML = attHTML;
-    }
-  };
-
-  const handleAddEntity = () => {
-    const entity = 'NewEntity';
-    addEntity(entity);
-    setSchema((prevSchema) => {
-      const newSchema = new Map(prevSchema);
-      newSchema.set(entity, { entity, attribute: new Map() });
-      return newSchema;
-    });
-  };
-
-  const handleRemoveEntity = () => {
-    const entity = 'EntityToRemove';
-    removeEntity(entity);
-    setSchema((prevSchema) => {
-      const newSchema = new Map(prevSchema);
-      newSchema.delete(entity);
-      return newSchema;
-    });
-  };
-
-  const handleAddAttribute = () => {
-    const entity = 'Entity';
-    const attribute = 'NewAttribute';
-    addAttribute(entity, attribute, '{PK}');
-    setSchema((prevSchema) => {
-      const newSchema = new Map(prevSchema);
-      const entityData = newSchema.get(entity);
-      if (entityData) {
-        entityData.attribute.set(attribute, { attribute, key: '{PK}' });
-        newSchema.set(entity, entityData);
-      }
-      return newSchema;
-    });
-
-    setAttributes((prevAttributes) => {
-      const newAttributes = new Map(prevAttributes);
-      if (!newAttributes.has(attribute)) {
-        const enMap = new Map();
-        enMap.set(entity);
-        newAttributes.set(attribute, { attribute, entities: enMap });
-      } else {
-        const attObj = newAttributes.get(attribute);
-        attObj.entities.set(entity);
-      }
-      return newAttributes;
-    });
-  };
-
-  const handleRemoveAttribute = () => {
-    const entity = 'Entity';
-    const attribute = 'AttributeToRemove';
-    removeAttribute(entity, attribute);
-    setSchema((prevSchema) => {
-      const newSchema = new Map(prevSchema);
-      const entityData = newSchema.get(entity);
-      if (entityData) {
-        entityData.attribute.delete(attribute);
-        newSchema.set(entity, entityData);
-      }
-      return newSchema;
-    });
-
-    setAttributes((prevAttributes) => {
-      const newAttributes = new Map(prevAttributes);
-      const attObj = newAttributes.get(attribute);
-      if (attObj) {
-        attObj.entities.delete(entity);
-        if (attObj.entities.size === 0) {
-          newAttributes.delete(attribute);
-        }
-      }
-      return newAttributes;
-    });
-  };
-
   useEffect(() => {
     showAddAttribute();
-  }, [schema, attributes]);
+  }, [schema, attributes, showAddAttribute]);
 
   return (
     <div id="entity-manager">
       <h3>Entity Manager</h3>
-      <button onClick={handleAddEntity}>Add Entity</button>
-      <button onClick={handleRemoveEntity}>Remove Entity</button>
-      <button onClick={handleAddAttribute}>Add Attribute</button>
-      <button onClick={handleRemoveAttribute}>Remove Attribute</button>
       <div id="entity-list">
         {Array.from(schema.entries()).map(([key, value]) => (
           <div key={key}>
@@ -163,7 +66,6 @@ const EntityManager = ({ schema, setSchema, attributes, setAttributes, addEntity
                 </li>
               ))}
             </ul>
-            <button onClick={() => removeEntity(key)}>Remove {value.entity}</button>
           </div>
         ))}
       </div>

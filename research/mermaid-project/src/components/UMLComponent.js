@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import mermaid from 'mermaid';
-import { Box, Container, Typography, TextField, Drawer, Divider } from '@mui/material';
+import { Box, Typography, TextField, Divider } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import QuestionSetup from './questionSetup/QuestionSetup';
 import EntityManager from './entityManager/EntityManager';
 import RelationshipManager from './relationshipManager/RelationshipManager';
 import MermaidDiagram from './mermaidDiagram/MermaidDiagram';
+import './mermaid.css'; // Ensure this path points to your CSS file
 
 const UMLComponent = () => {
   const [questionMarkdown, setQuestionMarkdown] = useState('');
@@ -14,7 +15,13 @@ const UMLComponent = () => {
   const [relationships, setRelationships] = useState(new Map());
 
   const diagramRef = useRef(null);
-  const questionRef = useRef(null);
+  const [popup, setPopup] = useState({ visible: false, x: 0, y: 0, entity: '' });
+
+  const showPopup = (e, entity) => {
+    e.preventDefault();
+    const rect = e.target.getBoundingClientRect();
+    setPopup({ visible: true, x: rect.left, y: rect.bottom, entity });
+  };
 
   useEffect(() => {
     mermaid.initialize({ startOnLoad: true });
@@ -27,27 +34,13 @@ const UMLComponent = () => {
     }
   }, [schema, relationships]);
 
-  useEffect(() => {
-    const questionElement = questionRef.current;
-    if (questionElement) {
-      questionElement.innerHTML = questionMarkdown;
-    }
-  }, [questionMarkdown]);
-
   const addEntity = (entity) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       newSchema.set(entity, { entity, attribute: new Map() });
       return newSchema;
     });
-  };
-
-  const removeEntity = (entity) => {
-    setSchema((prevSchema) => {
-      const newSchema = new Map(prevSchema);
-      newSchema.delete(entity);
-      return newSchema;
-    });
+    setPopup({ visible: false, x: 0, y: 0, entity: '' });
   };
 
   const addAttribute = (entity, attribute, key = '') => {
@@ -73,30 +66,7 @@ const UMLComponent = () => {
       }
       return newAttributes;
     });
-  };
-
-  const removeAttribute = (entity, attribute) => {
-    setSchema((prevSchema) => {
-      const newSchema = new Map(prevSchema);
-      const entityData = newSchema.get(entity);
-      if (entityData) {
-        entityData.attribute.delete(attribute);
-        newSchema.set(entity, entityData);
-      }
-      return newSchema;
-    });
-
-    setAttributes((prevAttributes) => {
-      const newAttributes = new Map(prevAttributes);
-      const attObj = newAttributes.get(attribute);
-      if (attObj) {
-        attObj.entities.delete(entity);
-        if (attObj.entities.size === 0) {
-          newAttributes.delete(attribute);
-        }
-      }
-      return newAttributes;
-    });
+    setPopup({ visible: false, x: 0, y: 0, entity: '' });
   };
 
   const addRelationship = (relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
@@ -140,15 +110,17 @@ const UMLComponent = () => {
     });
   };
 
-  const MainContainer = styled(Container)(({ theme }) => ({
+  const MainContainer = styled(Box)(({ theme }) => ({
     padding: theme.spacing(2),
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f9f9f9',
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[3],
     height: '100vh',
     display: 'flex',
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: theme.spacing(2),
+    overflow: 'hidden',
+    width: '100vw',
     [theme.breakpoints.down('sm')]: {
       padding: theme.spacing(1),
       flexDirection: 'column',
@@ -157,7 +129,7 @@ const UMLComponent = () => {
 
   const DiagramBox = styled(Box)(({ theme }) => ({
     padding: theme.spacing(2),
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#ffffff',
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[2],
     flex: 3,
@@ -169,72 +141,130 @@ const UMLComponent = () => {
     backgroundColor: '#ffffff',
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[3],
-    height: '100vh',
+    height: '100%',
     display: 'flex',
     flexDirection: 'column',
     gap: theme.spacing(2),
     flex: 1,
     overflow: 'auto',
+    borderRight: '2px solid #ddd',
+  }));
+
+  const Footer = styled(Box)(({ theme }) => ({
+    padding: theme.spacing(2),
+    backgroundColor: '#1976d2',
+    color: '#ffffff',
+    textAlign: 'center',
+    position: 'fixed',
+    bottom: 0,
+    width: '100%',
+    boxShadow: theme.shadows[3],
+  }));
+
+  const Header = styled(Box)(({ theme }) => ({
+    padding: theme.spacing(2),
+    backgroundColor: '#1976d2',
+    color: '#ffffff',
+    textAlign: 'center',
+    width: '100%',
+    boxShadow: theme.shadows[3],
+    fontSize: '1.5rem',
+    fontWeight: 'bold',
+  }));
+
+  const UMLHeader = styled(Typography)(({ theme }) => ({
+    fontWeight: 'bold',
+    color: '#1976d2',
+    marginBottom: '16px',
+    textAlign: 'center',
+    textDecoration: 'underline',
+    textDecorationColor: 'orange',
   }));
 
   return (
     <MainContainer>
-      <DrawerContainer>
-        <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0066ff', marginBottom: '16px' }}>
-          Controls
-        </Typography>
-        <TextField
-          placeholder="Enter UML question here"
-          value={questionMarkdown}
-          onChange={(e) => setQuestionMarkdown(e.target.value)}
-          multiline
-          rows={4}
-          fullWidth
-          sx={{ marginBottom: '24px' }}
-        />
-        <QuestionSetup
-          questionMarkdown={questionMarkdown}
-          setQuestionMarkdown={setQuestionMarkdown}
-          schema={schema}
-          setSchema={setSchema}
-          attributes={attributes}
-          setAttributes={setAttributes}
-        />
-        <Divider />
-        <Typography variant="h6" sx={{ marginBottom: '16px' }}>
-          Entity Manager
-        </Typography>
-        <EntityManager
-          schema={schema}
-          setSchema={setSchema}
-          attributes={attributes}
-          setAttributes={setAttributes}
-          addEntity={addEntity}
-          removeEntity={removeEntity}
-          addAttribute={addAttribute}
-          removeAttribute={removeAttribute}
-        />
-        <Divider />
-        <Typography variant="h6" sx={{ marginBottom: '16px' }}>
-          Relationship Manager
-        </Typography>
-        <RelationshipManager
-          relationships={relationships}
-          setRelationships={setRelationships}
-          addRelationship={addRelationship}
-          editRelationship={editRelationship}
-          removeRelationship={removeRelationship}
-        />
-      </DrawerContainer>
+      <Header>AutoER-Kayuni</Header>
+      <Box sx={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden', width: '100%' }}>
+        <DrawerContainer>
+          <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2', marginBottom: '16px' }}>
+            Controls
+          </Typography>
+          <TextField
+            placeholder="Enter UML question here"
+            value={questionMarkdown}
+            onChange={(e) => setQuestionMarkdown(e.target.value)}
+            multiline
+            rows={4}
+            fullWidth
+            sx={{ marginBottom: '24px' }}
+          />
+          <QuestionSetup
+            questionMarkdown={questionMarkdown}
+            setQuestionMarkdown={setQuestionMarkdown}
+            schema={schema}
+            setSchema={setSchema}
+            attributes={attributes}
+            setAttributes={setAttributes}
+            showPopup={showPopup}
+          />
+          <Divider />
+          <Typography variant="h6" sx={{ marginBottom: '16px' }}>
+            Entity Manager
+          </Typography>
+          <EntityManager
+            schema={schema}
+            setSchema={setSchema}
+            attributes={attributes}
+            setAttributes={setAttributes}
+            addEntity={addEntity}
+            addAttribute={addAttribute}
+            showPopup={showPopup}
+          />
+          <Divider />
+          <Typography variant="h6" sx={{ marginBottom: '16px' }}>
+            Relationship Manager
+          </Typography>
+          <RelationshipManager
+            relationships={relationships}
+            setRelationships={setRelationships}
+            addRelationship={addRelationship}
+            editRelationship={editRelationship}
+            removeRelationship={removeRelationship}
+          />
+        </DrawerContainer>
 
-      <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column' }}>
-        <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0066ff', marginBottom: '16px' }}>
-          UML Diagram
-        </Typography>
-        <Box ref={questionRef} id="question" sx={{ marginBottom: '24px', padding: '16px', backgroundColor: '#fff', borderRadius: '4px', boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)' }} />
-        <DiagramBox ref={diagramRef} id="diagram" />
-        <MermaidDiagram schema={schema} relationships={relationships} />
+        <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <UMLHeader variant="h4">UML Diagram</UMLHeader>
+          <DiagramBox ref={diagramRef} id="diagram">
+            <MermaidDiagram schema={schema} relationships={relationships} />
+          </DiagramBox>
+        </Box>
       </Box>
+      <Footer>
+        <Typography variant="body1">
+          © 2024 Your Company. All rights reserved.
+        </Typography>
+      </Footer>
+      {popup.visible && (
+        <div
+          style={{
+            position: 'absolute',
+            top: popup.y,
+            left: popup.x,
+            backgroundColor: 'white',
+            border: '1px solid #ccc',
+            padding: '10px',
+            zIndex: 1000,
+          }}
+        >
+          <div>
+            <button onClick={() => addEntity(popup.entity)}>Add Entity</button>
+          </div>
+          <div>
+            <button onClick={() => addAttribute(popup.entity)}>Add Attribute</button>
+          </div>
+        </div>
+      )}
     </MainContainer>
   );
 };
