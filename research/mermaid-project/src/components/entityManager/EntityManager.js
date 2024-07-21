@@ -16,7 +16,7 @@ const EntityManager = ({ schema, setSchema, attributes, setAttributes, showPopup
       attHTML += `<a class="attribute ${i}-${j}" href="#" onclick="event.preventDefault(); window.showPopup(event, '${attName}', 'attribute')">Add attribute</a><div id="submenu-${i}-${j}" class="submenu-content">`;
       schema.forEach((value, key) => {
         const enObj = schema.get(key);
-        if (typeof enObj['attribute'].get(attName) === 'undefined') {
+        if (typeof enObj['attribute'].get(attName) === 'undefined' && attName !== value.entity) { // Ensure attribute name is not the same as the entity name
           attHTML += `<a href="#" onclick="event.preventDefault(); window.addAttributeToEntity('${attName}', '${key}')" class="${key}" id="attribute${i}-${j}-${key}">${value.entity}</a>`;
         } else {
           attHTML += `<a href="#" class="disabled-link ${key}" id="attribute${i}-${j}-${key}">${value.entity}</a>`;
@@ -68,7 +68,7 @@ const EntityManager = ({ schema, setSchema, attributes, setAttributes, showPopup
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
-      if (entityData) {
+      if (entityData && attribute !== entity) { // Ensure attribute name is not the same as the entity name
         entityData.attribute.set(attribute, { attribute, key });
         newSchema.set(entity, entityData);
       }

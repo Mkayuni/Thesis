@@ -1,23 +1,43 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import mermaid from 'mermaid';
-import { Box, Typography, TextField, Divider } from '@mui/material';
+import { Box, Typography, TextField, Divider, Button, IconButton, Paper } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import DeleteIcon from '@mui/icons-material/Delete';
 import QuestionSetup from './questionSetup/QuestionSetup';
-import EntityManager from './entityManager/EntityManager';
-import RelationshipManager from './relationshipManager/RelationshipManager';
-import MermaidDiagram from './mermaidDiagram/MermaidDiagram';
+import MermaidDiagram from './mermaidDiagram/MermaidDiagram'; // Ensure this import is correct
 import './mermaid.css'; // Ensure this path points to your CSS file
 
 const UMLComponent = () => {
   const [questionMarkdown, setQuestionMarkdown] = useState('');
   const [schema, setSchema] = useState(new Map());
-  const [attributes, setAttributes] = useState(new Map());
   const [relationships, setRelationships] = useState(new Map());
+  const [showEntities, setShowEntities] = useState(false);
+  const [showRelationships, setShowRelationships] = useState(false);
 
   const diagramRef = useRef(null);
   const controlsRef = useRef(null);
+  const entityPopupRef = useRef(null);
+  const relationshipPopupRef = useRef(null);
+  const manageEntitiesButtonRef = useRef(null);
+  const manageRelationshipsButtonRef = useRef(null);
   const [popup, setPopup] = useState({ visible: false, x: 0, y: 0, entityOrAttribute: '', type: '', entities: [] });
   const [subPopup, setSubPopup] = useState({ visible: false, x: 0, y: 0, entityOrAttribute: '', entities: [] });
+
+  const handleClickOutside = useCallback((event) => {
+    if (entityPopupRef.current && !entityPopupRef.current.contains(event.target)) {
+      setShowEntities(false);
+    }
+    if (relationshipPopupRef.current && !relationshipPopupRef.current.contains(event.target)) {
+      setShowRelationships(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [handleClickOutside]);
 
   const showPopup = useCallback((e, entityOrAttribute, type) => {
     if (e.preventDefault) e.preventDefault(); // Check if preventDefault exists
@@ -113,6 +133,14 @@ const UMLComponent = () => {
     hidePopup();
   }, []);
 
+  const removeEntity = useCallback((entity) => {
+    setSchema((prevSchema) => {
+      const newSchema = new Map(prevSchema);
+      newSchema.delete(entity);
+      return newSchema;
+    });
+  }, []);
+
   const addAttribute = useCallback((entity, attribute, key = '') => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
@@ -122,19 +150,6 @@ const UMLComponent = () => {
         newSchema.set(entity, entityData);
       }
       return newSchema;
-    });
-
-    setAttributes((prevAttributes) => {
-      const newAttributes = new Map(prevAttributes);
-      if (!newAttributes.has(attribute)) {
-        const enMap = new Map();
-        enMap.set(entity, true);
-        newAttributes.set(attribute, { attribute, entities: enMap });
-      } else {
-        const attObj = newAttributes.get(attribute);
-        attObj.entities.set(entity, true);
-      }
-      return newAttributes;
     });
     hidePopup();
   }, []);
@@ -180,6 +195,18 @@ const UMLComponent = () => {
     });
   }, []);
 
+  const removeAttribute = useCallback((entity, attribute) => {
+    setSchema((prevSchema) => {
+      const newSchema = new Map(prevSchema);
+      const entityData = newSchema.get(entity);
+      if (entityData) {
+        entityData.attribute.delete(attribute);
+        newSchema.set(entity, entityData);
+      }
+      return newSchema;
+    });
+  }, []);
+
   const MainContainer = styled(Box)(({ theme }) => ({
     padding: theme.spacing(2),
     backgroundColor: '#f9f9f9',
@@ -203,7 +230,7 @@ const UMLComponent = () => {
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[2],
     flex: 3,
-    overflow: 'auto',
+    overflow: 'hidden', // Disable vertical scrolling
   }));
 
   const DrawerContainer = styled(Box)(({ theme }) => ({
@@ -216,19 +243,8 @@ const UMLComponent = () => {
     flexDirection: 'column',
     gap: theme.spacing(2),
     flex: 1,
-    overflow: 'auto',
+    overflow: 'hidden', // Disable vertical scrolling
     borderRight: '2px solid #ddd',
-  }));
-
-  const Footer = styled(Box)(({ theme }) => ({
-    padding: theme.spacing(2),
-    backgroundColor: '#1976d2',
-    color: '#ffffff',
-    textAlign: 'center',
-    position: 'fixed',
-    bottom: 0,
-    width: '100%',
-    boxShadow: theme.shadows[3],
   }));
 
   const Header = styled(Box)(({ theme }) => ({
@@ -240,16 +256,30 @@ const UMLComponent = () => {
     boxShadow: theme.shadows[3],
     fontSize: '1.5rem',
     fontWeight: 'bold',
+    overflow: 'hidden', // Prevent vertical overflow
+    whiteSpace: 'nowrap', // Prevent text wrapping
   }));
 
-  const UMLHeader = styled(Typography)(({ theme }) => ({
-    fontWeight: 'bold',
-    color: '#1976d2',
-    marginBottom: '16px',
-    textAlign: 'center',
-    textDecoration: 'underline',
-    textDecorationColor: 'orange',
+  const PopupContainer = styled(Paper)(({ theme }) => ({
+    position: 'absolute',
+    padding: theme.spacing(2),
+    backgroundColor: 'white',
+    border: '1px solid #ccc',
+    boxShadow: theme.shadows[5],
+    zIndex: 1000,
+    maxHeight: '80vh',
+    overflowY: 'auto',
+    width: 'fit-content', // Ensure the width is based on content
   }));
+
+  useEffect(() => {
+    if (manageRelationshipsButtonRef.current && entityPopupRef.current && relationshipPopupRef.current) {
+      const buttonWidth = manageRelationshipsButtonRef.current.offsetWidth;
+      entityPopupRef.current.style.width = `${buttonWidth}px`;
+      relationshipPopupRef.current.style.width = `${buttonWidth}px`;
+      manageEntitiesButtonRef.current.style.width = `${buttonWidth}px`;
+    }
+  }, [showEntities, showRelationships]);
 
   return (
     <MainContainer>
@@ -273,50 +303,87 @@ const UMLComponent = () => {
             setQuestionMarkdown={setQuestionMarkdown}
             schema={schema}
             setSchema={setSchema}
-            attributes={attributes}
-            setAttributes={setAttributes}
             showPopup={showPopup}
           />
           <Divider />
-          <Typography variant="h6" sx={{ marginBottom: '16px' }}>
-            Entity Manager
-          </Typography>
-          <EntityManager
-            schema={schema}
-            setSchema={setSchema}
-            attributes={attributes}
-            setAttributes={setAttributes}
-            addEntity={addEntity}
-            addAttribute={addAttribute}
-            showPopup={showPopup}
-          />
-          <Divider />
-          <Typography variant="h6" sx={{ marginBottom: '16px' }}>
-            Relationship Manager
-          </Typography>
-          <RelationshipManager
-            relationships={relationships}
-            setRelationships={setRelationships}
-            addRelationship={addRelationship}
-            editRelationship={editRelationship}
-            removeRelationship={removeRelationship}
-          />
         </DrawerContainer>
 
         <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <UMLHeader variant="h4">UML Diagram</UMLHeader>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', padding: '16px', gap: '32px' }}>
+            <Button
+              ref={manageEntitiesButtonRef}
+              variant="contained"
+              color="primary"
+              onClick={() => setShowEntities(!showEntities)}
+            >
+              Manage Entities
+            </Button>
+
+            <Button
+              ref={manageRelationshipsButtonRef}
+              variant="contained"
+              color="primary"
+              onClick={() => setShowRelationships(!showRelationships)}
+            >
+              Manage Relationships
+            </Button>
+          </Box>
           <DiagramBox ref={diagramRef} id="diagram">
             <MermaidDiagram schema={schema} relationships={relationships} />
           </DiagramBox>
         </Box>
       </Box>
-      <Footer>
-        <Typography variant="body1">
-          © 2024 Your Company. All rights reserved.
-        </Typography>
-      </Footer>
+
+      {showEntities && (
+        <PopupContainer
+          ref={entityPopupRef}
+          style={{
+            top: manageEntitiesButtonRef.current ? manageEntitiesButtonRef.current.getBoundingClientRect().bottom : '0',
+            left: manageEntitiesButtonRef.current ? manageEntitiesButtonRef.current.getBoundingClientRect().left : '0',
+            width: manageEntitiesButtonRef.current ? `${manageEntitiesButtonRef.current.offsetWidth}px` : 'auto', // Set width dynamically
+          }}
+        >
+          {Array.from(schema.entries()).map(([entity, { attribute }]) => (
+            <Box key={entity} sx={{ marginBottom: '16px' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{entity}</Typography>
+                <IconButton onClick={() => removeEntity(entity)} size="small">
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Box>
+              {Array.from(attribute.entries()).map(([attr]) => (
+                <Box key={attr} sx={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                  <Typography variant="body1" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{attr}</Typography>
+                  <IconButton onClick={() => removeAttribute(entity, attr)} size="small">
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              ))}
+            </Box>
+          ))}
+        </PopupContainer>
+      )}
+
+      {showRelationships && (
+        <PopupContainer
+          ref={relationshipPopupRef}
+          style={{
+            top: manageRelationshipsButtonRef.current ? manageRelationshipsButtonRef.current.getBoundingClientRect().bottom : '0',
+            left: manageRelationshipsButtonRef.current ? manageRelationshipsButtonRef.current.getBoundingClientRect().left : '0',
+            width: manageRelationshipsButtonRef.current ? `${manageRelationshipsButtonRef.current.offsetWidth}px` : 'auto', // Set width dynamically
+          }}
+        >
+          {Array.from(relationships.entries()).map(([id, relationship]) => (
+            <Box key={id} sx={{ marginBottom: '16px' }}>
+              <Typography variant="body1">{`${relationship.relationA} ${relationship.cardinalityA} - ${relationship.cardinalityB} ${relationship.relationB}`}</Typography>
+              <Button onClick={() => removeRelationship(id)} size="small">Delete Relationship</Button>
+            </Box>
+          ))}
+        </PopupContainer>
+      )}
+
       {popup.visible && (
-        <div
+        <Box
           className="popup" // Added a class for the popup
           style={{
             position: 'absolute',
@@ -347,10 +414,10 @@ const UMLComponent = () => {
               </div>
             </>
           )}
-        </div>
+        </Box>
       )}
       {subPopup.visible && (
-        <div
+        <Box
           style={{
             position: 'absolute',
             top: subPopup.y,
@@ -368,7 +435,7 @@ const UMLComponent = () => {
               <button onClick={() => addAttribute(entity, subPopup.entityOrAttribute)}>{entity}</button>
             </div>
           ))}
-        </div>
+        </Box>
       )}
     </MainContainer>
   );

@@ -8,12 +8,15 @@ const MermaidDiagram = ({ schema, relationships }) => {
   useEffect(() => {
     const schemaToMermaidSource = () => {
       let schemaText = [];
-      schema.forEach((schemaItem, entKey) => {
+      schema.forEach((schemaItem) => {
         let item = `class ${schemaItem.entity} {\n`;
-        schemaItem.attribute.forEach((attItem, attKey) => {
-          item += `    ${attItem.attribute} ${attItem.key ? `(${attItem.key})` : ''}\n`; // Correctly format attributes
+        item += `  ${schemaItem.entity}\n`; // Entity name
+        schemaItem.attribute.forEach((attItem) => {
+          if (attItem.attribute !== schemaItem.entity) { // Ensure entity name is not added as an attribute
+            item += `  ${attItem.attribute} ${attItem.key ? `(${attItem.key})` : ''}\n`;
+          }
         });
-        item += '}';
+        item += '}\n';
         schemaText.push(item);
       });
 
