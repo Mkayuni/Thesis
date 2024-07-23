@@ -1,6 +1,17 @@
 import React, { useEffect, useRef } from 'react';
 import mermaid from 'mermaid';
+import { styled } from '@mui/material/styles';
+import Box from '@mui/material/Box';
 import '../mermaid.css'; // Ensure this path points to your CSS file
+
+const DiagramBox = styled(Box)(({ theme }) => ({
+  padding: theme.spacing(2),
+  backgroundColor: '#ffffff',
+  borderRadius: theme.shape.borderRadius,
+  boxShadow: theme.shadows[2],
+  flex: 3,
+  overflow: 'hidden', // Disable vertical scrolling
+}));
 
 const MermaidDiagram = ({ schema, relationships }) => {
   const diagramRef = useRef(null);
@@ -54,7 +65,9 @@ const MermaidDiagram = ({ schema, relationships }) => {
     }
   }, [schema, relationships]);
 
-  return <div id="diagram" ref={diagramRef}></div>;
+  return (
+    <DiagramBox ref={diagramRef} id="diagram"></DiagramBox>
+  );
 };
 
 export default MermaidDiagram;

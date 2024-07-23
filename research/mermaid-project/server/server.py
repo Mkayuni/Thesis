@@ -1,6 +1,7 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import logging
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -79,6 +80,17 @@ def add_relationship():
         return jsonify({'status': 'Relationship added successfully', 'relationships': mock_relationships})
     except Exception as e:
         logging.error(f"Error adding relationship: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/diagram', methods=['GET'])
+def get_diagram():
+    try:
+        file_path = os.path.join(os.path.dirname(__file__), 'data', 'diagram.md')
+        with open(file_path, 'r') as file:
+            content = file.read()
+        return jsonify({'content': content})
+    except Exception as e:
+        logging.error(f"Error reading the file: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

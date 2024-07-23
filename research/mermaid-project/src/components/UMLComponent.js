@@ -1,34 +1,33 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import mermaid from 'mermaid';
-import { Box, Typography, TextField, Divider, Button, IconButton, Paper } from '@mui/material';
+import { Box, Paper, Typography, IconButton, Accordion, AccordionSummary, AccordionDetails, Button } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import ControlsComponent from './ControlsComponent';
+import MermaidDiagram from './mermaidDiagram/MermaidDiagram';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import QuestionSetup from './questionSetup/QuestionSetup';
-import MermaidDiagram from './mermaidDiagram/MermaidDiagram'; // Ensure this import is correct
 import './mermaid.css'; // Ensure this path points to your CSS file
 
 const UMLComponent = () => {
   const [questionMarkdown, setQuestionMarkdown] = useState('');
+  const [questions, setQuestions] = useState([]);
   const [schema, setSchema] = useState(new Map());
   const [relationships, setRelationships] = useState(new Map());
-  const [showEntities, setShowEntities] = useState(false);
-  const [showRelationships, setShowRelationships] = useState(false);
+  const [expandedPanel, setExpandedPanel] = useState(false);
 
-  const diagramRef = useRef(null);
   const controlsRef = useRef(null);
   const entityPopupRef = useRef(null);
   const relationshipPopupRef = useRef(null);
-  const manageEntitiesButtonRef = useRef(null);
-  const manageRelationshipsButtonRef = useRef(null);
   const [popup, setPopup] = useState({ visible: false, x: 0, y: 0, entityOrAttribute: '', type: '', entities: [] });
   const [subPopup, setSubPopup] = useState({ visible: false, x: 0, y: 0, entityOrAttribute: '', entities: [] });
 
   const handleClickOutside = useCallback((event) => {
     if (entityPopupRef.current && !entityPopupRef.current.contains(event.target)) {
-      setShowEntities(false);
+      setExpandedPanel(false);
     }
     if (relationshipPopupRef.current && !relationshipPopupRef.current.contains(event.target)) {
-      setShowRelationships(false);
+      setExpandedPanel(false);
     }
   }, []);
 
@@ -99,7 +98,7 @@ const UMLComponent = () => {
     } else if (position === 'above') {
       y -= (popupHeight + spacing); // Adjust to move above
     } else if (position === 'below') {
-      y += popupHeight + spacing; // Adding adjustable spacing
+      y += (popupHeight + spacing); // Adding adjustable spacing
     }
 
     const adjustedPosition = adjustPopupPosition(x, y, popupWidth, popupHeight);
@@ -118,11 +117,14 @@ const UMLComponent = () => {
   }, []);
 
   useEffect(() => {
-    const diagramElement = diagramRef.current;
-    if (diagramElement) {
-      diagramElement.style.backgroundColor = '#f5f5f5';
-    }
-  }, [schema, relationships]);
+    fetch('/api/diagram')
+      .then((response) => response.json())
+      .then((data) => {
+        const questionList = data.content.split('\n').filter(line => line.trim() !== '');
+        setQuestions(questionList);
+      })
+      .catch((error) => console.error('Error fetching the questions:', error));
+  }, []);
 
   const addEntity = useCallback((entity) => {
     setSchema((prevSchema) => {
@@ -207,6 +209,11 @@ const UMLComponent = () => {
     });
   }, []);
 
+  const cleanUMLQuestion = (markdown) => {
+    const cleanedText = markdown.replace(/\[([^\]]+)]\([^)]+\)/g, '$1');
+    return cleanedText;
+  };
+
   const MainContainer = styled(Box)(({ theme }) => ({
     padding: theme.spacing(2),
     backgroundColor: '#f9f9f9',
@@ -222,29 +229,6 @@ const UMLComponent = () => {
       padding: theme.spacing(1),
       flexDirection: 'column',
     },
-  }));
-
-  const DiagramBox = styled(Box)(({ theme }) => ({
-    padding: theme.spacing(2),
-    backgroundColor: '#ffffff',
-    borderRadius: theme.shape.borderRadius,
-    boxShadow: theme.shadows[2],
-    flex: 3,
-    overflow: 'hidden', // Disable vertical scrolling
-  }));
-
-  const DrawerContainer = styled(Box)(({ theme }) => ({
-    padding: theme.spacing(2),
-    backgroundColor: '#ffffff',
-    borderRadius: theme.shape.borderRadius,
-    boxShadow: theme.shadows[3],
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: theme.spacing(2),
-    flex: 1,
-    overflow: 'hidden', // Disable vertical scrolling
-    borderRight: '2px solid #ddd',
   }));
 
   const Header = styled(Box)(({ theme }) => ({
@@ -272,32 +256,27 @@ const UMLComponent = () => {
     width: 'fit-content', // Ensure the width is based on content
   }));
 
-  useEffect(() => {
-    if (manageRelationshipsButtonRef.current && entityPopupRef.current && relationshipPopupRef.current) {
-      const buttonWidth = manageRelationshipsButtonRef.current.offsetWidth;
-      entityPopupRef.current.style.width = `${buttonWidth}px`;
-      relationshipPopupRef.current.style.width = `${buttonWidth}px`;
-      manageEntitiesButtonRef.current.style.width = `${buttonWidth}px`;
-    }
-  }, [showEntities, showRelationships]);
-
   return (
     <MainContainer>
       <Header>AutoER-Kayuni</Header>
       <Box sx={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden', width: '100%' }}>
-        <DrawerContainer ref={controlsRef}>
-          <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2', marginBottom: '16px' }}>
-            Controls
-          </Typography>
-          <TextField
-            placeholder="Enter UML question here"
-            value={questionMarkdown}
-            onChange={(e) => setQuestionMarkdown(e.target.value)}
-            multiline
-            rows={4}
-            fullWidth
-            sx={{ marginBottom: '24px' }}
-          />
+        <ControlsComponent
+          questionMarkdown={questionMarkdown}
+          setQuestionMarkdown={setQuestionMarkdown}
+          schema={schema}
+          setSchema={setSchema}
+          showPopup={showPopup}
+          questions={questions}
+          setQuestions={setQuestions}
+          expandedPanel={expandedPanel}
+          setExpandedPanel={setExpandedPanel}
+          removeEntity={removeEntity}
+          removeAttribute={removeAttribute}
+          relationships={relationships}
+          removeRelationship={removeRelationship}
+          controlsRef={controlsRef}
+        />
+        <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 2 }}>
           <QuestionSetup
             questionMarkdown={questionMarkdown}
             setQuestionMarkdown={setQuestionMarkdown}
@@ -305,96 +284,14 @@ const UMLComponent = () => {
             setSchema={setSchema}
             showPopup={showPopup}
           />
-          <Divider />
-        </DrawerContainer>
-
-        <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', padding: '16px', gap: '32px' }}>
-            <Button
-              ref={manageEntitiesButtonRef}
-              variant="contained"
-              color="primary"
-              onClick={() => setShowEntities(!showEntities)}
-            >
-              Manage Entities
-            </Button>
-
-            <Button
-              ref={manageRelationshipsButtonRef}
-              variant="contained"
-              color="primary"
-              onClick={() => setShowRelationships(!showRelationships)}
-            >
-              Manage Relationships
-            </Button>
-          </Box>
-          <DiagramBox ref={diagramRef} id="diagram">
-            <MermaidDiagram schema={schema} relationships={relationships} />
-          </DiagramBox>
+          <MermaidDiagram schema={schema} relationships={relationships} />
         </Box>
       </Box>
-
-      {showEntities && (
-        <PopupContainer
-          ref={entityPopupRef}
-          style={{
-            top: manageEntitiesButtonRef.current ? manageEntitiesButtonRef.current.getBoundingClientRect().bottom : '0',
-            left: manageEntitiesButtonRef.current ? manageEntitiesButtonRef.current.getBoundingClientRect().left : '0',
-            width: manageEntitiesButtonRef.current ? `${manageEntitiesButtonRef.current.offsetWidth}px` : 'auto', // Set width dynamically
-          }}
-        >
-          {Array.from(schema.entries()).map(([entity, { attribute }]) => (
-            <Box key={entity} sx={{ marginBottom: '16px' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{entity}</Typography>
-                <IconButton onClick={() => removeEntity(entity)} size="small">
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </Box>
-              {Array.from(attribute.entries()).map(([attr]) => (
-                <Box key={attr} sx={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <Typography variant="body1" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{attr}</Typography>
-                  <IconButton onClick={() => removeAttribute(entity, attr)} size="small">
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-              ))}
-            </Box>
-          ))}
-        </PopupContainer>
-      )}
-
-      {showRelationships && (
-        <PopupContainer
-          ref={relationshipPopupRef}
-          style={{
-            top: manageRelationshipsButtonRef.current ? manageRelationshipsButtonRef.current.getBoundingClientRect().bottom : '0',
-            left: manageRelationshipsButtonRef.current ? manageRelationshipsButtonRef.current.getBoundingClientRect().left : '0',
-            width: manageRelationshipsButtonRef.current ? `${manageRelationshipsButtonRef.current.offsetWidth}px` : 'auto', // Set width dynamically
-          }}
-        >
-          {Array.from(relationships.entries()).map(([id, relationship]) => (
-            <Box key={id} sx={{ marginBottom: '16px' }}>
-              <Typography variant="body1">{`${relationship.relationA} ${relationship.cardinalityA} - ${relationship.cardinalityB} ${relationship.relationB}`}</Typography>
-              <Button onClick={() => removeRelationship(id)} size="small">Delete Relationship</Button>
-            </Box>
-          ))}
-        </PopupContainer>
-      )}
-
       {popup.visible && (
-        <Box
-          className="popup" // Added a class for the popup
+        <PopupContainer
           style={{
-            position: 'absolute',
             top: popup.y,
             left: popup.x,
-            backgroundColor: 'white',
-            border: '1px solid #ccc',
-            padding: '10px',
-            zIndex: 1000,
-            maxWidth: '100%', // Ensure it doesn't overflow
-            maxHeight: '100%', // Ensure it doesn't overflow
           }}
         >
           {popup.type === 'attribute' ? (
@@ -414,20 +311,13 @@ const UMLComponent = () => {
               </div>
             </>
           )}
-        </Box>
+        </PopupContainer>
       )}
       {subPopup.visible && (
-        <Box
+        <PopupContainer
           style={{
-            position: 'absolute',
             top: subPopup.y,
             left: subPopup.x,
-            backgroundColor: 'white',
-            border: '1px solid #ccc',
-            padding: '10px',
-            zIndex: 1000,
-            maxWidth: '100%', // Ensure it doesn't overflow
-            maxHeight: '100%', // Ensure it doesn't overflow
           }}
         >
           {subPopup.entities.map((entity) => (
@@ -435,7 +325,7 @@ const UMLComponent = () => {
               <button onClick={() => addAttribute(entity, subPopup.entityOrAttribute)}>{entity}</button>
             </div>
           ))}
-        </Box>
+        </PopupContainer>
       )}
     </MainContainer>
   );
