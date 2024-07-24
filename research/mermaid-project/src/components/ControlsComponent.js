@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { Typography, TextField, Divider, IconButton, Accordion, AccordionSummary, AccordionDetails, Button, Box, Paper } from '@mui/material';
+import { Typography, TextField, Divider, IconButton, Accordion, AccordionSummary, AccordionDetails, Button, Box, } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import QuestionSetup from './questionSetup/QuestionSetup';
 
 const DrawerContainer = styled(Box)(({ theme }) => ({
   padding: theme.spacing(2),
@@ -15,13 +14,13 @@ const DrawerContainer = styled(Box)(({ theme }) => ({
   flexDirection: 'column',
   gap: theme.spacing(2),
   flex: 1,
-  overflow: 'hidden', // Disable vertical scrolling
+  overflow: 'hidden',
   borderLeft: '2px solid #ddd',
 }));
 
 const ContentContainer = styled(Box)(({ theme }) => ({
-  overflow: 'auto', // Enable scrolling for the content
-  flex: 1, // Allow it to grow and fill available space
+  overflow: 'auto',
+  flex: 1,
 }));
 
 const AccordionSummaryStyled = styled(AccordionSummary)(({ theme }) => ({
@@ -33,11 +32,8 @@ const AccordionSummaryStyled = styled(AccordionSummary)(({ theme }) => ({
 }));
 
 const ControlsComponent = ({
-  questionMarkdown,
   setQuestionMarkdown,
   schema,
-  setSchema,
-  showPopup,
   questions,
   expandedPanel,
   setExpandedPanel,
@@ -50,7 +46,7 @@ const ControlsComponent = ({
   const [showTextBox, setShowTextBox] = useState(false);
   const [tempQuestion, setTempQuestion] = useState('');
 
-  const handleAccordionChange = (panel) => (event, isExpanded) => {
+  const handleAccordionChange = (panel) => (isExpanded) => {
     setExpandedPanel(isExpanded ? panel : false);
   };
 
