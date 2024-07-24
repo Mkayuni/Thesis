@@ -20,3 +20,8 @@
     stroke: #000 !important; /* Black outer border */
     stroke-width: 2px !important;
 }
+
+/* Hide the placeholder text */
+.classDiagram .class text:contains('No attributes') {
+    visibility: hidden;
+}

@@ -1,11 +1,9 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import mermaid from 'mermaid';
-import { Box, Paper, Typography, IconButton, Accordion, AccordionSummary, AccordionDetails, Button } from '@mui/material';
+import { Box, Paper } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import ControlsComponent from './ControlsComponent';
 import MermaidDiagram from './mermaidDiagram/MermaidDiagram';
-import DeleteIcon from '@mui/icons-material/Delete';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import QuestionSetup from './questionSetup/QuestionSetup';
 import './mermaid.css'; // Ensure this path points to your CSS file
 
@@ -17,17 +15,23 @@ const UMLComponent = () => {
   const [expandedPanel, setExpandedPanel] = useState(false);
 
   const controlsRef = useRef(null);
+  const umlRef = useRef(null); // Add ref for UML section
   const entityPopupRef = useRef(null);
   const relationshipPopupRef = useRef(null);
+  const subPopupRef = useRef(null); // Add ref for subPopup
   const [popup, setPopup] = useState({ visible: false, x: 0, y: 0, entityOrAttribute: '', type: '', entities: [] });
   const [subPopup, setSubPopup] = useState({ visible: false, x: 0, y: 0, entityOrAttribute: '', entities: [] });
 
   const handleClickOutside = useCallback((event) => {
-    if (entityPopupRef.current && !entityPopupRef.current.contains(event.target)) {
-      setExpandedPanel(false);
+    if (
+      entityPopupRef.current &&
+      !entityPopupRef.current.contains(event.target) &&
+      (!subPopupRef.current || !subPopupRef.current.contains(event.target))
+    ) {
+      setPopup({ visible: false, x: 0, y: 0, entityOrAttribute: '', type: '', entities: [] });
     }
     if (relationshipPopupRef.current && !relationshipPopupRef.current.contains(event.target)) {
-      setExpandedPanel(false);
+      setSubPopup({ visible: false, x: 0, y: 0, entityOrAttribute: '', entities: [] });
     }
   }, []);
 
@@ -45,16 +49,16 @@ const UMLComponent = () => {
     const popupWidth = 200; // Approximate width of the popup, adjust as necessary
     const popupHeight = 100; // Approximate height of the popup, adjust as necessary
 
-    const controlsRect = controlsRef.current.getBoundingClientRect();
+    const umlRect = umlRef.current.getBoundingClientRect(); // Use UML section ref
 
-    let x = rect.left; // Start right below the selected word
-    let y = rect.bottom; // Align the top of the popup with the bottom of the button
+    let x = rect.left - umlRect.left; // Calculate relative to UML section
+    let y = rect.bottom - umlRect.top; // Calculate relative to UML section
 
-    if (x + popupWidth > controlsRect.right) {
-      x = controlsRect.right - popupWidth - 10; // Move to the left if it overflows
+    if (x + popupWidth > umlRect.right - umlRect.left) {
+      x = umlRect.right - umlRect.left - popupWidth - 10; // Move to the left if it overflows
     }
-    if (y + popupHeight > controlsRect.bottom) {
-      y = controlsRect.bottom - popupHeight - 10; // Adjust if it overflows vertically
+    if (y + popupHeight > umlRect.bottom - umlRect.top) {
+      y = umlRect.bottom - umlRect.top - popupHeight - 10; // Adjust if it overflows vertically
     }
 
     setPopup({
@@ -73,12 +77,12 @@ const UMLComponent = () => {
   };
 
   const adjustPopupPosition = (x, y, popupWidth, popupHeight) => {
-    const controlsRect = controlsRef.current.getBoundingClientRect();
-    if (x + popupWidth > controlsRect.right) {
-      x = controlsRect.right - popupWidth - 10; // 10px padding
+    const umlRect = umlRef.current.getBoundingClientRect();
+    if (x + popupWidth > umlRect.right - umlRect.left) {
+      x = umlRect.right - umlRect.left - popupWidth - 10; // 10px padding
     }
-    if (y + popupHeight > controlsRect.bottom) {
-      y = controlsRect.bottom - popupHeight - 10; // 10px padding
+    if (y + popupHeight > umlRect.bottom - umlRect.top) {
+      y = umlRect.bottom - umlRect.top - popupHeight - 10; // 10px padding
     }
     return { x, y };
   };
@@ -153,41 +157,12 @@ const UMLComponent = () => {
       }
       return newSchema;
     });
+  }, []); // Remove hidePopup from here
+
+  const handleAddAttributeClick = (entity, attribute, key = '') => {
+    addAttribute(entity, attribute, key);
     hidePopup();
-  }, []);
-
-  const addRelationship = useCallback((relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
-    setRelationships((prevRelationships) => {
-      const newRelationships = new Map(prevRelationships);
-      const relCount = newRelationships.size;
-      const relationship = {
-        id: relCount,
-        relationA,
-        cardinalityA,
-        cardinalityB,
-        relationB,
-        cardinalityText,
-      };
-      newRelationships.set(relCount, relationship);
-      return newRelationships;
-    });
-  }, []);
-
-  const editRelationship = useCallback((id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
-    setRelationships((prevRelationships) => {
-      const newRelationships = new Map(prevRelationships);
-      const relationship = {
-        id,
-        relationA,
-        cardinalityA,
-        cardinalityB,
-        relationB,
-        cardinalityText,
-      };
-      newRelationships.set(id, relationship);
-      return newRelationships;
-    });
-  }, []);
+  };
 
   const removeRelationship = useCallback((id) => {
     setRelationships((prevRelationships) => {
@@ -208,11 +183,6 @@ const UMLComponent = () => {
       return newSchema;
     });
   }, []);
-
-  const cleanUMLQuestion = (markdown) => {
-    const cleanedText = markdown.replace(/\[([^\]]+)]\([^)]+\)/g, '$1');
-    return cleanedText;
-  };
 
   const MainContainer = styled(Box)(({ theme }) => ({
     padding: theme.spacing(2),
@@ -276,57 +246,59 @@ const UMLComponent = () => {
           removeRelationship={removeRelationship}
           controlsRef={controlsRef}
         />
-        <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 2 }}>
+        <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 2 }} ref={umlRef}>
           <QuestionSetup
             questionMarkdown={questionMarkdown}
             setQuestionMarkdown={setQuestionMarkdown}
             schema={schema}
             setSchema={setSchema}
-            showPopup={showPopup}
+            showPopup={showPopup} // Pass showPopup here
           />
           <MermaidDiagram schema={schema} relationships={relationships} />
+          {popup.visible && (
+            <PopupContainer
+              ref={entityPopupRef}
+              style={{
+                top: popup.y,
+                left: popup.x,
+              }}
+            >
+              {popup.type === 'attribute' ? (
+                popup.entities.map((entity) => (
+                  <div key={entity}>
+                    <button onClick={() => handleAddAttributeClick(entity, popup.entityOrAttribute)}>{entity}</button>
+                  </div>
+                ))
+              ) : (
+                <>
+                  <div>
+                    <button onClick={() => addEntity(popup.entityOrAttribute)}>Add Entity</button>
+                  </div>
+                  <div>
+                    <button onClick={() => showSubPopup(popup.entityOrAttribute, 'right', 5)}>Add Attribute</button>
+                    {/* You can call showSubPopup with different positions and spacings */}
+                  </div>
+                </>
+              )}
+            </PopupContainer>
+          )}
+          {subPopup.visible && (
+            <PopupContainer
+              ref={subPopupRef} // Add ref to subPopup
+              style={{
+                top: subPopup.y,
+                left: subPopup.x,
+              }}
+            >
+              {subPopup.entities.map((entity) => (
+                <div key={entity}>
+                  <button onClick={() => handleAddAttributeClick(entity, subPopup.entityOrAttribute)}>{entity}</button>
+                </div>
+              ))}
+            </PopupContainer>
+          )}
         </Box>
       </Box>
-      {popup.visible && (
-        <PopupContainer
-          style={{
-            top: popup.y,
-            left: popup.x,
-          }}
-        >
-          {popup.type === 'attribute' ? (
-            popup.entities.map((entity) => (
-              <div key={entity}>
-                <button onClick={() => addAttribute(entity, popup.entityOrAttribute)}>{entity}</button>
-              </div>
-            ))
-          ) : (
-            <>
-              <div>
-                <button onClick={() => addEntity(popup.entityOrAttribute)}>Add Entity</button>
-              </div>
-              <div>
-                <button onClick={() => showSubPopup(popup.entityOrAttribute, 'right', 5)}>Add Attribute</button>
-                {/* You can call showSubPopup with different positions and spacings */}
-              </div>
-            </>
-          )}
-        </PopupContainer>
-      )}
-      {subPopup.visible && (
-        <PopupContainer
-          style={{
-            top: subPopup.y,
-            left: subPopup.x,
-          }}
-        >
-          {subPopup.entities.map((entity) => (
-            <div key={entity}>
-              <button onClick={() => addAttribute(entity, subPopup.entityOrAttribute)}>{entity}</button>
-            </div>
-          ))}
-        </PopupContainer>
-      )}
     </MainContainer>
   );
 };
