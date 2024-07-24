@@ -21,6 +21,8 @@ const UMLComponent = () => {
     removeRelationship,
     setSchema,
     setRelationships,
+    addRelationship,
+    editRelationship
   } = useEntityManagement();
   const {
     popup,
@@ -152,6 +154,8 @@ const UMLComponent = () => {
           relationships={relationships}
           removeRelationship={removeRelationship}
           updateAttributeKey={updateAttributeKey}
+          addRelationship={addRelationship}
+          editRelationship={editRelationship}
           questions={questions}
           setQuestions={setQuestions}
           questionMarkdown={questionMarkdown}

@@ -4,6 +4,7 @@ import { styled } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import KeyIcon from '@mui/icons-material/VpnKey';
+import RelationshipManager from './relationshipManager/RelationshipManager';
 
 const DrawerContainer = styled(Box)(({ theme }) => ({
   padding: theme.spacing(2),
@@ -78,30 +79,6 @@ const ControlsComponent = ({
     }
     setSelectedEntity(null);
     setSelectedAttribute(null);
-  };
-
-  const handleAddRelationship = () => {
-    const relationA = prompt('Enter first entity of the relationship:');
-    const relationB = prompt('Enter second entity of the relationship:');
-    const cardinalityA = prompt('Enter cardinality for first entity:');
-    const cardinalityB = prompt('Enter cardinality for second entity:');
-    const cardinalityText = `${cardinalityA}-${cardinalityB}`;
-
-    if (relationA && relationB && cardinalityA && cardinalityB) {
-      addRelationship(relationA, relationB, cardinalityA, cardinalityB, cardinalityText);
-    }
-  };
-
-  const handleEditRelationship = (id) => {
-    const relationA = prompt('Enter new first entity of the relationship:');
-    const relationB = prompt('Enter new second entity of the relationship:');
-    const cardinalityA = prompt('Enter new cardinality for first entity:');
-    const cardinalityB = prompt('Enter new cardinality for second entity:');
-    const cardinalityText = `${cardinalityA}-${cardinalityB}`;
-
-    if (relationA && relationB && cardinalityA && cardinalityB) {
-      editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText);
-    }
   };
 
   return (
@@ -204,22 +181,13 @@ const ControlsComponent = ({
             <Typography>Manage Relationships</Typography>
           </AccordionSummaryStyled>
           <AccordionDetails sx={{ backgroundColor: '#f1f8e9' }}>
-            <Button onClick={handleAddRelationship} size="small" sx={{ marginBottom: '8px' }}>
-              Add Relationship
-            </Button>
-            {Array.from(relationships.entries()).map(([id, relationship]) => (
-              <Box key={id} sx={{ marginBottom: '16px' }}>
-                <Typography variant="body1">{`${relationship.relationA} ${relationship.cardinalityA} - ${relationship.cardinalityB} ${relationship.relationB}`}</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Button onClick={() => handleEditRelationship(id)} size="small" sx={{ marginRight: '8px' }}>
-                    Edit
-                  </Button>
-                  <Button onClick={() => removeRelationship(id)} size="small" sx={{ color: 'red' }}>
-                    Delete
-                  </Button>
-                </Box>
-              </Box>
-            ))}
+            <RelationshipManager
+              schema={schema}
+              relationships={relationships}
+              addRelationship={addRelationship}
+              editRelationship={editRelationship}
+              removeRelationship={removeRelationship}
+            />
           </AccordionDetails>
         </Accordion>
       </ContentContainer>

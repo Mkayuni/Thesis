@@ -58,6 +58,25 @@ export const useEntityManagement = () => {
     });
   }, []);
 
+  const addRelationship = useCallback((relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
+    setRelationships((prevRelationships) => {
+      const newRelationships = new Map(prevRelationships);
+      const id = newRelationships.size + 1;
+      newRelationships.set(id, { id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText });
+      return newRelationships;
+    });
+  }, []);
+
+  const editRelationship = useCallback((id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
+    setRelationships((prevRelationships) => {
+      const newRelationships = new Map(prevRelationships);
+      if (newRelationships.has(id)) {
+        newRelationships.set(id, { id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText });
+      }
+      return newRelationships;
+    });
+  }, []);
+
   const removeRelationship = useCallback((id) => {
     setRelationships((prevRelationships) => {
       const newRelationships = new Map(prevRelationships);
@@ -74,6 +93,8 @@ export const useEntityManagement = () => {
     addAttribute,
     updateAttributeKey,
     removeAttribute,
+    addRelationship,
+    editRelationship,
     removeRelationship,
     setSchema,
     setRelationships
