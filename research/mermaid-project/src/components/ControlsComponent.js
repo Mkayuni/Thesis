@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Typography, TextField, Divider, IconButton, Accordion, AccordionSummary, AccordionDetails, Button, Box, } from '@mui/material';
+import { Typography, TextField, Divider, IconButton, Accordion, AccordionSummary, AccordionDetails, Button, Box, Menu, MenuItem } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import KeyIcon from '@mui/icons-material/VpnKey';
 
 const DrawerContainer = styled(Box)(({ theme }) => ({
   padding: theme.spacing(2),
@@ -44,10 +45,16 @@ const ControlsComponent = ({
   removeAttribute,
   relationships,
   removeRelationship,
+  updateAttributeKey,
   controlsRef,
+  addRelationship,
+  editRelationship,
 }) => {
   const [showTextBox, setShowTextBox] = useState(false);
   const [tempQuestion, setTempQuestion] = useState('');
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [selectedEntity, setSelectedEntity] = useState(null);
+  const [selectedAttribute, setSelectedAttribute] = useState(null);
 
   const handleAccordionChange = (panel) => (event, isExpanded) => {
     setExpandedPanel(isExpanded ? panel : false);
@@ -56,6 +63,45 @@ const ControlsComponent = ({
   const handleQuestionSubmit = () => {
     setQuestionMarkdown(tempQuestion);
     setShowTextBox(false);
+  };
+
+  const handleKeyMenuClick = (event, entity, attribute) => {
+    setAnchorEl(event.currentTarget);
+    setSelectedEntity(entity);
+    setSelectedAttribute(attribute);
+  };
+
+  const handleKeyMenuClose = (key) => {
+    setAnchorEl(null);
+    if (selectedEntity && selectedAttribute) {
+      updateAttributeKey(selectedEntity, selectedAttribute, key);
+    }
+    setSelectedEntity(null);
+    setSelectedAttribute(null);
+  };
+
+  const handleAddRelationship = () => {
+    const relationA = prompt('Enter first entity of the relationship:');
+    const relationB = prompt('Enter second entity of the relationship:');
+    const cardinalityA = prompt('Enter cardinality for first entity:');
+    const cardinalityB = prompt('Enter cardinality for second entity:');
+    const cardinalityText = `${cardinalityA}-${cardinalityB}`;
+
+    if (relationA && relationB && cardinalityA && cardinalityB) {
+      addRelationship(relationA, relationB, cardinalityA, cardinalityB, cardinalityText);
+    }
+  };
+
+  const handleEditRelationship = (id) => {
+    const relationA = prompt('Enter new first entity of the relationship:');
+    const relationB = prompt('Enter new second entity of the relationship:');
+    const cardinalityA = prompt('Enter new cardinality for first entity:');
+    const cardinalityB = prompt('Enter new cardinality for second entity:');
+    const cardinalityText = `${cardinalityA}-${cardinalityB}`;
+
+    if (relationA && relationB && cardinalityA && cardinalityB) {
+      editRelationship(id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText);
+    }
   };
 
   return (
@@ -125,12 +171,19 @@ const ControlsComponent = ({
                     <DeleteIcon fontSize="small" />
                   </IconButton>
                 </Box>
-                {Array.from(attribute.entries()).map(([attr]) => (
+                {Array.from(attribute.entries()).map(([attr, { key }]) => (
                   <Box key={attr} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <Typography variant="body1" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{attr}</Typography>
-                    <IconButton onClick={() => removeAttribute(entity, attr)} size="small" sx={{ color: 'blue' }}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
+                    <Typography variant="body1" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {attr} {key && <span>({key})</span>}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <IconButton onClick={(event) => handleKeyMenuClick(event, entity, attr)} size="small" sx={{ color: 'green' }}>
+                        <KeyIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton onClick={() => removeAttribute(entity, attr)} size="small" sx={{ color: 'blue' }}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
                   </Box>
                 ))}
               </Box>
@@ -151,15 +204,34 @@ const ControlsComponent = ({
             <Typography>Manage Relationships</Typography>
           </AccordionSummaryStyled>
           <AccordionDetails sx={{ backgroundColor: '#f1f8e9' }}>
+            <Button onClick={handleAddRelationship} size="small" sx={{ marginBottom: '8px' }}>
+              Add Relationship
+            </Button>
             {Array.from(relationships.entries()).map(([id, relationship]) => (
               <Box key={id} sx={{ marginBottom: '16px' }}>
                 <Typography variant="body1">{`${relationship.relationA} ${relationship.cardinalityA} - ${relationship.cardinalityB} ${relationship.relationB}`}</Typography>
-                <Button onClick={() => removeRelationship(id)} size="small" sx={{ color: 'red' }}>Delete Relationship</Button>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Button onClick={() => handleEditRelationship(id)} size="small" sx={{ marginRight: '8px' }}>
+                    Edit
+                  </Button>
+                  <Button onClick={() => removeRelationship(id)} size="small" sx={{ color: 'red' }}>
+                    Delete
+                  </Button>
+                </Box>
               </Box>
             ))}
           </AccordionDetails>
         </Accordion>
       </ContentContainer>
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={() => handleKeyMenuClose('')}
+      >
+        <MenuItem onClick={() => handleKeyMenuClose('')}>Not a key</MenuItem>
+        <MenuItem onClick={() => handleKeyMenuClose('PK')}>Primary Key</MenuItem>
+        <MenuItem onClick={() => handleKeyMenuClose('PPK')}>Partial Primary Key</MenuItem>
+      </Menu>
     </DrawerContainer>
   );
 };

@@ -10,7 +10,18 @@ import { usePopup } from './utils/popupUtils';
 import { useEntityManagement } from './entityManager/EntityManager';
 
 const UMLComponent = () => {
-  const { schema, relationships, addEntity, removeEntity, addAttribute, removeAttribute, removeRelationship, setSchema } = useEntityManagement();
+  const {
+    schema,
+    relationships,
+    addEntity,
+    removeEntity,
+    addAttribute,
+    updateAttributeKey,
+    removeAttribute,
+    removeRelationship,
+    setSchema,
+    setRelationships,
+  } = useEntityManagement();
   const {
     popup,
     subPopup,
@@ -20,11 +31,11 @@ const UMLComponent = () => {
     showPopup,
     hidePopup,
     adjustPopupPosition,
-    setSubPopup
+    setSubPopup,
   } = usePopup();
 
   const umlRef = useRef(null);
-  const controlsRef = useRef(null);  // Ensure controlsRef is defined and passed
+  const controlsRef = useRef(null);
   const [questions, setQuestions] = useState([]);
   const [questionMarkdown, setQuestionMarkdown] = useState('');
   const [expandedPanel, setExpandedPanel] = useState(false);
@@ -44,7 +55,7 @@ const UMLComponent = () => {
     fetch('/api/diagram')
       .then((response) => response.json())
       .then((data) => {
-        const questionList = data.content.split('\n').filter(line => line.trim() !== '');
+        const questionList = data.content.split('\n').filter((line) => line.trim() !== '');
         setQuestions(questionList);
       })
       .catch((error) => console.error('Error fetching the questions:', error));
@@ -66,11 +77,11 @@ const UMLComponent = () => {
     if (position === 'right') {
       x += popupWidth + spacing;
     } else if (position === 'left') {
-      x -= (popupWidth + spacing);
+      x -= popupWidth + spacing;
     } else if (position === 'above') {
-      y -= (popupHeight + spacing);
+      y -= popupHeight + spacing;
     } else if (position === 'below') {
-      y += (popupHeight + spacing);
+      y += popupHeight + spacing;
     }
 
     const adjustedPosition = adjustPopupPosition(x, y, popupWidth, popupHeight, umlRef);
@@ -140,6 +151,7 @@ const UMLComponent = () => {
           removeAttribute={removeAttribute}
           relationships={relationships}
           removeRelationship={removeRelationship}
+          updateAttributeKey={updateAttributeKey}
           questions={questions}
           setQuestions={setQuestions}
           questionMarkdown={questionMarkdown}
@@ -153,6 +165,8 @@ const UMLComponent = () => {
             showPopup={(e, entityOrAttribute, type) => showPopup(e, entityOrAttribute, type, schema, umlRef)}
             questionMarkdown={questionMarkdown}
             setQuestionMarkdown={setQuestionMarkdown}
+            relationships={relationships}
+            setRelationships={setRelationships}
           />
           <MermaidDiagram schema={schema} relationships={relationships} />
           {popup.visible && (

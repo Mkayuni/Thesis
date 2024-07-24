@@ -32,6 +32,20 @@ export const useEntityManagement = () => {
     });
   }, []);
 
+  const updateAttributeKey = useCallback((entity, attribute, newKey) => {
+    setSchema((prevSchema) => {
+      const newSchema = new Map(prevSchema);
+      const entityData = newSchema.get(entity);
+      if (entityData && entityData.attribute.has(attribute)) {
+        const attrData = entityData.attribute.get(attribute);
+        attrData.key = newKey;
+        entityData.attribute.set(attribute, attrData);
+        newSchema.set(entity, entityData);
+      }
+      return newSchema;
+    });
+  }, []);
+
   const removeAttribute = useCallback((entity, attribute) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
@@ -58,6 +72,7 @@ export const useEntityManagement = () => {
     addEntity,
     removeEntity,
     addAttribute,
+    updateAttributeKey,
     removeAttribute,
     removeRelationship,
     setSchema,
