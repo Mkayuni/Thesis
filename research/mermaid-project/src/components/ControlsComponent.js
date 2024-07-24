@@ -32,8 +32,11 @@ const AccordionSummaryStyled = styled(AccordionSummary)(({ theme }) => ({
 }));
 
 const ControlsComponent = ({
+  questionMarkdown,
   setQuestionMarkdown,
   schema,
+  setSchema,
+  showPopup,
   questions,
   expandedPanel,
   setExpandedPanel,
@@ -46,7 +49,7 @@ const ControlsComponent = ({
   const [showTextBox, setShowTextBox] = useState(false);
   const [tempQuestion, setTempQuestion] = useState('');
 
-  const handleAccordionChange = (panel) => (isExpanded) => {
+  const handleAccordionChange = (panel) => (event, isExpanded) => {
     setExpandedPanel(isExpanded ? panel : false);
   };
 
