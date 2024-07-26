@@ -48,14 +48,20 @@ const ControlsComponent = ({
   removeRelationship,
   updateAttributeKey,
   controlsRef,
+  addEntity,
+  addAttribute,
   addRelationship,
   editRelationship,
+  onQuestionClick,
+  hidePopup,
+  setRelationships // Ensure setRelationships is passed as a prop
 }) => {
   const [showTextBox, setShowTextBox] = useState(false);
   const [tempQuestion, setTempQuestion] = useState('');
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [selectedAttribute, setSelectedAttribute] = useState(null);
+  const [expandedQuestions, setExpandedQuestions] = useState(false);
 
   const handleAccordionChange = (panel) => (event, isExpanded) => {
     setExpandedPanel(isExpanded ? panel : false);
@@ -79,6 +85,27 @@ const ControlsComponent = ({
     }
     setSelectedEntity(null);
     setSelectedAttribute(null);
+  };
+
+  const handleQuestionsAccordionChange = () => {
+    setExpandedQuestions(!expandedQuestions);
+  };
+
+  const handleAddEntity = (entityName) => {
+    addEntity(entityName);
+    hidePopup(); // Hide popup after adding entity
+  };
+
+  const handleAddAttribute = (entityName, attribute, key = '') => {
+    addAttribute(entityName, attribute, key);
+    hidePopup(); // Hide popup after adding attribute
+  };
+
+  const handleQuestionClick = (question) => {
+    onQuestionClick(question);
+    // Clear schema and relationships when switching questions
+    setSchema(new Map());
+    setRelationships(new Map());
   };
 
   return (
@@ -117,14 +144,23 @@ const ControlsComponent = ({
         </Box>
       )}
       <ContentContainer>
-        <Box sx={{ padding: '16px', backgroundColor: '#f0f0f0', borderRadius: '4px', marginTop: '16px' }}>
-          <Typography variant="h6" sx={{ marginBottom: '8px' }}>Questions</Typography>
-          {questions.map((question, index) => (
-            <Button key={index} onClick={() => setQuestionMarkdown(question)} fullWidth sx={{ justifyContent: 'flex-start', marginBottom: '8px' }}>
-              {question}
-            </Button>
-          ))}
-        </Box>
+        <Accordion
+          expanded={expandedQuestions}
+          onChange={handleQuestionsAccordionChange}
+        >
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="h6" sx={{ marginBottom: '8px' }}>Questions</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Box sx={{ padding: '16px', backgroundColor: '#f0f0f0', borderRadius: '4px', marginTop: '16px' }}>
+              {questions.map((question, index) => (
+                <Button key={index} onClick={() => handleQuestionClick(question)} fullWidth sx={{ justifyContent: 'flex-start', marginBottom: '8px' }}>
+                  {question}
+                </Button>
+              ))}
+            </Box>
+          </AccordionDetails>
+        </Accordion>
         <Divider />
         <Accordion
           expanded={expandedPanel === 'entities-panel'}

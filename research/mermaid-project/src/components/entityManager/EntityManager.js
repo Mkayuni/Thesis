@@ -25,7 +25,22 @@ export const useEntityManagement = () => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
       if (entityData) {
-        entityData.attribute.set(attribute, { attribute, key });
+        const attributes = Array.from(entityData.attribute.entries());
+        const attributeIndex = attributes.findIndex(([attr]) => attr === attribute);
+        
+        if (attributeIndex !== -1) {
+          attributes.splice(attributeIndex, 1);
+        }
+
+        const newAttribute = { attribute, key };
+
+        if (key) {
+          attributes.unshift([attribute, newAttribute]);
+        } else {
+          attributes.push([attribute, newAttribute]);
+        }
+
+        entityData.attribute = new Map(attributes);
         newSchema.set(entity, entityData);
       }
       return newSchema;
@@ -37,10 +52,22 @@ export const useEntityManagement = () => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
       if (entityData && entityData.attribute.has(attribute)) {
-        const attrData = entityData.attribute.get(attribute);
-        attrData.key = newKey;
-        entityData.attribute.set(attribute, attrData);
-        newSchema.set(entity, entityData);
+        const attributes = Array.from(entityData.attribute.entries());
+        const attributeIndex = attributes.findIndex(([attr]) => attr === attribute);
+
+        if (attributeIndex !== -1) {
+          const [attr, attrData] = attributes.splice(attributeIndex, 1)[0];
+          attrData.key = newKey;
+          
+          if (newKey) {
+            attributes.unshift([attr, attrData]);
+          } else {
+            attributes.push([attr, attrData]);
+          }
+
+          entityData.attribute = new Map(attributes);
+          newSchema.set(entity, entityData);
+        }
       }
       return newSchema;
     });

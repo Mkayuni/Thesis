@@ -19,21 +19,14 @@ export const usePopup = () => {
     }
   }, []);
 
-  const showPopup = useCallback((e, entityOrAttribute, type, schema, umlRef) => {
+  const showPopup = useCallback((e, entityOrAttribute, type, schema, questionContainerRef) => {
     if (e.preventDefault) e.preventDefault(); 
     const rect = e.target ? e.target.getBoundingClientRect() : { left: 0, bottom: 0, right: 0, top: 0 };
+    const questionContainerRect = questionContainerRef.current.getBoundingClientRect();
     const popupWidth = 200;
     const popupHeight = 100;
-    const umlRect = umlRef.current.getBoundingClientRect();
-    let x = rect.left - umlRect.left;
-    let y = rect.bottom - umlRect.top;
-
-    if (x + popupWidth > umlRect.right - umlRect.left) {
-      x = umlRect.right - umlRect.left - popupWidth - 10;
-    }
-    if (y + popupHeight > umlRect.bottom - umlRect.top) {
-      y = umlRect.bottom - umlRect.top - popupHeight - 10;
-    }
+    let x = rect.left - questionContainerRect.left;
+    let y = rect.bottom - questionContainerRect.top + window.scrollY;
 
     setPopup({
       visible: true,
@@ -50,13 +43,13 @@ export const usePopup = () => {
     setSubPopup({ visible: false, x: 0, y: 0, entityOrAttribute: '', entities: [] });
   };
 
-  const adjustPopupPosition = (x, y, popupWidth, popupHeight, umlRef) => {
-    const umlRect = umlRef.current.getBoundingClientRect();
-    if (x + popupWidth > umlRect.right - umlRect.left) {
-      x = umlRect.right - umlRect.left - popupWidth - 10;
+  const adjustPopupPosition = (x, y, popupWidth, popupHeight, questionContainerRef) => {
+    const questionContainerRect = questionContainerRef.current.getBoundingClientRect();
+    if (x + popupWidth > questionContainerRect.right - questionContainerRect.left) {
+      x = questionContainerRect.right - questionContainerRect.left - popupWidth - 10;
     }
-    if (y + popupHeight > umlRect.bottom - umlRect.top) {
-      y = umlRect.bottom - umlRect.top - popupHeight - 10;
+    if (y + popupHeight > questionContainerRect.bottom - questionContainerRect.top) {
+      y = questionContainerRect.bottom - questionContainerRect.top - popupHeight - 10;
     }
     return { x, y };
   };

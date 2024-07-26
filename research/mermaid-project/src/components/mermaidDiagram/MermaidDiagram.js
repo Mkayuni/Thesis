@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import mermaid from 'mermaid';
+import { Box } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import Box from '@mui/material/Box';
 import '../mermaid.css'; // Ensure this path points to your CSS file
 
 const DiagramBox = styled(Box)(({ theme }) => ({
@@ -64,27 +64,31 @@ const MermaidDiagram = ({ schema, relationships }) => {
         let entityName = capitalizeFirstLetter(schemaItem.entity);
         let item = `class ${entityName} {\n`;
 
-        const attributes = Array.from(schemaItem.attribute.values()).map(attItem => {
-          if (attItem.attribute !== entityName) { // Ensure entity name is not added as an attribute
-            return `  ${attItem.attribute} ${attItem.key ? `(${attItem.key})` : ''}`;
-          }
-          return null;
-        }).filter(attr => attr !== null);
+        // Sort attributes: PK and PPK should come first
+        const attributes = Array.from(schemaItem.attribute.values()).sort((a, b) => {
+          if ((a.key === 'PK' || a.key === 'PPK') && (b.key !== 'PK' && b.key !== 'PPK')) return -1;
+          if ((b.key === 'PK' || b.key === 'PPK') && (a.key !== 'PK' && a.key !== 'PPK')) return 1;
+          return 0;
+        });
 
-        if (attributes.length === 0) {
+        const attributeLines = attributes.map(attItem => {
+          return `  ${attItem.attribute} ${attItem.key ? `(${attItem.key})` : ''}`;
+        });
+
+        if (attributeLines.length === 0) {
           item += '  No attributes\n'; // Use a recognizable string
         } else {
-          item += attributes.join('\n');
+          item += attributeLines.join('\n');
         }
-        
+
         item += '\n}\n';
         schemaText.push(item);
       });
 
       relationships.forEach((rel) => {
         let item = `${capitalizeFirstLetter(rel.relationA)}"${rel.cardinalityA}"--"${rel.cardinalityB}"${capitalizeFirstLetter(rel.relationB)}`;
-        if (rel.cardinality_Text && !rel.cardinality_Text.includes('___')) {
-          item += ` : ${rel.cardinality_Text}`;
+        if (rel.cardinalityText && !rel.cardinalityText.includes('___')) {
+          item += ` : ${rel.cardinalityText}`;
         } else {
           item += ':___';
         }

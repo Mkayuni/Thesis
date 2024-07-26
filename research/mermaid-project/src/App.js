@@ -5,7 +5,7 @@ import './App.css';
 function App() {
   const [schema, setSchema] = useState(new Map());
   const [relationships, setRelationships] = useState([]);
-  const [attributes, setAttributes] = useState(new Map());
+  const [setAttributes] = useState(new Map());
 
   return (
     <div className="App">

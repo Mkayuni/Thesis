@@ -17,27 +17,33 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema, sho
     }
 
     function markdownToHTML(question) {
+      const questionPattern = /<uml-question>(.*?)<\/uml-question>/s;
+      const answerPattern = /<uml-answer>(.*?)<\/uml-answer>/s;
+
+      const questionMatch = question.match(questionPattern);
+      const questionContent = questionMatch ? questionMatch[1] : '';
+
       let questionHTML = '';
       let insideSquare = false;
       let insideCircle = false;
       let innerHTML = '';
       let nameInER = '';
 
-      for (let i = 0; i < question.length; i++) {
-        if (question.charAt(i) === '\n') {
+      for (let i = 0; i < questionContent.length; i++) {
+        if (questionContent.charAt(i) === '\n') {
           questionHTML += ' ';
         }
-        if (question.charAt(i) === '[') {
+        if (questionContent.charAt(i) === '[') {
           insideSquare = true;
-        } else if (question.charAt(i) === ']') {
+        } else if (questionContent.charAt(i) === ']') {
           insideSquare = false;
-        } else if (question.charAt(i) === '(') {
-          if (question.charAt(i - 1) === ']') {
+        } else if (questionContent.charAt(i) === '(') {
+          if (questionContent.charAt(i - 1) === ']') {
             insideCircle = true;
           } else {
-            questionHTML += question.charAt(i);
+            questionHTML += questionContent.charAt(i);
           }
-        } else if (question.charAt(i) === ')') {
+        } else if (questionContent.charAt(i) === ')') {
           if (insideCircle) {
             insideCircle = false;
             const boldText = innerHTML;
@@ -45,14 +51,14 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema, sho
             nameInER = '';
             innerHTML = '';
           } else {
-            questionHTML += question.charAt(i);
+            questionHTML += questionContent.charAt(i);
           }
         } else if (!insideCircle && !insideSquare) {
-          questionHTML += question.charAt(i);
+          questionHTML += questionContent.charAt(i);
         } else if (insideCircle) {
-          nameInER += question.charAt(i);
+          nameInER += questionContent.charAt(i);
         } else if (insideSquare) {
-          innerHTML += question.charAt(i);
+          innerHTML += questionContent.charAt(i);
         }
       }
 
@@ -74,6 +80,16 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema, sho
       };
     }
 
+    const addEntity = (entityName) => {
+      setSchema((prevSchema) => {
+        const newSchema = new Map(prevSchema);
+        if (!newSchema.has(entityName)) {
+          newSchema.set(entityName, { entity: entityName, attribute: new Map() });
+        }
+        return newSchema;
+      });
+    };
+
     const initQuestionSetup = () => {
       questionSetup();
     };
@@ -81,41 +97,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema, sho
     if (questionMarkdown) {
       initQuestionSetup();
     }
-  }, [questionMarkdown, schema, showPopup]);
-
-  const addEntity = (entityName) => {
-    setSchema((prevSchema) => {
-      const newSchema = new Map(prevSchema);
-      if (!newSchema.has(entityName)) {
-        newSchema.set(entityName, { entity: entityName, attribute: new Map() });
-      }
-      return newSchema;
-    });
-  };
-
-  const addAttribute = (entityName, attName, key = '') => {
-    setSchema((prevSchema) => {
-      const newSchema = new Map(prevSchema);
-      const enObj = newSchema.get(entityName);
-      enObj.attribute.set(attName, { attribute: attName, key });
-      newSchema.set(entityName, enObj);
-      return newSchema;
-    });
-
-    setAttributes((prevAttributes) => {
-      const newAttributes = new Map(prevAttributes);
-      if (!newAttributes.has(attName)) {
-        const enMap = new Map();
-        enMap.set(entityName, { attribute: attName, key });
-        newAttributes.set(attName, { attribute: attName, entities: enMap });
-      } else {
-        const attObj = newAttributes.get(attName);
-        attObj.entities.set(entityName, { attribute: attName, key });
-        newAttributes.set(attName, attObj);
-      }
-      return newAttributes;
-    });
-  };
+  }, [questionMarkdown, schema, showPopup, setSchema]);
 
   return <div id="question"></div>;
 };
