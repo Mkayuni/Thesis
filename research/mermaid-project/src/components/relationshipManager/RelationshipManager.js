@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { Box, Button, Typography, Select, MenuItem, TextField } from '@mui/material';
+import { Box, Button, Typography, Select, MenuItem, TextField, Accordion, AccordionSummary, AccordionDetails, IconButton } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import DeleteIcon from '@mui/icons-material/Delete';
 
-const RelationshipManager = ({ schema, relationships, addRelationship, editRelationship, removeRelationship }) => {
+const RelationshipManager = ({ schema, relationships, addRelationship, removeRelationship }) => {
   const [relationA, setRelationA] = useState('');
   const [relationB, setRelationB] = useState('');
   const [cardinalityA, setCardinalityA] = useState('');
   const [cardinalityB, setCardinalityB] = useState('');
   const [cardinalityText, setCardinalityText] = useState('');
+  const [expanded, setExpanded] = useState(false);
 
   const entities = Array.from(schema.keys());
 
@@ -20,6 +23,10 @@ const RelationshipManager = ({ schema, relationships, addRelationship, editRelat
       setCardinalityB('');
       setCardinalityText('');
     }
+  };
+
+  const handleAccordionChange = () => {
+    setExpanded(!expanded);
   };
 
   return (
@@ -58,19 +65,28 @@ const RelationshipManager = ({ schema, relationships, addRelationship, editRelat
           onChange={(e) => setCardinalityText(e.target.value)}
         />
         <Button variant="contained" color="primary" onClick={handleAddRelationship}>
-          Add Relationship
+          Add
         </Button>
       </Box>
-      <Typography variant="h6" gutterBottom>Existing Relationships</Typography>
-      <ul>
-        {Array.from(relationships.values()).map((rel) => (
-          <li key={rel.id}>
-            {rel.relationA} {rel.cardinalityA} - {rel.cardinalityB} {rel.relationB}: {rel.cardinalityText}
-            <Button onClick={() => editRelationship(rel.id)}>Edit</Button>
-            <Button onClick={() => removeRelationship(rel.id)}>Remove</Button>
-          </li>
-        ))}
-      </ul>
+      <Accordion expanded={expanded} onChange={handleAccordionChange}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography variant="h6" gutterBottom>Edit Relationship</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <ul>
+            {Array.from(relationships.values()).map((rel) => (
+              <li key={rel.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography>
+                  {rel.relationA} {rel.cardinalityA} - {rel.cardinalityB} {rel.relationB}: {rel.cardinalityText}
+                </Typography>
+                <IconButton onClick={() => removeRelationship(rel.id)} size="small" sx={{ color: 'red' }}>
+                  <DeleteIcon />
+                </IconButton>
+              </li>
+            ))}
+          </ul>
+        </AccordionDetails>
+      </Accordion>
     </Box>
   );
 };

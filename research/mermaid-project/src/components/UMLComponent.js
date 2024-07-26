@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
-import { Box, Paper } from '@mui/material';
+import { Box, Paper, Button, Typography } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import ControlsComponent from './ControlsComponent';
 import MermaidDiagram from './mermaidDiagram/MermaidDiagram';
@@ -22,7 +22,7 @@ const UMLComponent = () => {
     setSchema,
     setRelationships,
     addRelationship,
-    editRelationship
+    editRelationship,
   } = useEntityManagement();
   const {
     popup,
@@ -39,9 +39,15 @@ const UMLComponent = () => {
   const umlRef = useRef(null);
   const controlsRef = useRef(null);
   const questionContainerRef = useRef(null); // Reference for the question container
+  const feedbackButtonRef = useRef(null);
+  const feedbackContentRef = useRef(null);
+  const submitButtonRef = useRef(null);
+  const submitContentRef = useRef(null);
   const [questions, setQuestions] = useState([]);
   const [questionMarkdown, setQuestionMarkdown] = useState('');
   const [expandedPanel, setExpandedPanel] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isSubmitOpen, setIsSubmitOpen] = useState(false);
 
   useEffect(() => {
     document.addEventListener('mousedown', handleClickOutside);
@@ -140,7 +146,7 @@ const UMLComponent = () => {
   const PopupContainer = styled(Paper)(({ theme }) => ({
     position: 'absolute',
     padding: theme.spacing(2),
-    backgroundColor: '#eeeeee', // Light gray background
+    backgroundColor: '#bbbbbb', // Less dark gray background
     color: '#000000', // Black text color
     border: '1px solid #ccc',
     boxShadow: theme.shadows[5],
@@ -160,20 +166,55 @@ const UMLComponent = () => {
     position: 'relative', // Ensure popups are positioned relative to this container
   }));
 
-  const DiagramContainer = styled(Box)(({ theme }) => ({
-    flex: 3,
+  const FloatingButtonsContainer = styled(Box)(({ theme }) => ({
+    position: 'absolute',
+    bottom: theme.spacing(2),
+    right: theme.spacing(2),
     display: 'flex',
     flexDirection: 'column',
-    overflow: 'auto', // Make the diagram container scrollable
+    alignItems: 'flex-end',
+    gap: theme.spacing(1),
+  }));
+
+  const ExpandedContent = styled(Paper)(({ theme }) => ({
     padding: theme.spacing(2),
-    borderRadius: theme.shape.borderRadius,
-    boxShadow: theme.shadows[2],
-    backgroundColor: '#fff',
+    marginBottom: theme.spacing(1),
+    boxShadow: theme.shadows[3],
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    zIndex: 9999,
   }));
 
   const handleQuestionClick = (questionTitle) => {
     fetchQuestionHtml(questionTitle);
   };
+
+  const handleOutsideClick = (event) => {
+    if (
+      feedbackButtonRef.current && !feedbackButtonRef.current.contains(event.target) &&
+      feedbackContentRef.current && !feedbackContentRef.current.contains(event.target)
+    ) {
+      setIsFeedbackOpen(false);
+    }
+    if (
+      submitButtonRef.current && !submitButtonRef.current.contains(event.target) &&
+      submitContentRef.current && !submitContentRef.current.contains(event.target)
+    ) {
+      setIsSubmitOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isFeedbackOpen || isSubmitOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    } else {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isFeedbackOpen, isSubmitOpen]);
 
   return (
     <MainContainer>
@@ -197,13 +238,13 @@ const UMLComponent = () => {
           questionMarkdown={questionMarkdown}
           setQuestionMarkdown={setQuestionMarkdown}
           controlsRef={controlsRef}
-          onQuestionClick={handleQuestionClick}  // Pass the function to handle question clicks
+          onQuestionClick={handleQuestionClick} // Pass the function to handle question clicks
           hidePopup={hidePopup} // Pass hidePopup function
           addEntity={addEntity} // Pass addEntity function
           addAttribute={addAttribute} // Pass addAttribute function
           setRelationships={setRelationships} // Pass setRelationships function
         />
-        <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 2 }} ref={umlRef}>
+        <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 2, position: 'relative' }} ref={umlRef}>
           <QuestionContainer id="question-container" ref={questionContainerRef}>
             <QuestionSetup
               schema={schema}
@@ -256,9 +297,43 @@ const UMLComponent = () => {
               </PopupContainer>
             )}
           </QuestionContainer>
-          <DiagramContainer>
+          <Box sx={{ flex: 1, overflowY: 'auto', height: '500px', width: '100%' }} ref={umlRef}>
             <MermaidDiagram schema={schema} relationships={relationships} />
-          </DiagramContainer>
+          </Box>
+          <FloatingButtonsContainer>
+            {isFeedbackOpen && (
+              <ExpandedContent ref={feedbackContentRef} sx={{ width: '200px' }}>
+                <Typography>Feedback Content</Typography>
+                {/* Add feedback form or content here */}
+              </ExpandedContent>
+            )}
+            {isSubmitOpen && (
+              <ExpandedContent ref={submitContentRef} sx={{ width: '100px' }}>
+                <Typography>Submit Content</Typography>
+                {/* Add submit form or content here */}
+              </ExpandedContent>
+            )}
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                ref={feedbackButtonRef}
+                variant="contained"
+                color="primary"
+                onClick={() => setIsFeedbackOpen(!isFeedbackOpen)}
+                sx={{ width: '200px' }} // Double the length of the Feedback button
+              >
+                Feedback
+              </Button>
+              <Button
+                ref={submitButtonRef}
+                variant="contained"
+                color="secondary"
+                onClick={() => setIsSubmitOpen(!isSubmitOpen)}
+                sx={{ width: '100px' }}
+              >
+                Submit
+              </Button>
+            </Box>
+          </FloatingButtonsContainer>
         </Box>
       </Box>
     </MainContainer>

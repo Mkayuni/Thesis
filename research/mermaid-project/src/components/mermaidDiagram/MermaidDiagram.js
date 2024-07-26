@@ -11,6 +11,8 @@ const DiagramBox = styled(Box)(({ theme }) => ({
   boxShadow: theme.shadows[2],
   flex: 3,
   overflow: 'hidden', // Disable vertical scrolling
+  width: '100%', // Ensure it takes full width of the container
+  height: '100%' // Ensure it takes full height of the container
 }));
 
 const capitalizeFirstLetter = (string) => string.charAt(0).toUpperCase() + string.slice(1);
