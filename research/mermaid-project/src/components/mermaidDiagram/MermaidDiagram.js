@@ -77,10 +77,18 @@ const MermaidDiagram = ({ schema, relationships }) => {
           return `  ${attItem.attribute} ${attItem.key ? `(${attItem.key})` : ''}`;
         });
 
+        const methodLines = schemaItem.methods.map(method => {
+          return `  ${method.visibility} ${method.static ? 'static' : ''} ${method.name}()`;
+        });
+
         if (attributeLines.length === 0) {
           item += '  No attributes\n'; // Use a recognizable string
         } else {
           item += attributeLines.join('\n');
+        }
+
+        if (methodLines.length > 0) {
+          item += '\n' + methodLines.join('\n');
         }
 
         item += '\n}\n';

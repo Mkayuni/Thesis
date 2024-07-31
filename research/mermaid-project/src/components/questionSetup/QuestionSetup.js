@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema, showPopup }) => {
   useEffect(() => {
@@ -84,7 +84,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema, sho
       setSchema((prevSchema) => {
         const newSchema = new Map(prevSchema);
         if (!newSchema.has(entityName)) {
-          newSchema.set(entityName, { entity: entityName, attribute: new Map() });
+          newSchema.set(entityName, { entity: entityName, attribute: new Map(), methods: [] });
         }
         return newSchema;
       });

@@ -1,13 +1,16 @@
+// src/components/UMLComponent.js
+
 import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
-import { Box, Paper, Button, Typography } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { Box, Paper, Button, Typography, CssBaseline } from '@mui/material';
+import { styled, ThemeProvider } from '@mui/material/styles';
 import ControlsComponent from './ControlsComponent';
 import MermaidDiagram from './mermaidDiagram/MermaidDiagram';
 import QuestionSetup from './questionSetup/QuestionSetup';
 import './mermaid.css';
-import { usePopup } from './utils/popupUtils';
+import { usePopup } from './utils/usePopup';
 import { useEntityManagement } from './entityManager/EntityManager';
+import theme from '../theme';
 
 const UMLComponent = () => {
   const {
@@ -23,6 +26,7 @@ const UMLComponent = () => {
     setRelationships,
     addRelationship,
     editRelationship,
+    addMethod,
   } = useEntityManagement();
   const {
     popup,
@@ -89,7 +93,12 @@ const UMLComponent = () => {
     hidePopup();
   };
 
-  const showSubPopup = (entityOrAttribute, position = 'right', spacing = 5) => {
+  const handleAddMethodClick = (entity, method) => {
+    addMethod(entity, method);
+    hidePopup();
+  };
+
+  const showSubPopup = (entityOrAttribute, type, position = 'right', spacing = 5) => {
     const popupElement = document.querySelector('.popup');
     const popupWidth = popupElement ? popupElement.offsetWidth : 0;
     const popupHeight = popupElement ? popupElement.offsetHeight : 0;
@@ -109,6 +118,7 @@ const UMLComponent = () => {
       x: adjustedPosition.x,
       y: adjustedPosition.y,
       entityOrAttribute,
+      type,
       entities: popup.entities,
     });
   };
@@ -163,7 +173,7 @@ const UMLComponent = () => {
     boxShadow: theme.shadows[2],
     marginBottom: theme.spacing(2),
     width: '100%',
-    position: 'relative', // Ensure popups are positioned relative to this container
+    position: 'relative', 
   }));
 
   const FloatingButtonsContainer = styled(Box)(({ theme }) => ({
@@ -210,133 +220,154 @@ const UMLComponent = () => {
       document.addEventListener('mousedown', handleOutsideClick);
     } else {
       document.removeEventListener('mousedown', handleOutsideClick);
-    }
+    };
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
   }, [isFeedbackOpen, isSubmitOpen]);
 
   return (
-    <MainContainer>
-      <Header>AutoER-Kayuni</Header>
-      <Box sx={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden', width: '100%' }}>
-        <ControlsComponent
-          schema={schema}
-          setSchema={setSchema}
-          showPopup={(e, entityOrAttribute, type) => showPopup(e, entityOrAttribute, type, schema, questionContainerRef)}
-          expandedPanel={expandedPanel}
-          setExpandedPanel={setExpandedPanel}
-          removeEntity={removeEntity}
-          removeAttribute={removeAttribute}
-          relationships={relationships}
-          removeRelationship={removeRelationship}
-          updateAttributeKey={updateAttributeKey}
-          addRelationship={addRelationship}
-          editRelationship={editRelationship}
-          questions={questions}
-          setQuestions={setQuestions}
-          questionMarkdown={questionMarkdown}
-          setQuestionMarkdown={setQuestionMarkdown}
-          controlsRef={controlsRef}
-          onQuestionClick={handleQuestionClick} // Pass the function to handle question clicks
-          hidePopup={hidePopup} // Pass hidePopup function
-          addEntity={addEntity} // Pass addEntity function
-          addAttribute={addAttribute} // Pass addAttribute function
-          setRelationships={setRelationships} // Pass setRelationships function
-        />
-        <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 2, position: 'relative' }} ref={umlRef}>
-          <QuestionContainer id="question-container" ref={questionContainerRef}>
-            <QuestionSetup
-              schema={schema}
-              setSchema={setSchema}
-              showPopup={(e, entityOrAttribute, type) => showPopup(e, entityOrAttribute, type, schema, questionContainerRef)}
-              questionMarkdown={questionMarkdown}
-              setQuestionMarkdown={setQuestionMarkdown}
-              relationships={relationships}
-              setRelationships={setRelationships}
-            />
-            {popup.visible && (
-              <PopupContainer
-                ref={entityPopupRef}
-                style={{
-                  top: popup.y,
-                  left: popup.x,
-                }}
-              >
-                {popup.type === 'attribute' ? (
-                  popup.entities.map((entity) => (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <MainContainer>
+        <Header>AutoER-Kayuni</Header>
+        <Box sx={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden', width: '100%' }}>
+          <ControlsComponent
+            schema={schema}
+            setSchema={setSchema}
+            showPopup={(e, entityOrAttribute, type) => showPopup(e, entityOrAttribute, type, schema, questionContainerRef)}
+            expandedPanel={expandedPanel}
+            setExpandedPanel={setExpandedPanel}
+            removeEntity={removeEntity}
+            removeAttribute={removeAttribute}
+            relationships={relationships}
+            removeRelationship={removeRelationship}
+            updateAttributeKey={updateAttributeKey}
+            addRelationship={addRelationship}
+            editRelationship={editRelationship}
+            questions={questions}
+            setQuestions={setQuestions}
+            questionMarkdown={questionMarkdown}
+            setQuestionMarkdown={setQuestionMarkdown}
+            controlsRef={controlsRef}
+            onQuestionClick={handleQuestionClick} // Pass the function to handle question clicks
+            hidePopup={hidePopup} // Pass hidePopup function
+            addEntity={addEntity} // Pass addEntity function
+            addAttribute={addAttribute} // Pass addAttribute function
+            setRelationships={setRelationships} // Pass setRelationships function
+          />
+          <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 2, position: 'relative' }} ref={umlRef}>
+            <QuestionContainer id="question-container" ref={questionContainerRef}>
+              <QuestionSetup
+                schema={schema}
+                setSchema={setSchema}
+                showPopup={(e, entityOrAttribute, type) => showPopup(e, entityOrAttribute, type, schema, questionContainerRef)}
+                questionMarkdown={questionMarkdown}
+                setQuestionMarkdown={setQuestionMarkdown}
+                relationships={relationships}
+                setRelationships={setRelationships}
+              />
+              {popup.visible && (
+                <PopupContainer
+                  ref={entityPopupRef}
+                  style={{
+                    top: popup.y,
+                    left: popup.x,
+                  }}
+                >
+                  {popup.type === 'attribute' ? (
+                    popup.entities.map((entity) => (
+                      <div key={entity}>
+                        <button onClick={() => handleAddAttributeClick(entity, popup.entityOrAttribute)}>{entity}</button>
+                      </div>
+                    ))
+                  ) : (
+                    <>
+                      <div>
+                        <button onClick={() => addEntity(popup.entityOrAttribute)}>Add Entity</button>
+                      </div>
+                      <div>
+                        <button onClick={() => showSubPopup(popup.entityOrAttribute, 'attribute', 'right', 5)}>Add Attribute</button>
+                      </div>
+                      <div>
+                        <button onClick={() => showSubPopup(popup.entityOrAttribute, 'method', 'right', 5)}>Add Method</button>
+                      </div>
+                    </>
+                  )}
+                </PopupContainer>
+              )}
+              {subPopup.visible && subPopup.type === 'attribute' && (
+                <PopupContainer
+                  ref={subPopupRef}
+                  style={{
+                    top: subPopup.y,
+                    left: subPopup.x,
+                  }}
+                >
+                  {subPopup.entities.map((entity) => (
                     <div key={entity}>
-                      <button onClick={() => handleAddAttributeClick(entity, popup.entityOrAttribute)}>{entity}</button>
+                      <button onClick={() => handleAddAttributeClick(entity, subPopup.entityOrAttribute)}>{entity}</button>
                     </div>
-                  ))
-                ) : (
-                  <>
-                    <div>
-                      <button onClick={() => addEntity(popup.entityOrAttribute)}>Add Entity</button>
+                  ))}
+                </PopupContainer>
+              )}
+              {subPopup.visible && subPopup.type === 'method' && (
+                <PopupContainer
+                  ref={subPopupRef}
+                  style={{
+                    top: subPopup.y,
+                    left: subPopup.x,
+                  }}
+                >
+                  {['public', 'private', 'protected', 'static'].map((methodType) => (
+                    <div key={methodType}>
+                      <button onClick={() => handleAddMethodClick(subPopup.entityOrAttribute, methodType)}>{methodType}</button>
                     </div>
-                    <div>
-                      <button onClick={() => showSubPopup(popup.entityOrAttribute, 'right', 5)}>Add Attribute</button>
-                    </div>
-                  </>
-                )}
-              </PopupContainer>
-            )}
-            {subPopup.visible && (
-              <PopupContainer
-                ref={subPopupRef}
-                style={{
-                  top: subPopup.y,
-                  left: subPopup.x,
-                }}
-              >
-                {subPopup.entities.map((entity) => (
-                  <div key={entity}>
-                    <button onClick={() => handleAddAttributeClick(entity, subPopup.entityOrAttribute)}>{entity}</button>
-                  </div>
-                ))}
-              </PopupContainer>
-            )}
-          </QuestionContainer>
-          <Box sx={{ flex: 1, overflowY: 'auto', height: '500px', width: '100%' }} ref={umlRef}>
-            <MermaidDiagram schema={schema} relationships={relationships} />
-          </Box>
-          <FloatingButtonsContainer>
-            {isFeedbackOpen && (
-              <ExpandedContent ref={feedbackContentRef} sx={{ width: '200px' }}>
-                <Typography>Feedback Content</Typography>
-                {/* Add feedback form or content here */}
-              </ExpandedContent>
-            )}
-            {isSubmitOpen && (
-              <ExpandedContent ref={submitContentRef} sx={{ width: '100px' }}>
-                <Typography>Submit Content</Typography>
-                {/* Add submit form or content here */}
-              </ExpandedContent>
-            )}
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                ref={feedbackButtonRef}
-                variant="contained"
-                color="primary"
-                onClick={() => setIsFeedbackOpen(!isFeedbackOpen)}
-                sx={{ width: '200px' }} // Double the length of the Feedback button
-              >
-                Feedback
-              </Button>
-              <Button
-                ref={submitButtonRef}
-                variant="contained"
-                color="secondary"
-                onClick={() => setIsSubmitOpen(!isSubmitOpen)}
-                sx={{ width: '100px' }}
-              >
-                Submit
-              </Button>
+                  ))}
+                </PopupContainer>
+              )}
+            </QuestionContainer>
+            <Box sx={{ flex: 1, overflow: 'auto', height: '500px', width: '100%' }} ref={umlRef}>
+              <MermaidDiagram schema={schema} relationships={relationships} />
             </Box>
-          </FloatingButtonsContainer>
+            <FloatingButtonsContainer>
+              {isFeedbackOpen && (
+                <ExpandedContent ref={feedbackContentRef} sx={{ width: '200px' }}>
+                  <Typography>Feedback Content</Typography>
+                  {/* Add feedback form or content here */}
+                </ExpandedContent>
+              )}
+              {isSubmitOpen && (
+                <ExpandedContent ref={submitContentRef} sx={{ width: '100px' }}>
+                  <Typography>Submit Content</Typography>
+                  {/* Add submit form or content here */}
+                </ExpandedContent>
+              )}
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  ref={feedbackButtonRef}
+                  variant="contained"
+                  color="primary"
+                  onClick={() => setIsFeedbackOpen(!isFeedbackOpen)}
+                  sx={{ width: '200px' }} // Double the length of the Feedback button
+                >
+                  Feedback
+                </Button>
+                <Button
+                  ref={submitButtonRef}
+                  variant="contained"
+                  color="secondary"
+                  onClick={() => setIsSubmitOpen(!isSubmitOpen)}
+                  sx={{ width: '100px' }}
+                >
+                  Submit
+                </Button>
+              </Box>
+            </FloatingButtonsContainer>
+          </Box>
         </Box>
-      </Box>
-    </MainContainer>
+      </MainContainer>
+    </ThemeProvider>
   );
 };
 

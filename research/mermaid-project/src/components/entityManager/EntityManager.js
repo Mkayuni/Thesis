@@ -4,10 +4,10 @@ export const useEntityManagement = () => {
   const [schema, setSchema] = useState(new Map());
   const [relationships, setRelationships] = useState(new Map());
 
-  const addEntity = useCallback((entity) => {
+  const addEntity = useCallback((entity, methods = []) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
-      newSchema.set(entity, { entity, attribute: new Map() });
+      newSchema.set(entity, { entity, attribute: new Map(), methods });
       return newSchema;
     });
   }, []);
@@ -85,6 +85,20 @@ export const useEntityManagement = () => {
     });
   }, []);
 
+  const addMethod = useCallback((entity, method, visibility = 'public') => {
+    setSchema((prevSchema) => {
+      const newSchema = new Map(prevSchema);
+      const entityData = newSchema.get(entity);
+      if (entityData) {
+        const methods = Array.from(entityData.methods);
+        methods.push({ method, visibility });
+        entityData.methods = methods;
+        newSchema.set(entity, entityData);
+      }
+      return newSchema;
+    });
+  }, []);
+
   const addRelationship = useCallback((relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
     setRelationships((prevRelationships) => {
       const newRelationships = new Map(prevRelationships);
@@ -120,6 +134,7 @@ export const useEntityManagement = () => {
     addAttribute,
     updateAttributeKey,
     removeAttribute,
+    addMethod,
     addRelationship,
     editRelationship,
     removeRelationship,

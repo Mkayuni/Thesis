@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
-import { Typography, TextField, Divider, IconButton, Accordion, AccordionSummary, AccordionDetails, Button, Box, Menu, MenuItem } from '@mui/material';
+// src/components/ControlsComponent.js
+
+import React, { useEffect, useState, useRef } from 'react';
+import { Typography, TextField, Divider, IconButton, Accordion, AccordionSummary, AccordionDetails, Button, Box, Menu, MenuItem, Paper } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import KeyIcon from '@mui/icons-material/VpnKey';
 import RelationshipManager from './relationshipManager/RelationshipManager';
+import { usePopup } from './utils/usePopup';
+import Popup from './utils/Popup';
 
 const DrawerContainer = styled(Box)(({ theme }) => ({
   padding: theme.spacing(2),
@@ -33,12 +37,24 @@ const AccordionSummaryStyled = styled(AccordionSummary)(({ theme }) => ({
   },
 }));
 
+const PopupContainer = styled(Paper)(({ theme }) => ({
+  position: 'absolute',
+  padding: theme.spacing(2),
+  backgroundColor: '#bbbbbb', // Less dark gray background
+  color: '#000000', // Black text color
+  border: '1px solid #ccc',
+  boxShadow: theme.shadows[5],
+  zIndex: 1000,
+  maxHeight: '80vh',
+  overflowY: 'auto',
+  width: 'fit-content',
+}));
+
 const ControlsComponent = ({
   questionMarkdown,
   setQuestionMarkdown,
   schema,
   setSchema,
-  showPopup,
   questions,
   expandedPanel,
   setExpandedPanel,
@@ -50,11 +66,12 @@ const ControlsComponent = ({
   controlsRef,
   addEntity,
   addAttribute,
+  addMethod,
   addRelationship,
   editRelationship,
   onQuestionClick,
   hidePopup,
-  setRelationships // Ensure setRelationships is passed as a prop
+  setRelationships, // Ensure setRelationships is passed as a prop
 }) => {
   const [showTextBox, setShowTextBox] = useState(false);
   const [tempQuestion, setTempQuestion] = useState('');
@@ -62,6 +79,27 @@ const ControlsComponent = ({
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [selectedAttribute, setSelectedAttribute] = useState(null);
   const [expandedQuestions, setExpandedQuestions] = useState(false);
+
+  const {
+    popup,
+    subPopup,
+    entityPopupRef,
+    subPopupRef,
+    handleClickOutside,
+    showPopup: showPopupMethod,
+    hidePopup: hidePopupMethod,
+    adjustPopupPosition,
+    showSubPopup,
+  } = usePopup();
+
+  const questionContainerRef = useRef(null);
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [handleClickOutside]);
 
   const handleAccordionChange = (panel) => (event, isExpanded) => {
     setExpandedPanel(isExpanded ? panel : false);
@@ -99,6 +137,11 @@ const ControlsComponent = ({
   const handleAddAttribute = (entityName, attribute, key = '') => {
     addAttribute(entityName, attribute, key);
     hidePopup(); // Hide popup after adding attribute
+  };
+
+  const handleAddMethod = (entityName, method) => {
+    addMethod(entityName, method);
+    hidePopup(); // Hide popup after adding method
   };
 
   const handleQuestionClick = (question) => {
@@ -236,6 +279,23 @@ const ControlsComponent = ({
         <MenuItem onClick={() => handleKeyMenuClose('PK')}>Primary Key</MenuItem>
         <MenuItem onClick={() => handleKeyMenuClose('PPK')}>Partial Primary Key</MenuItem>
       </Menu>
+      <Popup popup={popup} hidePopup={hidePopupMethod} addEntity={handleAddEntity} addAttribute={handleAddAttribute} addMethod={handleAddMethod} showSubPopup={showSubPopup} entityPopupRef={entityPopupRef} />
+      {subPopup.visible && (
+        <PopupContainer
+          ref={subPopupRef}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            top: subPopup.y,
+            left: subPopup.x,
+          }}
+        >
+          {subPopup.entities.map((entity) => (
+            <div key={entity}>
+              <button onClick={() => handleAddAttribute(entity, subPopup.entityOrAttribute)}>{entity}</button>
+            </div>
+          ))}
+        </PopupContainer>
+      )}
     </DrawerContainer>
   );
 };
