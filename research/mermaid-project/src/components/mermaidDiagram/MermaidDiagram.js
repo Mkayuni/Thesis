@@ -78,6 +78,7 @@ const MermaidDiagram = ({ schema, relationships }) => {
         });
 
         const methodLines = schemaItem.methods.map(method => {
+          // Ensure that each method string reflects the visibility and static attributes.
           return `  ${method.visibility} ${method.static ? 'static ' : ''}${method.name}()`;
         });
 

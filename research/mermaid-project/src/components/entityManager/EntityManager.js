@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
 
 export const useEntityManagement = () => {
+  // Initialize state for schema and relationships
   const [schema, setSchema] = useState(new Map());
   const [relationships, setRelationships] = useState(new Map());
 
+  // Function to add a new entity with optional methods
   const addEntity = useCallback((entity, methods = []) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
@@ -12,6 +14,7 @@ export const useEntityManagement = () => {
     });
   }, []);
 
+  // Function to remove an entity
   const removeEntity = useCallback((entity) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
@@ -20,6 +23,7 @@ export const useEntityManagement = () => {
     });
   }, []);
 
+  // Function to add a new attribute to an entity
   const addAttribute = useCallback((entity, attribute, key = '') => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
@@ -47,6 +51,7 @@ export const useEntityManagement = () => {
     });
   }, []);
 
+  // Function to update an attribute's key
   const updateAttributeKey = useCallback((entity, attribute, newKey) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
@@ -73,6 +78,7 @@ export const useEntityManagement = () => {
     });
   }, []);
 
+  // Function to remove an attribute from an entity
   const removeAttribute = useCallback((entity, attribute) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
@@ -85,18 +91,20 @@ export const useEntityManagement = () => {
     });
   }, []);
 
-  const addMethod = useCallback((entity, methodName, visibility = 'public', isStatic = false) => {
+  // Function to add a method to an entity
+  const addMethod = useCallback((entity, methodDetails) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
       if (entityData) {
-        entityData.methods.push({ name: methodName, visibility, static: isStatic });
+        entityData.methods.push(methodDetails);
         newSchema.set(entity, entityData);
       }
       return newSchema;
     });
   }, []);
 
+  // Function to add a new relationship
   const addRelationship = useCallback((relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
     setRelationships((prevRelationships) => {
       const newRelationships = new Map(prevRelationships);
@@ -106,6 +114,7 @@ export const useEntityManagement = () => {
     });
   }, []);
 
+  // Function to edit an existing relationship
   const editRelationship = useCallback((id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
     setRelationships((prevRelationships) => {
       const newRelationships = new Map(prevRelationships);
@@ -116,6 +125,7 @@ export const useEntityManagement = () => {
     });
   }, []);
 
+  // Function to remove a relationship
   const removeRelationship = useCallback((id) => {
     setRelationships((prevRelationships) => {
       const newRelationships = new Map(prevRelationships);
@@ -137,6 +147,6 @@ export const useEntityManagement = () => {
     editRelationship,
     removeRelationship,
     setSchema,
-    setRelationships
+    setRelationships,
   };
 };

@@ -82,7 +82,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup }) => {
       if (methods.size > 0) {
         questionHTML += '<br /><br />Consider the following methods and decide which entity each method should belong to:<br />';
         methods.forEach((method) => {
-          questionHTML += `<strong><a href="#" onclick="event.preventDefault(); window.showPopup(event, '${method}')">${method}</a></strong>, `;
+          questionHTML += `<strong><a href="#" onclick="event.preventDefault(); window.showPopup(event, '${method}', 'method')">${method}</a></strong>, `;
         });
         questionHTML = questionHTML.slice(0, -2); // Remove the last comma and space
       }

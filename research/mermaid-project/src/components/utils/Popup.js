@@ -1,7 +1,17 @@
 // src/components/utils/Popup.js
 
-import React, { useRef } from 'react';
-import { Paper, TextField, Button } from '@mui/material';
+import React, { useRef, useState } from 'react';
+import {
+  Paper,
+  TextField,
+  Button,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Checkbox,
+  FormControlLabel,
+} from '@mui/material';
 import { styled } from '@mui/material/styles';
 
 const PopupContainer = styled(Paper)(({ theme }) => ({
@@ -16,15 +26,41 @@ const PopupContainer = styled(Paper)(({ theme }) => ({
   width: 'fit-content',
 }));
 
-const Popup = ({ popup, hidePopup, addEntity, addAttribute, addMethod, showSubPopup, entityPopupRef }) => {
+const Popup = ({
+  popup,
+  hidePopup,
+  addEntity,
+  addAttribute,
+  addMethod,
+  showSubPopup,
+  entityPopupRef,
+}) => {
   const methodInputRef = useRef();
+  const [visibility, setVisibility] = useState('public');
+  const [isStatic, setIsStatic] = useState(false);
 
   const handleAddMethod = () => {
-    const methodName = methodInputRef.current.value;
+    const methodName = methodInputRef.current.value.trim();
+
     if (methodName) {
-      addMethod(popup.entityOrAttribute, methodName);
+      const methodDetails = {
+        name: methodName,
+        visibility,
+        static: isStatic,
+      };
+      addMethod(popup.entityOrAttribute, methodDetails);
       hidePopup();
+    } else {
+      alert("Please enter a method name.");
     }
+  };
+
+  const handleVisibilityChange = (event) => {
+    setVisibility(event.target.value);
+  };
+
+  const handleStaticChange = (event) => {
+    setIsStatic(event.target.checked);
   };
 
   return (
@@ -32,8 +68,41 @@ const Popup = ({ popup, hidePopup, addEntity, addAttribute, addMethod, showSubPo
       <PopupContainer ref={entityPopupRef} style={{ top: popup.y, left: popup.x }}>
         {popup.type === 'method' ? (
           <div>
-            <TextField inputRef={methodInputRef} label="Method Name" variant="outlined" fullWidth />
-            <Button variant="contained" color="primary" onClick={handleAddMethod}>
+            <TextField
+              inputRef={methodInputRef}
+              label="Method Name"
+              variant="outlined"
+              fullWidth
+            />
+            <FormControl variant="outlined" fullWidth margin="normal">
+              <InputLabel id="visibility-label">Visibility</InputLabel>
+              <Select
+                labelId="visibility-label"
+                value={visibility}
+                onChange={handleVisibilityChange}
+                label="Visibility"
+              >
+                <MenuItem value="public">Public</MenuItem>
+                <MenuItem value="protected">Protected</MenuItem>
+                <MenuItem value="private">Private</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={isStatic}
+                  onChange={handleStaticChange}
+                  color="primary"
+                />
+              }
+              label="Static"
+            />
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleAddMethod}
+              sx={{ marginTop: 2 }}
+            >
               Add Method
             </Button>
           </div>

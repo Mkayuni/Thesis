@@ -28,6 +28,7 @@ const UMLComponent = () => {
     editRelationship,
     addMethod,
   } = useEntityManagement();
+  
   const {
     popup,
     subPopup,
@@ -93,8 +94,8 @@ const UMLComponent = () => {
     hidePopup();
   };
 
-  const handleAddMethodClick = (entity, method) => {
-    addMethod(entity, method);
+  const handleAddMethodClick = (entity, methodDetails) => {
+    addMethod(entity, methodDetails);
     hidePopup();
   };
 
@@ -319,11 +320,30 @@ const UMLComponent = () => {
                     left: subPopup.x,
                   }}
                 >
-                  {['public', 'private', 'protected', 'static'].map((methodType) => (
-                    <div key={methodType}>
-                      <button onClick={() => handleAddMethodClick(subPopup.entityOrAttribute, methodType)}>{methodType}</button>
+                  {['public', 'private', 'protected'].map((visibility) => (
+                    <div key={visibility}>
+                      <button
+                        onClick={() => handleAddMethodClick(subPopup.entityOrAttribute, {
+                          name: subPopup.entityOrAttribute,
+                          visibility: visibility,
+                          static: false, // Assume false unless checkbox specifies otherwise
+                        })}
+                      >
+                        {visibility}
+                      </button>
                     </div>
                   ))}
+                  <div>
+                    <button
+                      onClick={() => handleAddMethodClick(subPopup.entityOrAttribute, {
+                        name: subPopup.entityOrAttribute,
+                        visibility: 'public', // Default to public for static
+                        static: true,
+                      })}
+                    >
+                      Static
+                    </button>
+                  </div>
                 </PopupContainer>
               )}
             </QuestionContainer>
