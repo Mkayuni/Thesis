@@ -85,14 +85,12 @@ export const useEntityManagement = () => {
     });
   }, []);
 
-  const addMethod = useCallback((entity, method, visibility = 'public') => {
+  const addMethod = useCallback((entity, methodName, visibility = 'public', isStatic = false) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
       if (entityData) {
-        const methods = Array.from(entityData.methods);
-        methods.push({ method, visibility });
-        entityData.methods = methods;
+        entityData.methods.push({ name: methodName, visibility, static: isStatic });
         newSchema.set(entity, entityData);
       }
       return newSchema;

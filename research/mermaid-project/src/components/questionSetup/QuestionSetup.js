@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 
-const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema, showPopup }) => {
+const QuestionSetup = ({ questionMarkdown, setSchema, showPopup }) => {
   useEffect(() => {
     function extractEntitiesAndAttributes(question) {
       const entityAttributePattern = /\[(.*?)\]\((.*?)\)/g;
@@ -16,12 +16,27 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema, sho
       return { entities, attributes };
     }
 
+    function extractMethods(question) {
+      const methodPattern = /`([^`]+)`/g;
+      const methods = new Set();
+      let match;
+
+      // Extract methods from the markdown
+      while ((match = methodPattern.exec(question)) !== null) {
+        const methodList = match[1].split(',').map(method => method.trim());
+        methodList.forEach(method => methods.add(method));
+      }
+
+      return methods;
+    }
+
     function markdownToHTML(question) {
       const questionPattern = /<uml-question>(.*?)<\/uml-question>/s;
-      const answerPattern = /<uml-answer>(.*?)<\/uml-answer>/s;
-
       const questionMatch = question.match(questionPattern);
-      const questionContent = questionMatch ? questionMatch[1] : '';
+      let questionContent = questionMatch ? questionMatch[1] : '';
+
+      // Remove the plain text method list from the question content
+      questionContent = questionContent.replace(/`[^`]+`/, '');
 
       let questionHTML = '';
       let insideSquare = false;
@@ -62,6 +77,16 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema, sho
         }
       }
 
+      // Add method links
+      const methods = extractMethods(question);
+      if (methods.size > 0) {
+        questionHTML += '<br /><br />Consider the following methods and decide which entity each method should belong to:<br />';
+        methods.forEach((method) => {
+          questionHTML += `<strong><a href="#" onclick="event.preventDefault(); window.showPopup(event, '${method}')">${method}</a></strong>, `;
+        });
+        questionHTML = questionHTML.slice(0, -2); // Remove the last comma and space
+      }
+
       return questionHTML;
     }
 
@@ -90,14 +115,10 @@ const QuestionSetup = ({ questionMarkdown, setSchema, setAttributes, schema, sho
       });
     };
 
-    const initQuestionSetup = () => {
-      questionSetup();
-    };
-
     if (questionMarkdown) {
-      initQuestionSetup();
+      questionSetup();
     }
-  }, [questionMarkdown, schema, showPopup, setSchema]);
+  }, [questionMarkdown, showPopup, setSchema]);
 
   return <div id="question"></div>;
 };
