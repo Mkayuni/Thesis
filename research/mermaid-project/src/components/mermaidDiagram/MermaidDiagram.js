@@ -1,8 +1,9 @@
+// src/components/mermaidDiagram/MermaidDiagram.js
+
 import React, { useEffect, useRef } from 'react';
 import mermaid from 'mermaid';
 import { Box } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import '../mermaid.css'; // Ensure this path points to your CSS file
 
 const DiagramBox = styled(Box)(({ theme }) => ({
   padding: theme.spacing(2),
@@ -10,9 +11,9 @@ const DiagramBox = styled(Box)(({ theme }) => ({
   borderRadius: theme.shape.borderRadius,
   boxShadow: theme.shadows[2],
   flex: 3,
-  overflow: 'hidden', // Disable vertical scrolling
-  width: '100%', // Ensure it takes full width of the container
-  height: '100%' // Ensure it takes full height of the container
+  overflow: 'hidden',
+  width: '100%',
+  height: '100%'
 }));
 
 const capitalizeFirstLetter = (string) => string.charAt(0).toUpperCase() + string.slice(1);
@@ -74,12 +75,17 @@ const MermaidDiagram = ({ schema, relationships }) => {
         });
 
         const attributeLines = attributes.map(attItem => {
-          return `  ${attItem.attribute} ${attItem.key ? `(${attItem.key})` : ''}`;
+          // Optionally include visibility here if you want
+          const visibility = attItem.visibility ? (attItem.visibility === 'private' ? '-' : attItem.visibility === 'protected' ? '#' : '+') : '';
+          return `  ${visibility}${attItem.attribute} ${attItem.key ? `(${attItem.key})` : ''}`;
         });
 
         const methodLines = schemaItem.methods.map(method => {
-          // Ensure that each method string reflects the visibility and static attributes.
-          return `  ${method.visibility} ${method.static ? 'static ' : ''}${method.name}()`;
+          // Add visibility and static modifiers for methods
+          const visibilitySymbol = method.visibility === 'private' ? '-' : method.visibility === 'protected' ? '#' : '+';
+          const staticKeyword = method.static ? 'static ' : '';
+          const parameters = method.parameters ? `${method.parameters}` : '';
+          return `  ${visibilitySymbol} ${staticKeyword}${method.name}(${parameters}): ${method.returnType}`;
         });
 
         if (attributeLines.length > 0) {

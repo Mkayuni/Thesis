@@ -48,6 +48,7 @@ const Popup = ({
         visibility,
         static: isStatic,
       };
+      console.log("Adding Method:", methodDetails);  // Debugging log
       addMethod(popup.entityOrAttribute, methodDetails);
       hidePopup();
     } else {
@@ -73,6 +74,7 @@ const Popup = ({
               label="Method Name"
               variant="outlined"
               fullWidth
+              defaultValue={popup.entityOrAttribute} // Pre-fill with the method name
             />
             <FormControl variant="outlined" fullWidth margin="normal">
               <InputLabel id="visibility-label">Visibility</InputLabel>
@@ -109,7 +111,9 @@ const Popup = ({
         ) : (
           popup.entities.map((entity) => (
             <div key={entity}>
-              <Button onClick={() => addAttribute(entity, popup.entityOrAttribute)}>{entity}</Button>
+              <Button onClick={() => addAttribute(entity, popup.entityOrAttribute)}>
+                {entity}
+              </Button>
             </div>
           ))
         )}

@@ -2,7 +2,20 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
-import { Box, Paper, Button, Typography, CssBaseline } from '@mui/material';
+import {
+  Box,
+  Paper,
+  Button,
+  Typography,
+  CssBaseline,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Checkbox,
+  FormControlLabel,
+} from '@mui/material';
 import { styled, ThemeProvider } from '@mui/material/styles';
 import ControlsComponent from './ControlsComponent';
 import MermaidDiagram from './mermaidDiagram/MermaidDiagram';
@@ -28,7 +41,7 @@ const UMLComponent = () => {
     editRelationship,
     addMethod,
   } = useEntityManagement();
-  
+
   const {
     popup,
     subPopup,
@@ -53,6 +66,11 @@ const UMLComponent = () => {
   const [expandedPanel, setExpandedPanel] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
+  const [visibility, setVisibility] = useState('public'); // Visibility state
+  const [isStatic, setIsStatic] = useState(false); // Static state
+  const [returnType, setReturnType] = useState('void'); // Return type state
+  const methodInputRef = useRef(); // Method input reference
+  const parametersRef = useRef(); // Parameters input reference
 
   useEffect(() => {
     document.addEventListener('mousedown', handleClickOutside);
@@ -95,8 +113,35 @@ const UMLComponent = () => {
   };
 
   const handleAddMethodClick = (entity, methodDetails) => {
-    addMethod(entity, methodDetails);
+    // Ensure that the method's parameters are correctly parsed
+    const parameters = methodDetails.parameters
+      .split(',')
+      .map(param => param.trim())
+      .map(param => {
+        const [name, type] = param.split(':').map(s => s.trim());
+        return `${name}: ${type}`;
+      })
+      .join(', ');
+
+    const formattedMethodDetails = {
+      ...methodDetails,
+      parameters,
+    };
+
+    addMethod(entity, formattedMethodDetails);
     hidePopup();
+  };
+
+  const handleVisibilityChange = (event) => {
+    setVisibility(event.target.value);
+  };
+
+  const handleStaticChange = (event) => {
+    setIsStatic(event.target.checked);
+  };
+
+  const handleReturnTypeChange = (event) => {
+    setReturnType(event.target.value);
   };
 
   const showSubPopup = (entityOrAttribute, type, position = 'right', spacing = 5) => {
@@ -122,6 +167,10 @@ const UMLComponent = () => {
       type,
       entities: popup.entities,
     });
+  };
+
+  const handleClickInsidePopup = (event) => {
+    event.stopPropagation();
   };
 
   const MainContainer = styled(Box)(({ theme }) => ({
@@ -174,7 +223,7 @@ const UMLComponent = () => {
     boxShadow: theme.shadows[2],
     marginBottom: theme.spacing(2),
     width: '100%',
-    position: 'relative', 
+    position: 'relative',
   }));
 
   const FloatingButtonsContainer = styled(Box)(({ theme }) => ({
@@ -214,6 +263,16 @@ const UMLComponent = () => {
     ) {
       setIsSubmitOpen(false);
     }
+
+    // Ensure clicks inside the popup do not close it
+    if (
+      entityPopupRef.current && entityPopupRef.current.contains(event.target) ||
+      subPopupRef.current && subPopupRef.current.contains(event.target)
+    ) {
+      return;
+    }
+
+    hidePopup();
   };
 
   useEffect(() => {
@@ -221,7 +280,7 @@ const UMLComponent = () => {
       document.addEventListener('mousedown', handleOutsideClick);
     } else {
       document.removeEventListener('mousedown', handleOutsideClick);
-    };
+    }
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
@@ -319,30 +378,81 @@ const UMLComponent = () => {
                     top: subPopup.y,
                     left: subPopup.x,
                   }}
+                  onClick={handleClickInsidePopup} // Stop propagation
                 >
-                  {['public', 'private', 'protected'].map((visibility) => (
-                    <div key={visibility}>
-                      <button
-                        onClick={() => handleAddMethodClick(subPopup.entityOrAttribute, {
-                          name: subPopup.entityOrAttribute,
-                          visibility: visibility,
-                          static: false, // Assume false unless checkbox specifies otherwise
-                        })}
-                      >
-                        {visibility}
-                      </button>
-                    </div>
-                  ))}
                   <div>
-                    <button
-                      onClick={() => handleAddMethodClick(subPopup.entityOrAttribute, {
-                        name: subPopup.entityOrAttribute,
-                        visibility: 'public', // Default to public for static
-                        static: true,
-                      })}
+                    <TextField
+                      inputRef={methodInputRef}
+                      label="Method Name"
+                      variant="outlined"
+                      fullWidth
+                    />
+                    <TextField
+                      inputRef={parametersRef}
+                      label="Parameters (e.g., param1: Type1, param2: Type2)"
+                      variant="outlined"
+                      fullWidth
+                      margin="normal"
+                    />
+                    <FormControl variant="outlined" fullWidth margin="normal">
+                      <InputLabel id="visibility-label">Visibility</InputLabel>
+                      <Select
+                        labelId="visibility-label"
+                        value={visibility}
+                        onChange={handleVisibilityChange}
+                        label="Visibility"
+                        onMouseDown={(e) => e.stopPropagation()} // Prevent event from closing the popup
+                      >
+                        <MenuItem value="public">Public</MenuItem>
+                        <MenuItem value="protected">Protected</MenuItem>
+                        <MenuItem value="private">Private</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={isStatic}
+                          onChange={handleStaticChange}
+                          color="primary"
+                          onMouseDown={(e) => e.stopPropagation()} // Prevent event from closing the popup
+                        />
+                      }
+                      label="Static"
+                    />
+                    <FormControl variant="outlined" fullWidth margin="normal">
+                      <InputLabel id="return-type-label">Return Type</InputLabel>
+                      <Select
+                        labelId="return-type-label"
+                        value={returnType}
+                        onChange={handleReturnTypeChange}
+                        label="Return Type"
+                        onMouseDown={(e) => e.stopPropagation()} // Prevent event from closing the popup
+                      >
+                        <MenuItem value="void">void</MenuItem>
+                        <MenuItem value="int">int</MenuItem>
+                        <MenuItem value="float">float</MenuItem>
+                        <MenuItem value="String">String</MenuItem>
+                        <MenuItem value="List<Fish>">List&lt;&gt;</MenuItem>
+                        {/* Add more return types as needed */}
+                      </Select>
+                    </FormControl>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Ensure click event doesn't close the popup
+                        handleAddMethodClick(subPopup.entityOrAttribute, {
+                          name: methodInputRef.current.value.trim(),
+                          parameters: parametersRef.current.value.trim(),
+                          visibility: visibility,
+                          static: isStatic,
+                          returnType: returnType,
+                        });
+                      }}
+                      sx={{ marginTop: 2 }}
                     >
-                      Static
-                    </button>
+                      Add Method
+                    </Button>
                   </div>
                 </PopupContainer>
               )}

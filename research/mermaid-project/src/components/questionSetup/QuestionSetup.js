@@ -1,3 +1,5 @@
+// src/components/questionSetup/QuestionSetup.js
+
 import React, { useEffect } from 'react';
 
 const QuestionSetup = ({ questionMarkdown, setSchema, showPopup }) => {

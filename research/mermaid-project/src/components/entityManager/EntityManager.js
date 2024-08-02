@@ -1,3 +1,5 @@
+// src/components/entityManager/EntityManager.js
+
 import { useState, useCallback } from 'react';
 
 export const useEntityManagement = () => {
@@ -31,7 +33,7 @@ export const useEntityManagement = () => {
       if (entityData) {
         const attributes = Array.from(entityData.attribute.entries());
         const attributeIndex = attributes.findIndex(([attr]) => attr === attribute);
-        
+
         if (attributeIndex !== -1) {
           attributes.splice(attributeIndex, 1);
         }
@@ -63,7 +65,7 @@ export const useEntityManagement = () => {
         if (attributeIndex !== -1) {
           const [attr, attrData] = attributes.splice(attributeIndex, 1)[0];
           attrData.key = newKey;
-          
+
           if (newKey) {
             attributes.unshift([attr, attrData]);
           } else {
