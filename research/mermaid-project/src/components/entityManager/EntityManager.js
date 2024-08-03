@@ -32,7 +32,7 @@ export const useEntityManagement = () => {
   };
 
   // Function to add a new attribute to an entity
-  const addAttribute = useCallback((entity, attribute, key = '') => {
+  const addAttribute = useCallback((entity, attribute, type = 'String', key = '') => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
@@ -44,7 +44,7 @@ export const useEntityManagement = () => {
           attributes.splice(attributeIndex, 1);
         }
 
-        const newAttribute = { attribute, key, visibility: 'private' }; // Set visibility to private
+        const newAttribute = { attribute, type, key, visibility: 'private' }; // Include type
 
         if (key) {
           attributes.unshift([attribute, newAttribute]);
@@ -106,6 +106,7 @@ export const useEntityManagement = () => {
       const entityData = newSchema.get(entity);
       if (entityData) {
         entityData.methods.push(methodDetails);
+        console.log("Schema after adding method:", newSchema); // Debug log
         newSchema.set(entity, entityData);
       }
       return newSchema;

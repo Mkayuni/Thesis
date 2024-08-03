@@ -36,8 +36,10 @@ const Popup = ({
   entityPopupRef,
 }) => {
   const methodInputRef = useRef();
+  const attributeInputRef = useRef();
   const [visibility, setVisibility] = useState('public');
   const [isStatic, setIsStatic] = useState(false);
+  const [attributeType, setAttributeType] = useState('String'); // Default type
 
   const handleAddMethod = () => {
     const methodName = methodInputRef.current.value.trim();
@@ -56,12 +58,27 @@ const Popup = ({
     }
   };
 
+  const handleAddAttribute = () => {
+    const attributeName = attributeInputRef.current.value.trim();
+
+    if (attributeName) {
+      addAttribute(popup.entityOrAttribute, attributeName, attributeType); // Pass type here
+      hidePopup();
+    } else {
+      alert("Please enter an attribute name.");
+    }
+  };
+
   const handleVisibilityChange = (event) => {
     setVisibility(event.target.value);
   };
 
   const handleStaticChange = (event) => {
     setIsStatic(event.target.checked);
+  };
+
+  const handleTypeChange = (event) => {
+    setAttributeType(event.target.value);
   };
 
   return (
@@ -109,13 +126,37 @@ const Popup = ({
             </Button>
           </div>
         ) : (
-          popup.entities.map((entity) => (
-            <div key={entity}>
-              <Button onClick={() => addAttribute(entity, popup.entityOrAttribute)}>
-                {entity}
-              </Button>
-            </div>
-          ))
+          <div>
+            <TextField
+              inputRef={attributeInputRef}
+              label="Attribute Name"
+              variant="outlined"
+              fullWidth
+              defaultValue={popup.entityOrAttribute} // Pre-fill with the attribute name
+            />
+            <FormControl variant="outlined" fullWidth margin="normal">
+              <InputLabel id="type-label">Type</InputLabel>
+              <Select
+                labelId="type-label"
+                value={attributeType}
+                onChange={handleTypeChange}
+                label="Type"
+              >
+                <MenuItem value="String">String</MenuItem>
+                <MenuItem value="int">Integer</MenuItem>
+                <MenuItem value="boolean">Boolean</MenuItem>
+                <MenuItem value="float">Float</MenuItem>
+              </Select>
+            </FormControl>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleAddAttribute}
+              sx={{ marginTop: 2 }}
+            >
+              Add Attribute
+            </Button>
+          </div>
         )}
       </PopupContainer>
     )

@@ -1,8 +1,9 @@
 ```mermaid
 classDiagram
-    class Fish {
-        - tank: String
-        - weight: Float
-        - species: String (PK)
-        + static addMango(fish: Fish): void
-    }
+class Fish {
+  -id: String (PK)
+  -weight: String 
+  -color: String 
+  + addFish(Fish: fish): void
+  + static addWeight(Weight: weight): int
+}

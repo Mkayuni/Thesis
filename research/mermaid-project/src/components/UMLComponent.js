@@ -126,8 +126,10 @@ const UMLComponent = () => {
     const formattedMethodDetails = {
       ...methodDetails,
       parameters,
+      returnType: methodDetails.returnType, // Ensure returnType is included
     };
 
+    console.log("Formatted Method Details:", formattedMethodDetails); // Debug log
     addMethod(entity, formattedMethodDetails);
     hidePopup();
   };
@@ -432,7 +434,7 @@ const UMLComponent = () => {
                         <MenuItem value="int">int</MenuItem>
                         <MenuItem value="float">float</MenuItem>
                         <MenuItem value="String">String</MenuItem>
-                        <MenuItem value="List<Fish>">List&lt;&gt;</MenuItem>
+                        <MenuItem value="List<Fish>">List&lt;Fish&gt;</MenuItem>
                         {/* Add more return types as needed */}
                       </Select>
                     </FormControl>
@@ -446,7 +448,7 @@ const UMLComponent = () => {
                           parameters: parametersRef.current.value.trim(),
                           visibility: visibility,
                           static: isStatic,
-                          returnType: returnType,
+                          returnType: returnType, // Ensure returnType is passed
                         });
                       }}
                       sx={{ marginTop: 2 }}

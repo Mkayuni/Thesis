@@ -1,11 +1,10 @@
-// src/components/ControlsComponent.js
-
 import React, { useEffect, useState, useRef } from 'react';
 import { Typography, TextField, Divider, IconButton, Accordion, AccordionSummary, AccordionDetails, Button, Box, Menu, MenuItem, Paper } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import KeyIcon from '@mui/icons-material/VpnKey';
+import CategoryIcon from '@mui/icons-material/Category'; // Import new icon for data type selection
 import RelationshipManager from './relationshipManager/RelationshipManager';
 import { usePopup } from './utils/usePopup';
 import Popup from './utils/Popup';
@@ -66,7 +65,6 @@ const ControlsComponent = ({
   controlsRef,
   addEntity,
   addAttribute,
-  addMethod,
   addRelationship,
   editRelationship,
   onQuestionClick,
@@ -79,6 +77,11 @@ const ControlsComponent = ({
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [selectedAttribute, setSelectedAttribute] = useState(null);
   const [expandedQuestions, setExpandedQuestions] = useState(false);
+
+  // State for the data type selection menu
+  const [typeAnchorEl, setTypeAnchorEl] = useState(null);
+  const [selectedTypeEntity, setSelectedTypeEntity] = useState(null);
+  const [selectedTypeAttribute, setSelectedTypeAttribute] = useState(null);
 
   const {
     popup,
@@ -125,6 +128,22 @@ const ControlsComponent = ({
     setSelectedAttribute(null);
   };
 
+  const handleTypeMenuClick = (event, entity, attribute) => {
+    setTypeAnchorEl(event.currentTarget);
+    setSelectedTypeEntity(entity);
+    setSelectedTypeAttribute(attribute);
+  };
+
+  const handleTypeMenuClose = (type) => {
+    setTypeAnchorEl(null);
+    if (selectedTypeEntity && selectedTypeAttribute) {
+      // Update the attribute with the selected type
+      addAttribute(selectedTypeEntity, selectedTypeAttribute, type);
+    }
+    setSelectedTypeEntity(null);
+    setSelectedTypeAttribute(null);
+  };
+
   const handleQuestionsAccordionChange = () => {
     setExpandedQuestions(!expandedQuestions);
   };
@@ -137,11 +156,6 @@ const ControlsComponent = ({
   const handleAddAttribute = (entityName, attribute, key = '') => {
     addAttribute(entityName, attribute, key);
     hidePopup(); // Hide popup after adding attribute
-  };
-
-  const handleAddMethod = (entityName, method) => {
-    addMethod(entityName, method);
-    hidePopup(); // Hide popup after adding method
   };
 
   const handleQuestionClick = (question) => {
@@ -236,6 +250,9 @@ const ControlsComponent = ({
                       <IconButton onClick={(event) => handleKeyMenuClick(event, entity, attr)} size="small" sx={{ color: 'green' }}>
                         <KeyIcon fontSize="small" />
                       </IconButton>
+                      <IconButton onClick={(event) => handleTypeMenuClick(event, entity, attr)} size="small" sx={{ color: 'purple' }}>
+                        <CategoryIcon fontSize="small" />
+                      </IconButton>
                       <IconButton onClick={() => removeAttribute(entity, attr)} size="small" sx={{ color: 'blue' }}>
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -270,6 +287,7 @@ const ControlsComponent = ({
           </AccordionDetails>
         </Accordion>
       </ContentContainer>
+      {/* Key Menu */}
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
@@ -279,7 +297,18 @@ const ControlsComponent = ({
         <MenuItem onClick={() => handleKeyMenuClose('PK')}>Primary Key</MenuItem>
         <MenuItem onClick={() => handleKeyMenuClose('PPK')}>Partial Primary Key</MenuItem>
       </Menu>
-      <Popup popup={popup} hidePopup={hidePopupMethod} addEntity={handleAddEntity} addAttribute={handleAddAttribute} addMethod={handleAddMethod} showSubPopup={showSubPopup} entityPopupRef={entityPopupRef} />
+      {/* Data Type Menu */}
+      <Menu
+        anchorEl={typeAnchorEl}
+        open={Boolean(typeAnchorEl)}
+        onClose={() => handleTypeMenuClose('')}
+      >
+        <MenuItem onClick={() => handleTypeMenuClose('String')}>String</MenuItem>
+        <MenuItem onClick={() => handleTypeMenuClose('int')}>Integer</MenuItem>
+        <MenuItem onClick={() => handleTypeMenuClose('boolean')}>Boolean</MenuItem>
+        <MenuItem onClick={() => handleTypeMenuClose('float')}>Float</MenuItem>
+      </Menu>
+      <Popup popup={popup} hidePopup={hidePopupMethod} addEntity={handleAddEntity} addAttribute={handleAddAttribute} showSubPopup={showSubPopup} entityPopupRef={entityPopupRef} />
       {subPopup.visible && (
         <PopupContainer
           ref={subPopupRef}
