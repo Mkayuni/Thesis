@@ -1,3 +1,5 @@
+// src/App.js
+
 import React, { useState } from 'react';
 import UMLComponent from './components/UMLComponent';
 import './App.css';

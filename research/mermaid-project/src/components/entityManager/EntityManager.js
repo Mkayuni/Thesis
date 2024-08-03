@@ -25,20 +25,26 @@ export const useEntityManagement = () => {
     });
   }, []);
 
+  // Private utility to get an entity's attributes safely
+  const _getAttributes = (entity, prevSchema) => {
+    const entityData = prevSchema.get(entity);
+    return entityData ? Array.from(entityData.attribute.entries()) : [];
+  };
+
   // Function to add a new attribute to an entity
   const addAttribute = useCallback((entity, attribute, key = '') => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
       if (entityData) {
-        const attributes = Array.from(entityData.attribute.entries());
+        const attributes = _getAttributes(entity, prevSchema);
         const attributeIndex = attributes.findIndex(([attr]) => attr === attribute);
 
         if (attributeIndex !== -1) {
           attributes.splice(attributeIndex, 1);
         }
 
-        const newAttribute = { attribute, key };
+        const newAttribute = { attribute, key, visibility: 'private' }; // Set visibility to private
 
         if (key) {
           attributes.unshift([attribute, newAttribute]);
@@ -53,13 +59,13 @@ export const useEntityManagement = () => {
     });
   }, []);
 
-  // Function to update an attribute's key
+  // Function to update an attribute's key (protected by utility)
   const updateAttributeKey = useCallback((entity, attribute, newKey) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
       if (entityData && entityData.attribute.has(attribute)) {
-        const attributes = Array.from(entityData.attribute.entries());
+        const attributes = _getAttributes(entity, prevSchema);
         const attributeIndex = attributes.findIndex(([attr]) => attr === attribute);
 
         if (attributeIndex !== -1) {
@@ -80,7 +86,7 @@ export const useEntityManagement = () => {
     });
   }, []);
 
-  // Function to remove an attribute from an entity
+  // Function to remove an attribute from an entity (protected by utility)
   const removeAttribute = useCallback((entity, attribute) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
