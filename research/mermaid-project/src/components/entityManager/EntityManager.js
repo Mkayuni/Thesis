@@ -33,12 +33,6 @@ export const useEntityManagement = () => {
     });
   }, []);
 
-  // Private utility to get an entity's attributes safely
-  const _getAttributes = (entity, prevSchema) => {
-    const entityData = prevSchema.get(entity);
-    return entityData ? Array.from(entityData.attribute.entries()) : [];
-  };
-
   // Function to add a new attribute to an entity
   const addAttribute = useCallback((entity, attribute, type = 'String', key = '') => {
     setSchema((prevSchema) => {
@@ -49,7 +43,7 @@ export const useEntityManagement = () => {
         return prevSchema; // Avoid adding attributes to non-existent entities
       }
 
-      const attributes = _getAttributes(entity, prevSchema);
+      const attributes = Array.from(entityData.attribute.entries());
       const attributeIndex = attributes.findIndex(([attr]) => attr === attribute);
 
       if (attributeIndex !== -1) {
@@ -70,7 +64,7 @@ export const useEntityManagement = () => {
     });
   }, []);
 
-  // Function to update an attribute's key (protected by utility)
+  // Function to update an attribute's key
   const updateAttributeKey = useCallback((entity, attribute, newKey) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
@@ -80,7 +74,7 @@ export const useEntityManagement = () => {
         return prevSchema; // Avoid updating non-existent attributes
       }
 
-      const attributes = _getAttributes(entity, prevSchema);
+      const attributes = Array.from(entityData.attribute.entries());
       const attributeIndex = attributes.findIndex(([attr]) => attr === attribute);
 
       if (attributeIndex !== -1) {
@@ -100,7 +94,7 @@ export const useEntityManagement = () => {
     });
   }, []);
 
-  // Function to remove an attribute from an entity (protected by utility)
+  // Function to remove an attribute from an entity
   const removeAttribute = useCallback((entity, attribute) => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
@@ -127,6 +121,22 @@ export const useEntityManagement = () => {
       }
 
       entityData.methods.push(methodDetails);
+      newSchema.set(entity, entityData);
+      return newSchema;
+    });
+  }, []);
+
+  // Function to remove a method from an entity
+  const removeMethod = useCallback((entity, methodName) => {
+    setSchema((prevSchema) => {
+      const newSchema = new Map(prevSchema);
+      const entityData = newSchema.get(entity);
+      if (!entityData) {
+        console.warn(`Entity "${entity}" does not exist.`);
+        return prevSchema; // Avoid removing methods from non-existent entities
+      }
+
+      entityData.methods = entityData.methods.filter(method => method.name !== methodName);
       newSchema.set(entity, entityData);
       return newSchema;
     });
@@ -188,6 +198,7 @@ export const useEntityManagement = () => {
     updateAttributeKey,
     removeAttribute,
     addMethod,
+    removeMethod, 
     addRelationship,
     editRelationship,
     removeRelationship,

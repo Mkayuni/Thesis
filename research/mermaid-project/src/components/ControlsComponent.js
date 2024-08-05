@@ -1,5 +1,18 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Typography, TextField, Divider, IconButton, Accordion, AccordionSummary, AccordionDetails, Button, Box, Menu, MenuItem, Paper } from '@mui/material';
+import {
+  Typography,
+  TextField,
+  Divider,
+  IconButton,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Button,
+  Box,
+  Menu,
+  MenuItem,
+  Paper,
+} from '@mui/material';
 import { styled } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -70,6 +83,8 @@ const ControlsComponent = ({
   onQuestionClick,
   hidePopup,
   setRelationships, // Ensure setRelationships is passed as a prop
+  addMethod, // Ensure addMethod is passed as a prop
+  removeMethod, // Ensure removeMethod is passed as a prop
 }) => {
   const [showTextBox, setShowTextBox] = useState(false);
   const [tempQuestion, setTempQuestion] = useState('');
@@ -138,7 +153,22 @@ const ControlsComponent = ({
     setTypeAnchorEl(null);
     if (selectedTypeEntity && selectedTypeAttribute) {
       // Update the attribute with the selected type
-      addAttribute(selectedTypeEntity, selectedTypeAttribute, type);
+      // Maintain the order by directly updating the map
+      setSchema((prevSchema) => {
+        const newSchema = new Map(prevSchema);
+        const entityData = newSchema.get(selectedTypeEntity);
+        if (entityData) {
+          const updatedAttributes = new Map(entityData.attribute);
+          if (updatedAttributes.has(selectedTypeAttribute)) {
+            const attributeData = updatedAttributes.get(selectedTypeAttribute);
+            attributeData.type = type; // Update the type in the attribute object
+            updatedAttributes.set(selectedTypeAttribute, attributeData);
+          }
+          entityData.attribute = updatedAttributes;
+          newSchema.set(selectedTypeEntity, entityData);
+        }
+        return newSchema;
+      });
     }
     setSelectedTypeEntity(null);
     setSelectedTypeAttribute(null);
@@ -163,6 +193,34 @@ const ControlsComponent = ({
     // Clear schema and relationships when switching questions
     setSchema(new Map());
     setRelationships(new Map());
+  };
+
+  const handleAddMethod = (
+    entityName,
+    methodName,
+    returnType = 'void',
+    parameters = [],
+    isStatic = false,
+    visibility = 'public'
+  ) => {
+    // Ensure parameters are an array of strings
+    if (typeof parameters === 'string') {
+      parameters = parameters.split(',').map((param) => param.trim()).filter((param) => param);
+    }
+
+    const methodDetails = {
+      name: methodName,
+      returnType,
+      parameters,
+      static: isStatic,
+      visibility,
+    };
+    addMethod(entityName, methodDetails);
+    hidePopup();
+  };
+
+  const handleRemoveMethod = (entityName, methodName) => {
+    removeMethod(entityName, methodName);
   };
 
   return (
@@ -201,17 +259,28 @@ const ControlsComponent = ({
         </Box>
       )}
       <ContentContainer>
-        <Accordion
-          expanded={expandedQuestions}
-          onChange={handleQuestionsAccordionChange}
-        >
+        <Accordion expanded={expandedQuestions} onChange={handleQuestionsAccordionChange}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6" sx={{ marginBottom: '8px' }}>Questions</Typography>
+            <Typography variant="h6" sx={{ marginBottom: '8px' }}>
+              Questions
+            </Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Box sx={{ padding: '16px', backgroundColor: '#f0f0f0', borderRadius: '4px', marginTop: '16px' }}>
+            <Box
+              sx={{
+                padding: '16px',
+                backgroundColor: '#f0f0f0',
+                borderRadius: '4px',
+                marginTop: '16px',
+              }}
+            >
               {questions.map((question, index) => (
-                <Button key={index} onClick={() => handleQuestionClick(question)} fullWidth sx={{ justifyContent: 'flex-start', marginBottom: '8px' }}>
+                <Button
+                  key={index}
+                  onClick={() => handleQuestionClick(question)}
+                  fullWidth
+                  sx={{ justifyContent: 'flex-start', marginBottom: '8px' }}
+                >
                   {question}
                 </Button>
               ))}
@@ -230,27 +299,51 @@ const ControlsComponent = ({
             aria-controls="entities-content"
             id="entities-header"
           >
-            <Typography>Manage Entities</Typography>
+            <Typography>Manage Entities and Methods</Typography>
           </AccordionSummaryStyled>
           <AccordionDetails sx={{ backgroundColor: '#e0f7fa' }}>
-            {Array.from(schema.entries()).map(([entity, { attribute }]) => (
+            {Array.from(schema.entries()).map(([entity, { attribute, methods }]) => (
               <Box key={entity} sx={{ marginBottom: '16px' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{entity}</Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                    {entity}
+                  </Typography>
                   <IconButton onClick={() => removeEntity(entity)} size="small" sx={{ color: 'red' }}>
                     <DeleteIcon fontSize="small" />
                   </IconButton>
                 </Box>
-                {Array.from(attribute.entries()).map(([attr, { key }]) => (
-                  <Box key={attr} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                {Array.from(attribute.entries()).map(([attr, { key, type }]) => (
+                  <Box
+                    key={attr}
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '8px',
+                    }}
+                  >
                     <Typography variant="body1" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {attr} {key && <span>({key})</span>}
+                      {attr} {key && <span>({key})</span>} {type && <span>[{type}]</span>}
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <IconButton onClick={(event) => handleKeyMenuClick(event, entity, attr)} size="small" sx={{ color: 'green' }}>
+                      <IconButton
+                        onClick={(event) => handleKeyMenuClick(event, entity, attr)}
+                        size="small"
+                        sx={{ color: 'green' }}
+                      >
                         <KeyIcon fontSize="small" />
                       </IconButton>
-                      <IconButton onClick={(event) => handleTypeMenuClick(event, entity, attr)} size="small" sx={{ color: 'purple' }}>
+                      <IconButton
+                        onClick={(event) => handleTypeMenuClick(event, entity, attr)}
+                        size="small"
+                        sx={{ color: 'purple' }}
+                      >
                         <CategoryIcon fontSize="small" />
                       </IconButton>
                       <IconButton onClick={() => removeAttribute(entity, attr)} size="small" sx={{ color: 'blue' }}>
@@ -259,6 +352,40 @@ const ControlsComponent = ({
                     </Box>
                   </Box>
                 ))}
+                {/* Method Management Section */}
+                {methods && methods.length > 0 && (
+                  <Box sx={{ marginTop: '16px' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                      Methods:
+                    </Typography>
+                    {methods.map((method) => (
+                      <Box
+                        key={method.name}
+                        sx={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '8px',
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {method.name}(
+                          {Array.isArray(method.parameters)
+                            ? method.parameters.join(', ')
+                            : method.parameters}
+                          ) : {method.returnType}
+                        </Typography>
+                        <IconButton
+                          onClick={() => handleRemoveMethod(entity, method.name)}
+                          size="small"
+                          sx={{ color: 'blue' }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
               </Box>
             ))}
           </AccordionDetails>
@@ -288,27 +415,26 @@ const ControlsComponent = ({
         </Accordion>
       </ContentContainer>
       {/* Key Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={() => handleKeyMenuClose('')}
-      >
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => handleKeyMenuClose('')}>
         <MenuItem onClick={() => handleKeyMenuClose('')}>Not a key</MenuItem>
         <MenuItem onClick={() => handleKeyMenuClose('PK')}>Primary Key</MenuItem>
         <MenuItem onClick={() => handleKeyMenuClose('PPK')}>Partial Primary Key</MenuItem>
       </Menu>
       {/* Data Type Menu */}
-      <Menu
-        anchorEl={typeAnchorEl}
-        open={Boolean(typeAnchorEl)}
-        onClose={() => handleTypeMenuClose('')}
-      >
+      <Menu anchorEl={typeAnchorEl} open={Boolean(typeAnchorEl)} onClose={() => handleTypeMenuClose('')}>
         <MenuItem onClick={() => handleTypeMenuClose('String')}>String</MenuItem>
         <MenuItem onClick={() => handleTypeMenuClose('int')}>Integer</MenuItem>
         <MenuItem onClick={() => handleTypeMenuClose('boolean')}>Boolean</MenuItem>
         <MenuItem onClick={() => handleTypeMenuClose('float')}>Float</MenuItem>
       </Menu>
-      <Popup popup={popup} hidePopup={hidePopupMethod} addEntity={handleAddEntity} addAttribute={handleAddAttribute} showSubPopup={showSubPopup} entityPopupRef={entityPopupRef} />
+      <Popup
+        popup={popup}
+        hidePopup={hidePopupMethod}
+        addEntity={handleAddEntity}
+        addAttribute={handleAddAttribute}
+        showSubPopup={showSubPopup}
+        entityPopupRef={entityPopupRef}
+      />
       {subPopup.visible && (
         <PopupContainer
           ref={subPopupRef}

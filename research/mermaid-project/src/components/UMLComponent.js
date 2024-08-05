@@ -22,7 +22,7 @@ import MermaidDiagram from './mermaidDiagram/MermaidDiagram';
 import QuestionSetup from './questionSetup/QuestionSetup';
 import './mermaid.css';
 import { usePopup } from './utils/usePopup';
-import { useEntityManagement } from './entityManager/EntityManager';
+import { useEntityManagement } from './entityManager/EntityManager'; // Ensure correct import path
 import theme from '../theme';
 
 const UMLComponent = () => {
@@ -40,6 +40,7 @@ const UMLComponent = () => {
     addRelationship,
     editRelationship,
     addMethod,
+    removeMethod, // Include removeMethod here
   } = useEntityManagement();
 
   const {
@@ -117,9 +118,9 @@ const UMLComponent = () => {
   const handleAddMethodClick = (entity, methodDetails) => {
     const parameters = methodDetails.parameters
       .split(',')
-      .map(param => param.trim())
-      .map(param => {
-        const [name, type] = param.split(':').map(s => s.trim());
+      .map((param) => param.trim())
+      .map((param) => {
+        const [name, type] = param.split(':').map((s) => s.trim());
         return `${name}: ${type}`;
       })
       .join(', ');
@@ -130,7 +131,7 @@ const UMLComponent = () => {
       returnType: methodDetails.returnType,
     };
 
-    console.log("Formatted Method Details:", formattedMethodDetails);
+    console.log('Formatted Method Details:', formattedMethodDetails);
     addMethod(entity, formattedMethodDetails);
     hidePopup();
   };
@@ -180,30 +181,33 @@ const UMLComponent = () => {
     event.stopPropagation(); // Prevent closing the popup when clicking inside
   };
 
-  const handleOutsideClick = useCallback((event) => {
-    if (
-      (feedbackButtonRef.current && !feedbackButtonRef.current.contains(event.target)) &&
-      (feedbackContentRef.current && !feedbackContentRef.current.contains(event.target))
-    ) {
-      setIsFeedbackOpen(false);
-    }
-    if (
-      (submitButtonRef.current && !submitButtonRef.current.contains(event.target)) &&
-      (submitContentRef.current && !submitContentRef.current.contains(event.target))
-    ) {
-      setIsSubmitOpen(false);
-    }
+  const handleOutsideClick = useCallback(
+    (event) => {
+      if (
+        (feedbackButtonRef.current && !feedbackButtonRef.current.contains(event.target)) &&
+        (feedbackContentRef.current && !feedbackContentRef.current.contains(event.target))
+      ) {
+        setIsFeedbackOpen(false);
+      }
+      if (
+        (submitButtonRef.current && !submitButtonRef.current.contains(event.target)) &&
+        (submitContentRef.current && !submitContentRef.current.contains(event.target))
+      ) {
+        setIsSubmitOpen(false);
+      }
 
-    // Ensure clicks inside the popup do not close it
-    if (
-      (entityPopupRef.current && entityPopupRef.current.contains(event.target)) ||
-      (subPopupRef.current && subPopupRef.current.contains(event.target))
-    ) {
-      return;
-    }
+      // Ensure clicks inside the popup do not close it
+      if (
+        (entityPopupRef.current && entityPopupRef.current.contains(event.target)) ||
+        (subPopupRef.current && subPopupRef.current.contains(event.target))
+      ) {
+        return;
+      }
 
-    hidePopup();
-  }, [hidePopup]);
+      hidePopup();
+    },
+    [hidePopup]
+  );
 
   useEffect(() => {
     if (isFeedbackOpen || isSubmitOpen) {
@@ -298,7 +302,9 @@ const UMLComponent = () => {
           <ControlsComponent
             schema={schema}
             setSchema={setSchema}
-            showPopup={(e, entityOrAttribute, type) => showPopup(e, entityOrAttribute, type, schema, questionContainerRef)}
+            showPopup={(e, entityOrAttribute, type) =>
+              showPopup(e, entityOrAttribute, type, schema, questionContainerRef)
+            }
             expandedPanel={expandedPanel}
             setExpandedPanel={setExpandedPanel}
             removeEntity={removeEntity}
@@ -318,13 +324,17 @@ const UMLComponent = () => {
             addEntity={addEntity}
             addAttribute={addAttribute}
             setRelationships={setRelationships}
+            addMethod={addMethod} // Ensure addMethod is passed
+            removeMethod={removeMethod} // Ensure removeMethod is passed
           />
           <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 2, position: 'relative' }} ref={umlRef}>
             <QuestionContainer id="question-container" ref={questionContainerRef}>
               <QuestionSetup
                 schema={schema}
                 setSchema={setSchema}
-                showPopup={(e, entityOrAttribute, type) => showPopup(e, entityOrAttribute, type, schema, questionContainerRef)}
+                showPopup={(e, entityOrAttribute, type) =>
+                  showPopup(e, entityOrAttribute, type, schema, questionContainerRef)
+                }
                 questionMarkdown={questionMarkdown}
                 setQuestionMarkdown={setQuestionMarkdown}
                 relationships={relationships}
@@ -341,7 +351,9 @@ const UMLComponent = () => {
                   {popup.type === 'attribute' ? (
                     popup.entities.map((entity) => (
                       <div key={entity}>
-                        <button onClick={() => handleAddAttributeClick(entity, popup.entityOrAttribute)}>{entity}</button>
+                        <button onClick={() => handleAddAttributeClick(entity, popup.entityOrAttribute)}>
+                          {entity}
+                        </button>
                       </div>
                     ))
                   ) : (
@@ -350,10 +362,14 @@ const UMLComponent = () => {
                         <button onClick={() => addEntity(popup.entityOrAttribute)}>Add Entity</button>
                       </div>
                       <div>
-                        <button onClick={() => showSubPopup(popup.entityOrAttribute, 'attribute', 'right', 5)}>Add Attribute</button>
+                        <button onClick={() => showSubPopup(popup.entityOrAttribute, 'attribute', 'right', 5)}>
+                          Add Attribute
+                        </button>
                       </div>
                       <div>
-                        <button onClick={() => showSubPopup(popup.entityOrAttribute, 'method', 'right', 5)}>Add Method</button>
+                        <button onClick={() => showSubPopup(popup.entityOrAttribute, 'method', 'right', 5)}>
+                          Add Method
+                        </button>
                       </div>
                     </>
                   )}
@@ -369,7 +385,9 @@ const UMLComponent = () => {
                 >
                   {subPopup.entities.map((entity) => (
                     <div key={entity}>
-                      <button onClick={() => handleAddAttributeClick(entity, subPopup.entityOrAttribute)}>{entity}</button>
+                      <button onClick={() => handleAddAttributeClick(entity, subPopup.entityOrAttribute)}>
+                        {entity}
+                      </button>
                     </div>
                   ))}
                 </PopupContainer>
@@ -384,12 +402,7 @@ const UMLComponent = () => {
                   onClick={handleClickInsidePopup} // Stop propagation
                 >
                   <div>
-                    <TextField
-                      inputRef={methodInputRef}
-                      label="Method Name"
-                      variant="outlined"
-                      fullWidth
-                    />
+                    <TextField inputRef={methodInputRef} label="Method Name" variant="outlined" fullWidth />
                     <TextField
                       inputRef={parametersRef}
                       label="Parameters (e.g., param1: Type1, param2: Type2)"

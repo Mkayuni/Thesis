@@ -32,6 +32,11 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup }) => {
       return methods;
     }
 
+    function stripMethodParameters(methodName) {
+      // Remove everything inside the parentheses
+      return methodName.replace(/\(.*?\)/, '()');
+    }
+
     function markdownToHTML(question) {
       const questionPattern = /<uml-question>(.*?)<\/uml-question>/s;
       const questionMatch = question.match(questionPattern);
@@ -64,6 +69,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup }) => {
           if (insideCircle) {
             insideCircle = false;
             const boldText = innerHTML;
+            // Restore the entity/attribute linking logic
             questionHTML += `<strong><a href="#" onclick="event.preventDefault(); window.showPopup(event, '${nameInER}')">${boldText}</a></strong>`;
             nameInER = '';
             innerHTML = '';
@@ -79,12 +85,13 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup }) => {
         }
       }
 
-      // Add method links
+      // Add methods as plain text with parameters stripped
       const methods = extractMethods(question);
       if (methods.size > 0) {
         questionHTML += '<br /><br />Consider the following methods and decide which entity each method should belong to:<br />';
         methods.forEach((method) => {
-          questionHTML += `<strong><a href="#" onclick="event.preventDefault(); window.showPopup(event, '${method}', 'method')">${method}</a></strong>, `;
+          // Strip parameters before appending
+          questionHTML += `${stripMethodParameters(method)}, `;
         });
         questionHTML = questionHTML.slice(0, -2); // Remove the last comma and space
       }
