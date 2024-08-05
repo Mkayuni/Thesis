@@ -1,6 +1,6 @@
 // src/components/UMLComponent.js
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mermaid from 'mermaid';
 import {
   Box,
@@ -56,21 +56,24 @@ const UMLComponent = () => {
 
   const umlRef = useRef(null);
   const controlsRef = useRef(null);
-  const questionContainerRef = useRef(null); // Reference for the question container
+  const questionContainerRef = useRef(null);
   const feedbackButtonRef = useRef(null);
   const feedbackContentRef = useRef(null);
   const submitButtonRef = useRef(null);
   const submitContentRef = useRef(null);
+
   const [questions, setQuestions] = useState([]);
   const [questionMarkdown, setQuestionMarkdown] = useState('');
   const [expandedPanel, setExpandedPanel] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
-  const [visibility, setVisibility] = useState('public'); // Visibility state
-  const [isStatic, setIsStatic] = useState(false); // Static state
-  const [returnType, setReturnType] = useState('void'); // Return type state
-  const methodInputRef = useRef(); // Method input reference
-  const parametersRef = useRef(); // Parameters input reference
+
+  const [visibility, setVisibility] = useState('public');
+  const [isStatic, setIsStatic] = useState(false);
+  const [returnType, setReturnType] = useState('void');
+
+  const methodInputRef = useRef();
+  const parametersRef = useRef();
 
   useEffect(() => {
     document.addEventListener('mousedown', handleClickOutside);
@@ -80,7 +83,7 @@ const UMLComponent = () => {
   }, [handleClickOutside]);
 
   useEffect(() => {
-    mermaid.initialize({ startOnLoad: true });
+    mermaid.initialize({ startOnLoad: false });
   }, []);
 
   // Fetch question titles from the server
@@ -100,7 +103,6 @@ const UMLComponent = () => {
       .then((data) => {
         console.log(`Fetched HTML: ${data}`);
         setQuestionMarkdown(data);
-        // Clear schema and relationships when fetching new question
         setSchema(new Map());
         setRelationships(new Map());
       })
@@ -113,7 +115,6 @@ const UMLComponent = () => {
   };
 
   const handleAddMethodClick = (entity, methodDetails) => {
-    // Ensure that the method's parameters are correctly parsed
     const parameters = methodDetails.parameters
       .split(',')
       .map(param => param.trim())
@@ -126,10 +127,10 @@ const UMLComponent = () => {
     const formattedMethodDetails = {
       ...methodDetails,
       parameters,
-      returnType: methodDetails.returnType, // Ensure returnType is included
+      returnType: methodDetails.returnType,
     };
 
-    console.log("Formatted Method Details:", formattedMethodDetails); // Debug log
+    console.log("Formatted Method Details:", formattedMethodDetails);
     addMethod(entity, formattedMethodDetails);
     hidePopup();
   };
@@ -171,9 +172,49 @@ const UMLComponent = () => {
     });
   };
 
-  const handleClickInsidePopup = (event) => {
-    event.stopPropagation();
+  const handleQuestionClick = (questionTitle) => {
+    fetchQuestionHtml(questionTitle);
   };
+
+  const handleClickInsidePopup = (event) => {
+    event.stopPropagation(); // Prevent closing the popup when clicking inside
+  };
+
+  const handleOutsideClick = useCallback((event) => {
+    if (
+      (feedbackButtonRef.current && !feedbackButtonRef.current.contains(event.target)) &&
+      (feedbackContentRef.current && !feedbackContentRef.current.contains(event.target))
+    ) {
+      setIsFeedbackOpen(false);
+    }
+    if (
+      (submitButtonRef.current && !submitButtonRef.current.contains(event.target)) &&
+      (submitContentRef.current && !submitContentRef.current.contains(event.target))
+    ) {
+      setIsSubmitOpen(false);
+    }
+
+    // Ensure clicks inside the popup do not close it
+    if (
+      (entityPopupRef.current && entityPopupRef.current.contains(event.target)) ||
+      (subPopupRef.current && subPopupRef.current.contains(event.target))
+    ) {
+      return;
+    }
+
+    hidePopup();
+  }, [hidePopup]);
+
+  useEffect(() => {
+    if (isFeedbackOpen || isSubmitOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    } else {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isFeedbackOpen, isSubmitOpen, handleOutsideClick]);
 
   const MainContainer = styled(Box)(({ theme }) => ({
     padding: theme.spacing(2),
@@ -208,8 +249,8 @@ const UMLComponent = () => {
   const PopupContainer = styled(Paper)(({ theme }) => ({
     position: 'absolute',
     padding: theme.spacing(2),
-    backgroundColor: '#bbbbbb', // Less dark gray background
-    color: '#000000', // Black text color
+    backgroundColor: '#bbbbbb',
+    color: '#000000',
     border: '1px solid #ccc',
     boxShadow: theme.shadows[5],
     zIndex: 1000,
@@ -248,46 +289,6 @@ const UMLComponent = () => {
     zIndex: 9999,
   }));
 
-  const handleQuestionClick = (questionTitle) => {
-    fetchQuestionHtml(questionTitle);
-  };
-
-  const handleOutsideClick = (event) => {
-    if (
-      feedbackButtonRef.current && !feedbackButtonRef.current.contains(event.target) &&
-      feedbackContentRef.current && !feedbackContentRef.current.contains(event.target)
-    ) {
-      setIsFeedbackOpen(false);
-    }
-    if (
-      submitButtonRef.current && !submitButtonRef.current.contains(event.target) &&
-      submitContentRef.current && !submitContentRef.current.contains(event.target)
-    ) {
-      setIsSubmitOpen(false);
-    }
-
-    // Ensure clicks inside the popup do not close it
-    if (
-      entityPopupRef.current && entityPopupRef.current.contains(event.target) ||
-      subPopupRef.current && subPopupRef.current.contains(event.target)
-    ) {
-      return;
-    }
-
-    hidePopup();
-  };
-
-  useEffect(() => {
-    if (isFeedbackOpen || isSubmitOpen) {
-      document.addEventListener('mousedown', handleOutsideClick);
-    } else {
-      document.removeEventListener('mousedown', handleOutsideClick);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-    };
-  }, [isFeedbackOpen, isSubmitOpen]);
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -312,11 +313,11 @@ const UMLComponent = () => {
             questionMarkdown={questionMarkdown}
             setQuestionMarkdown={setQuestionMarkdown}
             controlsRef={controlsRef}
-            onQuestionClick={handleQuestionClick} // Pass the function to handle question clicks
-            hidePopup={hidePopup} // Pass hidePopup function
-            addEntity={addEntity} // Pass addEntity function
-            addAttribute={addAttribute} // Pass addAttribute function
-            setRelationships={setRelationships} // Pass setRelationships function
+            onQuestionClick={handleQuestionClick}
+            hidePopup={hidePopup}
+            addEntity={addEntity}
+            addAttribute={addAttribute}
+            setRelationships={setRelationships}
           />
           <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 2, position: 'relative' }} ref={umlRef}>
             <QuestionContainer id="question-container" ref={questionContainerRef}>
@@ -435,20 +436,19 @@ const UMLComponent = () => {
                         <MenuItem value="float">float</MenuItem>
                         <MenuItem value="String">String</MenuItem>
                         <MenuItem value="List<Fish>">List&lt;Fish&gt;</MenuItem>
-                        {/* Add more return types as needed */}
                       </Select>
                     </FormControl>
                     <Button
                       variant="contained"
                       color="primary"
                       onClick={(e) => {
-                        e.stopPropagation(); // Ensure click event doesn't close the popup
+                        e.stopPropagation();
                         handleAddMethodClick(subPopup.entityOrAttribute, {
                           name: methodInputRef.current.value.trim(),
                           parameters: parametersRef.current.value.trim(),
                           visibility: visibility,
                           static: isStatic,
-                          returnType: returnType, // Ensure returnType is passed
+                          returnType: returnType,
                         });
                       }}
                       sx={{ marginTop: 2 }}
@@ -481,7 +481,7 @@ const UMLComponent = () => {
                   variant="contained"
                   color="primary"
                   onClick={() => setIsFeedbackOpen(!isFeedbackOpen)}
-                  sx={{ width: '200px' }} // Double the length of the Feedback button
+                  sx={{ width: '200px' }}
                 >
                   Feedback
                 </Button>

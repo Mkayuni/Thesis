@@ -1,5 +1,3 @@
-// src/components/entityManager/EntityManager.js
-
 import { useState, useCallback } from 'react';
 
 export const useEntityManagement = () => {
@@ -10,6 +8,11 @@ export const useEntityManagement = () => {
   // Function to add a new entity with optional methods
   const addEntity = useCallback((entity, methods = []) => {
     setSchema((prevSchema) => {
+      if (prevSchema.has(entity)) {
+        console.warn(`Entity "${entity}" already exists.`);
+        return prevSchema; // Avoid duplicate entities
+      }
+
       const newSchema = new Map(prevSchema);
       newSchema.set(entity, { entity, attribute: new Map(), methods });
       return newSchema;
@@ -19,6 +22,11 @@ export const useEntityManagement = () => {
   // Function to remove an entity
   const removeEntity = useCallback((entity) => {
     setSchema((prevSchema) => {
+      if (!prevSchema.has(entity)) {
+        console.warn(`Entity "${entity}" does not exist.`);
+        return prevSchema; // Avoid errors if entity doesn't exist
+      }
+
       const newSchema = new Map(prevSchema);
       newSchema.delete(entity);
       return newSchema;
@@ -36,25 +44,28 @@ export const useEntityManagement = () => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
-      if (entityData) {
-        const attributes = _getAttributes(entity, prevSchema);
-        const attributeIndex = attributes.findIndex(([attr]) => attr === attribute);
-
-        if (attributeIndex !== -1) {
-          attributes.splice(attributeIndex, 1);
-        }
-
-        const newAttribute = { attribute, type, key, visibility: 'private' }; // Include type
-
-        if (key) {
-          attributes.unshift([attribute, newAttribute]);
-        } else {
-          attributes.push([attribute, newAttribute]);
-        }
-
-        entityData.attribute = new Map(attributes);
-        newSchema.set(entity, entityData);
+      if (!entityData) {
+        console.warn(`Entity "${entity}" does not exist.`);
+        return prevSchema; // Avoid adding attributes to non-existent entities
       }
+
+      const attributes = _getAttributes(entity, prevSchema);
+      const attributeIndex = attributes.findIndex(([attr]) => attr === attribute);
+
+      if (attributeIndex !== -1) {
+        attributes.splice(attributeIndex, 1);
+      }
+
+      const newAttribute = { attribute, type, key, visibility: 'private' }; // Include type
+
+      if (key) {
+        attributes.unshift([attribute, newAttribute]);
+      } else {
+        attributes.push([attribute, newAttribute]);
+      }
+
+      entityData.attribute = new Map(attributes);
+      newSchema.set(entity, entityData);
       return newSchema;
     });
   }, []);
@@ -64,23 +75,26 @@ export const useEntityManagement = () => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
-      if (entityData && entityData.attribute.has(attribute)) {
-        const attributes = _getAttributes(entity, prevSchema);
-        const attributeIndex = attributes.findIndex(([attr]) => attr === attribute);
+      if (!entityData || !entityData.attribute.has(attribute)) {
+        console.warn(`Attribute "${attribute}" does not exist on entity "${entity}".`);
+        return prevSchema; // Avoid updating non-existent attributes
+      }
 
-        if (attributeIndex !== -1) {
-          const [attr, attrData] = attributes.splice(attributeIndex, 1)[0];
-          attrData.key = newKey;
+      const attributes = _getAttributes(entity, prevSchema);
+      const attributeIndex = attributes.findIndex(([attr]) => attr === attribute);
 
-          if (newKey) {
-            attributes.unshift([attr, attrData]);
-          } else {
-            attributes.push([attr, attrData]);
-          }
+      if (attributeIndex !== -1) {
+        const [attr, attrData] = attributes.splice(attributeIndex, 1)[0];
+        attrData.key = newKey;
 
-          entityData.attribute = new Map(attributes);
-          newSchema.set(entity, entityData);
+        if (newKey) {
+          attributes.unshift([attr, attrData]);
+        } else {
+          attributes.push([attr, attrData]);
         }
+
+        entityData.attribute = new Map(attributes);
+        newSchema.set(entity, entityData);
       }
       return newSchema;
     });
@@ -91,10 +105,13 @@ export const useEntityManagement = () => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
-      if (entityData) {
-        entityData.attribute.delete(attribute);
-        newSchema.set(entity, entityData);
+      if (!entityData || !entityData.attribute.has(attribute)) {
+        console.warn(`Attribute "${attribute}" does not exist on entity "${entity}".`);
+        return prevSchema; // Avoid removing non-existent attributes
       }
+
+      entityData.attribute.delete(attribute);
+      newSchema.set(entity, entityData);
       return newSchema;
     });
   }, []);
@@ -104,11 +121,13 @@ export const useEntityManagement = () => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
-      if (entityData) {
-        entityData.methods.push(methodDetails);
-        console.log("Schema after adding method:", newSchema); // Debug log
-        newSchema.set(entity, entityData);
+      if (!entityData) {
+        console.warn(`Entity "${entity}" does not exist.`);
+        return prevSchema; // Avoid adding methods to non-existent entities
       }
+
+      entityData.methods.push(methodDetails);
+      newSchema.set(entity, entityData);
       return newSchema;
     });
   }, []);
@@ -116,6 +135,15 @@ export const useEntityManagement = () => {
   // Function to add a new relationship
   const addRelationship = useCallback((relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
     setRelationships((prevRelationships) => {
+      // Ensure relationship doesn't already exist
+      const existingRelation = Array.from(prevRelationships.values()).find(
+        rel => rel.relationA === relationA && rel.relationB === relationB
+      );
+      if (existingRelation) {
+        console.warn(`Relationship between "${relationA}" and "${relationB}" already exists.`);
+        return prevRelationships;
+      }
+
       const newRelationships = new Map(prevRelationships);
       const id = newRelationships.size + 1;
       newRelationships.set(id, { id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText });
@@ -127,9 +155,12 @@ export const useEntityManagement = () => {
   const editRelationship = useCallback((id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
     setRelationships((prevRelationships) => {
       const newRelationships = new Map(prevRelationships);
-      if (newRelationships.has(id)) {
-        newRelationships.set(id, { id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText });
+      if (!newRelationships.has(id)) {
+        console.warn(`Relationship with ID "${id}" does not exist.`);
+        return prevRelationships; // Avoid editing non-existent relationships
       }
+
+      newRelationships.set(id, { id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText });
       return newRelationships;
     });
   }, []);
@@ -138,6 +169,11 @@ export const useEntityManagement = () => {
   const removeRelationship = useCallback((id) => {
     setRelationships((prevRelationships) => {
       const newRelationships = new Map(prevRelationships);
+      if (!newRelationships.has(id)) {
+        console.warn(`Relationship with ID "${id}" does not exist.`);
+        return prevRelationships; // Avoid removing non-existent relationships
+      }
+
       newRelationships.delete(id);
       return newRelationships;
     });

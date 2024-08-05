@@ -83,8 +83,8 @@ const MermaidDiagram = ({ schema, relationships }) => {
         const visibilitySymbol = method.visibility === 'private' ? '-' : method.visibility === 'protected' ? '#' : '+';
         const staticKeyword = method.static ? 'static ' : '';
         const parameters = method.parameters ? `${method.parameters}` : '';
-        const returnType = method.returnType ? `: ${method.returnType}` : ''; // Include returnType
-        return `  ${visibilitySymbol} ${staticKeyword}${method.name}(${parameters})${returnType}`; // Correctly include returnType
+        const returnType = method.returnType ? `:: ${method.returnType}` : ''; // Use double colon for returnType
+        return `  ${visibilitySymbol} ${staticKeyword}${method.name}(${parameters})${returnType}`; // Include double colon in returnType
       });
 
       if (attributeLines.length > 0) {
