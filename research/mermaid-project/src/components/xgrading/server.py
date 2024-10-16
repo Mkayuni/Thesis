@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import os
+import re  # Added for method extraction
 
 app = Flask(__name__)
 CORS(app)
@@ -33,6 +34,26 @@ def get_question(question_title):
     print(f"Full path to question.html: {os.path.join(directory, 'question.html')}")  # Debug logging
     if os.path.exists(os.path.join(directory, 'question.html')):
         return send_from_directory(directory, 'question.html')
+    else:
+        print("File not found.")
+        return jsonify({"error": "File not found"}), 404
+
+# New route to extract methods from a question file
+@app.route('/api/question/<question_title>/methods', methods=['GET'])
+def get_question_methods(question_title):
+    base_directory = os.path.dirname(__file__)  # Get the directory of the current script
+    directory = os.path.join(base_directory, 'Questions', question_title)  # Construct the correct directory path
+
+    if os.path.exists(os.path.join(directory, 'question.html')):
+        with open(os.path.join(directory, 'question.html'), 'r') as f:
+            content = f.read()
+            print(f"HTML Content: {content}")  # Debug logging of HTML content
+            
+            # Use regex to extract all methods from the content
+            methods = re.findall(r'<method>\s*(.*?)\s*<\/method>', content)
+            print(f"Extracted methods: {methods}")  # Debug print to check extracted methods
+            
+            return jsonify({"methods": methods})
     else:
         print("File not found.")
         return jsonify({"error": "File not found"}), 404

@@ -1,5 +1,3 @@
-// src/components/UMLComponent.js
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mermaid from 'mermaid';
 import {
@@ -22,7 +20,7 @@ import MermaidDiagram from './mermaidDiagram/MermaidDiagram';
 import QuestionSetup from './questionSetup/QuestionSetup';
 import './mermaid.css';
 import { usePopup } from './utils/usePopup';
-import { useEntityManagement } from './entityManager/EntityManager'; // Ensure correct import path
+import { useEntityManagement } from './entityManager/EntityManager';
 import theme from '../theme';
 
 const UMLComponent = () => {
@@ -40,7 +38,7 @@ const UMLComponent = () => {
     addRelationship,
     editRelationship,
     addMethod,
-    removeMethod, // Include removeMethod here
+    removeMethod, 
   } = useEntityManagement();
 
   const {
@@ -57,7 +55,7 @@ const UMLComponent = () => {
 
   const umlRef = useRef(null);
   const controlsRef = useRef(null);
-  const questionContainerRef = useRef(null);
+  const questionContainerRef = useRef(null);  // Ensure this is initialized correctly
   const feedbackButtonRef = useRef(null);
   const feedbackContentRef = useRef(null);
   const submitButtonRef = useRef(null);
@@ -68,6 +66,7 @@ const UMLComponent = () => {
   const [expandedPanel, setExpandedPanel] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
+  const [methods, setMethods] = useState([]);  // New state for methods
 
   const [visibility, setVisibility] = useState('public');
   const [isStatic, setIsStatic] = useState(false);
@@ -97,19 +96,29 @@ const UMLComponent = () => {
       .catch((error) => console.error('Error fetching the questions:', error));
   }, []);
 
+  // Fetch methods for the selected question
+  const fetchMethodsForQuestion = (questionTitle) => {
+    fetch(`http://127.0.0.1:5000/api/question/${questionTitle}/methods`)
+      .then((response) => response.json())
+      .then((data) => {
+        setMethods(data.methods);  // Set the fetched methods in state
+      })
+      .catch((error) => console.error('Error fetching methods:', error));
+  };
+
   const fetchQuestionHtml = (questionTitle) => {
-    console.log(`Fetching HTML for question: ${questionTitle}`);
     fetch(`http://127.0.0.1:5000/api/question/${questionTitle}`)
       .then((response) => response.text())
       .then((data) => {
-        console.log(`Fetched HTML: ${data}`);
         setQuestionMarkdown(data);
         setSchema(new Map());
         setRelationships(new Map());
+        fetchMethodsForQuestion(questionTitle);  // Fetch methods when the question is selected
       })
       .catch((error) => console.error('Error fetching the question HTML:', error));
   };
 
+  // Handle adding attributes to an entity
   const handleAddAttributeClick = (entity, attribute, key = '') => {
     addAttribute(entity, attribute, key);
     hidePopup();
@@ -131,7 +140,6 @@ const UMLComponent = () => {
       returnType: methodDetails.returnType,
     };
 
-    console.log('Formatted Method Details:', formattedMethodDetails);
     addMethod(entity, formattedMethodDetails);
     hidePopup();
   };
@@ -178,7 +186,7 @@ const UMLComponent = () => {
   };
 
   const handleClickInsidePopup = (event) => {
-    event.stopPropagation(); // Prevent closing the popup when clicking inside
+    event.stopPropagation();
   };
 
   const handleOutsideClick = useCallback(
@@ -196,7 +204,6 @@ const UMLComponent = () => {
         setIsSubmitOpen(false);
       }
 
-      // Ensure clicks inside the popup do not close it
       if (
         (entityPopupRef.current && entityPopupRef.current.contains(event.target)) ||
         (subPopupRef.current && subPopupRef.current.contains(event.target))
@@ -324,8 +331,9 @@ const UMLComponent = () => {
             addEntity={addEntity}
             addAttribute={addAttribute}
             setRelationships={setRelationships}
-            addMethod={addMethod} // Ensure addMethod is passed
-            removeMethod={removeMethod} // Ensure removeMethod is passed
+            addMethod={addMethod}
+            removeMethod={removeMethod}
+            methods={methods}  // Pass methods to ControlsComponent
           />
           <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 2, position: 'relative' }} ref={umlRef}>
             <QuestionContainer id="question-container" ref={questionContainerRef}>
@@ -367,9 +375,6 @@ const UMLComponent = () => {
                         </button>
                       </div>
                       <div>
-                        <button onClick={() => showSubPopup(popup.entityOrAttribute, 'method', 'right', 5)}>
-                          Add Method
-                        </button>
                       </div>
                     </>
                   )}
@@ -399,75 +404,9 @@ const UMLComponent = () => {
                     top: subPopup.y,
                     left: subPopup.x,
                   }}
-                  onClick={handleClickInsidePopup} // Stop propagation
+                  onClick={handleClickInsidePopup}
                 >
                   <div>
-                    <TextField inputRef={methodInputRef} label="Method Name" variant="outlined" fullWidth />
-                    <TextField
-                      inputRef={parametersRef}
-                      label="Parameters (e.g., param1: Type1, param2: Type2)"
-                      variant="outlined"
-                      fullWidth
-                      margin="normal"
-                    />
-                    <FormControl variant="outlined" fullWidth margin="normal">
-                      <InputLabel id="visibility-label">Visibility</InputLabel>
-                      <Select
-                        labelId="visibility-label"
-                        value={visibility}
-                        onChange={handleVisibilityChange}
-                        label="Visibility"
-                        onMouseDown={(e) => e.stopPropagation()} // Prevent event from closing the popup
-                      >
-                        <MenuItem value="public">Public</MenuItem>
-                        <MenuItem value="protected">Protected</MenuItem>
-                        <MenuItem value="private">Private</MenuItem>
-                      </Select>
-                    </FormControl>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={isStatic}
-                          onChange={handleStaticChange}
-                          color="primary"
-                          onMouseDown={(e) => e.stopPropagation()} // Prevent event from closing the popup
-                        />
-                      }
-                      label="Static"
-                    />
-                    <FormControl variant="outlined" fullWidth margin="normal">
-                      <InputLabel id="return-type-label">Return Type</InputLabel>
-                      <Select
-                        labelId="return-type-label"
-                        value={returnType}
-                        onChange={handleReturnTypeChange}
-                        label="Return Type"
-                        onMouseDown={(e) => e.stopPropagation()} // Prevent event from closing the popup
-                      >
-                        <MenuItem value="void">void</MenuItem>
-                        <MenuItem value="int">int</MenuItem>
-                        <MenuItem value="float">float</MenuItem>
-                        <MenuItem value="String">String</MenuItem>
-                        <MenuItem value="List<Fish>">List&lt;Fish&gt;</MenuItem>
-                      </Select>
-                    </FormControl>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAddMethodClick(subPopup.entityOrAttribute, {
-                          name: methodInputRef.current.value.trim(),
-                          parameters: parametersRef.current.value.trim(),
-                          visibility: visibility,
-                          static: isStatic,
-                          returnType: returnType,
-                        });
-                      }}
-                      sx={{ marginTop: 2 }}
-                    >
-                      Add Method
-                    </Button>
                   </div>
                 </PopupContainer>
               )}

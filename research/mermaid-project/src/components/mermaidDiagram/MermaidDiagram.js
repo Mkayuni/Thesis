@@ -1,5 +1,3 @@
-// src/components/mermaidDiagram/MermaidDiagram.js
-
 import React, { useEffect, useRef, useCallback } from 'react';
 import mermaid from 'mermaid';
 import { Box } from '@mui/material';
@@ -79,12 +77,15 @@ const MermaidDiagram = ({ schema, relationships }) => {
         return `  ${visibility}${attItem.attribute}: ${attItem.type} ${attItem.key ? `(${attItem.key})` : ''}`; // Include type
       });
 
+      // Updated methodLines
       const methodLines = schemaItem.methods.map((method) => {
         const visibilitySymbol = method.visibility === 'private' ? '-' : method.visibility === 'protected' ? '#' : '+';
         const staticKeyword = method.static ? 'static ' : '';
-        const parameters = method.parameters ? `${method.parameters}` : '';
-        const returnType = method.returnType ? `:: ${method.returnType}` : ''; // Use double colon for returnType
-        return `  ${visibilitySymbol} ${staticKeyword}${method.name}(${parameters})${returnType}`; // Include double colon in returnType
+        const parameters = Array.isArray(method.parameters)
+          ? method.parameters.map((param) => `${param}`).join(', ') // Handle parameters as an array
+          : ''; // If it's not an array, treat it as an empty string
+        const returnType = method.returnType ? `:: ${method.returnType}` : ''; // Double colon for returnType
+        return `  ${visibilitySymbol} ${staticKeyword}${method.name}(${parameters})${returnType}`; // Include returnType
       });
 
       if (attributeLines.length > 0) {

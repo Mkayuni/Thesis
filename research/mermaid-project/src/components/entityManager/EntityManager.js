@@ -120,7 +120,8 @@ export const useEntityManagement = () => {
         return prevSchema; // Avoid adding methods to non-existent entities
       }
 
-      entityData.methods.push(methodDetails);
+      const existingMethods = entityData.methods || [];
+      entityData.methods = [...existingMethods, methodDetails]; // Add method details
       newSchema.set(entity, entityData);
       return newSchema;
     });
@@ -136,7 +137,7 @@ export const useEntityManagement = () => {
         return prevSchema; // Avoid removing methods from non-existent entities
       }
 
-      entityData.methods = entityData.methods.filter(method => method.name !== methodName);
+      entityData.methods = entityData.methods.filter((method) => method.name !== methodName);
       newSchema.set(entity, entityData);
       return newSchema;
     });
@@ -147,7 +148,7 @@ export const useEntityManagement = () => {
     setRelationships((prevRelationships) => {
       // Ensure relationship doesn't already exist
       const existingRelation = Array.from(prevRelationships.values()).find(
-        rel => rel.relationA === relationA && rel.relationB === relationB
+        (rel) => rel.relationA === relationA && rel.relationB === relationB
       );
       if (existingRelation) {
         console.warn(`Relationship between "${relationA}" and "${relationB}" already exists.`);

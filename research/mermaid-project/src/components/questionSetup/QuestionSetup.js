@@ -1,5 +1,3 @@
-// src/components/questionSetup/QuestionSetup.js
-
 import React, { useEffect } from 'react';
 
 const QuestionSetup = ({ questionMarkdown, setSchema, showPopup }) => {
@@ -19,14 +17,13 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup }) => {
     }
 
     function extractMethods(question) {
-      const methodPattern = /`([^`]+)`/g;
+      const methodPattern = /<method>(.*?)<\/method>/g; // Extract methods enclosed in <method> tags
       const methods = new Set();
       let match;
 
       // Extract methods from the markdown
       while ((match = methodPattern.exec(question)) !== null) {
-        const methodList = match[1].split(',').map(method => method.trim());
-        methodList.forEach(method => methods.add(method));
+        methods.add(match[1].trim());
       }
 
       return methods;
@@ -83,17 +80,6 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup }) => {
         } else if (insideSquare) {
           innerHTML += questionContent.charAt(i);
         }
-      }
-
-      // Add methods as plain text with parameters stripped
-      const methods = extractMethods(question);
-      if (methods.size > 0) {
-        questionHTML += '<br /><br />Consider the following methods and decide which entity each method should belong to:<br />';
-        methods.forEach((method) => {
-          // Strip parameters before appending
-          questionHTML += `${stripMethodParameters(method)}, `;
-        });
-        questionHTML = questionHTML.slice(0, -2); // Remove the last comma and space
       }
 
       return questionHTML;

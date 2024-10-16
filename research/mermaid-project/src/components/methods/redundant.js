@@ -108,8 +108,6 @@ const ControlsComponent = ({
   const [returnType, setReturnType] = useState('void');
   const [isStatic, setIsStatic] = useState(false); // Add state for Static
 
-  const [availableMethods, setAvailableMethods] = useState([]); // New state to hold fetched methods
-
   const {
     popup,
     subPopup,
@@ -129,25 +127,6 @@ const ControlsComponent = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [handleClickOutside]);
-
-  useEffect(() => {
-    // Fetch available methods from the backend
-    fetch('http://127.0.0.1:5000/api/question/Fish%20Store/methods')
-      .then((response) => response.json())
-      .then((data) => setAvailableMethods(data.methods || []))
-      .catch((error) => console.error('Error fetching methods:', error));
-  }, []);
-
-  // Function to parse method strings into method name and parameters
-  const parseMethodSignature = (signature) => {
-    const methodNameMatch = signature.match(/^([a-zA-Z0-9_]+)\(/);
-    const paramsMatch = signature.match(/\(([^)]*)\)/);
-
-    const methodName = methodNameMatch ? methodNameMatch[1] : signature; // Extract method name
-    const parameters = paramsMatch ? paramsMatch[1].split(',').map(param => param.trim()) : []; // Extract parameters
-
-    return { methodName, parameters };
-  };
 
   const handleAccordionChange = (panel) => (event, isExpanded) => {
     setExpandedPanel(isExpanded ? panel : false);
@@ -226,7 +205,8 @@ const ControlsComponent = ({
     setRelationships(new Map());
   };
 
-  const handleMethodLinkClick = () => {
+  const handleMethodLinkClick = (methodName) => {
+    setMethodToAssign(methodName);
     setEntitySelectPopupOpen(true);
   };
 
@@ -390,7 +370,7 @@ const ControlsComponent = ({
                         }}
                       >
                         <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {method.name}({(Array.isArray(method.parameters) ? method.parameters.join(', ') : 'No parameters')}) :{' '}
+                          {method.name}({(Array.isArray(method.parameters) ? method.parameters : []).join(', ')}) :{' '}
                           {method.returnType}
                         </Typography>
                         <IconButton onClick={() => handleRemoveMethod(entity, method.name)} size="small" sx={{ color: 'blue' }}>
@@ -432,25 +412,7 @@ const ControlsComponent = ({
       {/* Entity selection popup to assign a method */}
       {entitySelectPopupOpen && (
         <PopupContainer>
-          <Typography>Select an entity to assign the method</Typography>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Available Methods</InputLabel>
-            <Select
-              value={methodToAssign}
-              onChange={(e) => setMethodToAssign(e.target.value)}
-            >
-              {availableMethods.map((method, index) => {
-                const { methodName, parameters } = parseMethodSignature(method); // Parse method signature here
-                return (
-                  <MenuItem key={index} value={methodName}>
-                    {methodName}({
-                      parameters.length > 0 ? parameters.join(', ') : 'No parameters'
-                    })
-                  </MenuItem>
-                );
-              })}
-            </Select>
-          </FormControl>
+          <Typography>Select an entity to assign the method "{methodToAssign}"</Typography>
           {Array.from(schema.keys()).map((entity) => (
             <Button key={entity} onClick={() => handleAddMethodToEntity(entity)} sx={{ marginTop: 1 }}>
               {entity}
@@ -482,12 +444,12 @@ const ControlsComponent = ({
 
       {/* Example clickable method link */}
       <Typography>
-        Click a method to assign:{' '}
+        Click a method to assign:{" "}
         <span
-          onClick={handleMethodLinkClick}
+          onClick={() => handleMethodLinkClick("addFish(Fish fish)")}
           style={{ cursor: 'pointer', color: '#1976d2', textDecoration: 'underline' }}
         >
-          Assign Method
+          addFish(Fish fish)
         </span>
       </Typography>
 
