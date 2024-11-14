@@ -1,481 +1,255 @@
-import React, { useEffect, useState, useRef } from 'react';
-import {
-  Typography,
-  TextField,
-  Divider,
-  IconButton,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Button,
-  Box,
-  Menu,
-  MenuItem,
-  Paper,
-  FormControl,
-  InputLabel,
-  Select,
-  Checkbox,
-  FormControlLabel,
-} from '@mui/material';
-import { styled } from '@mui/material/styles';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
+import mermaid from 'mermaid';
+import { Box, IconButton } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import KeyIcon from '@mui/icons-material/VpnKey';
-import CategoryIcon from '@mui/icons-material/Category';
-import RelationshipManager from './relationshipManager/RelationshipManager';
-import { usePopup } from './utils/usePopup';
-import Popup from './utils/Popup';
+import { styled } from '@mui/material/styles';
 
-const DrawerContainer = styled(Box)(({ theme }) => ({
+
+const DiagramBox = styled(Box)(({ theme }) => ({
   padding: theme.spacing(2),
   backgroundColor: '#ffffff',
   borderRadius: theme.shape.borderRadius,
-  boxShadow: theme.shadows[3],
+  boxShadow: theme.shadows[2],
+  flex: 3,
+  overflow: 'visible', // Ensure overflow is visible
+  width: '100%',
   height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: theme.spacing(2),
-  flex: 1,
-  overflow: 'hidden',
-  borderLeft: '2px solid #ddd',
+  position: 'relative',
+  zIndex: 0,
 }));
 
-const ContentContainer = styled(Box)(({ theme }) => ({
-  overflow: 'auto',
-  flex: 1,
-}));
-
-const AccordionSummaryStyled = styled(AccordionSummary)(({ theme }) => ({
-  backgroundColor: theme.palette.primary.light,
-  '&.Mui-expanded': {
-    backgroundColor: theme.palette.primary.main,
-    color: theme.palette.primary.contrastText,
+const FloatingButton = styled(IconButton)(({ theme }) => ({
+  position: 'absolute',
+  backgroundColor: '#ff5722',
+  color: '#fff',
+  display: 'none', // Initially hidden
+  zIndex: 1000,
+  '&:hover': {
+    backgroundColor: '#e64a19',
   },
 }));
 
-const PopupContainer = styled(Paper)(({ theme }) => ({
-  position: 'absolute',
-  padding: theme.spacing(2),
-  backgroundColor: '#bbbbbb',
-  color: '#000000',
-  border: '1px solid #ccc',
-  boxShadow: theme.shadows[5],
-  zIndex: 1000,
-  maxHeight: '80vh',
-  overflowY: 'auto',
-  width: 'fit-content',
-}));
+const capitalizeFirstLetter = (string) => string.charAt(0).toUpperCase() + string.slice(1);
 
-const ControlsComponent = ({
-  setQuestionMarkdown,
-  schema,
-  setSchema,
-  questions,
-  expandedPanel,
-  setExpandedPanel,
-  removeEntity,
-  removeAttribute,
-  relationships,
-  removeRelationship,
-  updateAttributeKey,
-  controlsRef,
-  addEntity,
-  addAttribute,
-  addRelationship,
-  editRelationship,
-  onQuestionClick,
-  hidePopup,
-  setRelationships,
-  addMethod,
-  removeMethod,
-}) => {
-  const [showTextBox, setShowTextBox] = useState(false);
-  const [tempQuestion, setTempQuestion] = useState('');
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [selectedEntity, setSelectedEntity] = useState(null);
-  const [selectedAttribute, setSelectedAttribute] = useState(null);
-  const [expandedQuestions, setExpandedQuestions] = useState(false);
+const getStyles = (options) => `
+  .label {
+    font-family: ${options.fontFamily};
+    color: ${options.nodeTextColor || options.textColor};
+  }
+  .cluster-label text {
+    fill: ${options.titleColor};
+  }
+  .node rect,
+  .node circle,
+  .node ellipse {
+    fill: #f5f5f5 !important;
+    stroke: #000 !important;
+    stroke-width: 2px !important;
+  }
+  .node text.entity-name {
+    font-weight: bold !important;
+    font-size: 20px !important;
+  }
+  .node text.attribute {
+    font-size: 16px !important;
+    font-style: italic !important;
+  }
+  .node rect:first-of-type {
+    stroke: #000 !important;
+    stroke-width: 2px !important;
+  }
+  text[visibility="hidden"] {
+    display: none !important;
+  }
+`;
 
-  const [typeAnchorEl, setTypeAnchorEl] = useState(null);
-  const [selectedTypeEntity, setSelectedTypeEntity] = useState(null);
-  const [selectedTypeAttribute, setSelectedTypeAttribute] = useState(null);
+const MermaidDiagram = ({ schema, relationships, removeEntity, addAttribute}) => {
+  const diagramRef = useRef(null);
+  const [nodePositions, setNodePositions] = useState([]);
 
-  const [methodToAssign, setMethodToAssign] = useState(null);
-  const [entitySelectPopupOpen, setEntitySelectPopupOpen] = useState(false);
+   // Function to convert schema to Mermaid source
+   const schemaToMermaidSource = useCallback(() => {
+    let schemaText = [];
+    schema.forEach((schemaItem) => {
+      const entityName = capitalizeFirstLetter(schemaItem.entity);
+      let item = `class ${entityName} {\n`;
 
-  const [visibility, setVisibility] = useState('public');
-  const [returnType, setReturnType] = useState('void');
-  const [isStatic, setIsStatic] = useState(false); // Add state for Static
+      const attributes = Array.from(schemaItem.attribute.values()).sort((a, b) => {
+        if ((a.key === 'PK' || a.key === 'PPK') && (b.key !== 'PK' && b.key !== 'PPK')) return -1;
+        if ((b.key === 'PK' || b.key === 'PPK') && (a.key !== 'PK' && a.key !== 'PPK')) return 1;
+        return 0;
+      });
 
-  const {
-    popup,
-    subPopup,
-    entityPopupRef,
-    subPopupRef,
-    handleClickOutside,
-    showPopup: showPopupMethod,
-    hidePopup: hidePopupMethod,
-    showSubPopup,
-  } = usePopup();
+      const attributeLines = attributes.map((attItem) => {
+        const visibility = attItem.visibility === 'private' ? '-' : attItem.visibility === 'protected' ? '#' : '+';
+        return `  ${visibility}${attItem.attribute}: ${attItem.type} ${attItem.key ? `(${attItem.key})` : ''}`;
+      });
 
-  const questionContainerRef = useRef(null);
+      const methodLines = schemaItem.methods.map((method) => {
+        const visibilitySymbol = method.visibility === 'private' ? '-' : method.visibility === 'protected' ? '#' : '+';
+        const staticKeyword = method.static ? 'static ' : '';
+        const parameters = Array.isArray(method.parameters) ? method.parameters.join(', ') : '';
+        const returnType = method.returnType ? `:: ${method.returnType}` : '';
+        return `  ${visibilitySymbol} ${staticKeyword}${method.name}(${parameters})${returnType}`;
+      });
+
+      if (attributeLines.length > 0) {
+        item += attributeLines.join('\n');
+      } else {
+        item += '  No attributes\n';
+      }
+
+      if (methodLines.length > 0) {
+        item += '\n' + methodLines.join('\n');
+      }
+
+      item += '\n}\n';
+      schemaText.push(item);
+    });
+
+    relationships.forEach((rel) => {
+      const item = `${capitalizeFirstLetter(rel.relationA)}"${rel.cardinalityA}"--"${rel.cardinalityB}"${capitalizeFirstLetter(rel.relationB)}`;
+      schemaText.push(item);
+    });
+
+    return schemaText.join('\n');
+  }, [schema, relationships]);
+
+  // Function to render the Mermaid diagram
+  const renderDiagram = useCallback(() => {
+    const source = `classDiagram\n${schemaToMermaidSource()}`;
+    mermaid.mermaidAPI.initialize({ startOnLoad: false });
+
+    mermaid.mermaidAPI.render('umlDiagram', source, (svgGraph) => {
+      const diagramElement = diagramRef.current;
+      if (diagramElement) {
+        diagramElement.innerHTML = svgGraph;
+
+        const svg = diagramElement.querySelector('svg');
+        if (svg) {
+          const nodes = svg.querySelectorAll('g[class^="node"]');
+
+          nodes.forEach((node) => {
+            const nodeId = node.getAttribute('id');
+            if (nodeId) {
+              // Delay the fetching of bounding box to ensure SVG is fully rendered
+              setTimeout(() => {
+                const bbox = node.getBBox();
+                let iconsVisible = false;
+
+                // Create a group to hold the icons
+                const iconsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+                // Create edit button (pencil icon)
+                const editButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                editButton.setAttribute('x', bbox.x + bbox.width + 10);
+                editButton.setAttribute('y', bbox.y + 10);
+                editButton.setAttribute('fill', '#007bff');
+                editButton.style.cursor = 'pointer';
+                editButton.textContent = '✏️';
+
+                // Create delete button (initially hidden)
+                const deleteButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                deleteButton.setAttribute('x', bbox.x + bbox.width + 10);
+                deleteButton.setAttribute('y', bbox.y + 30);
+                deleteButton.setAttribute('fill', '#ff4d4d');
+                deleteButton.style.cursor = 'pointer';
+                deleteButton.style.display = 'none';
+                deleteButton.textContent = '🗑️';
+                deleteButton.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  removeEntity(nodeId);
+                });
+
+                // Create add button (initially hidden)
+                const addButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                addButton.setAttribute('x', bbox.x + bbox.width + 10);
+                addButton.setAttribute('y', bbox.y + 50);
+                addButton.setAttribute('fill', '#4caf50');
+                addButton.style.cursor = 'pointer';
+                addButton.style.display = 'none';
+                addButton.textContent = '➕';
+                addButton.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  addAttribute(nodeId);
+                });
+
+                // Append buttons to the group
+                iconsGroup.appendChild(editButton);
+                iconsGroup.appendChild(deleteButton);
+                iconsGroup.appendChild(addButton);
+                node.appendChild(iconsGroup);
+
+                // Toggle icons visibility when clicking the edit button
+                editButton.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  iconsVisible = !iconsVisible;
+                  deleteButton.style.display = iconsVisible ? 'block' : 'none';
+                  addButton.style.display = iconsVisible ? 'block' : 'none';
+                });
+
+                // Show edit button on hover
+                node.addEventListener('mouseenter', () => {
+                  editButton.style.display = 'block';
+                });
+
+                // Hide icons when mouse leaves the node
+                node.addEventListener('mouseleave', () => {
+                  if (!iconsVisible) {
+                    editButton.style.display = 'none';
+                    deleteButton.style.display = 'none';
+                    addButton.style.display = 'none';
+                  }
+                });
+              }, 100); // Delay to ensure SVG is rendered
+            }
+          });
+        }
+      }
+    });
+  }, [schemaToMermaidSource, removeEntity, addAttribute]);
+
+  const handleMouseEnter = (event) => {
+    const button = event.currentTarget.querySelector('.delete-button');
+    if (button) button.style.display = 'block';
+  };
+
+  const handleMouseLeave = (event) => {
+    const button = event.currentTarget.querySelector('.delete-button');
+    if (button) button.style.display = 'none';
+  };
 
   useEffect(() => {
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [handleClickOutside]);
-
-  const handleAccordionChange = (panel) => (event, isExpanded) => {
-    setExpandedPanel(isExpanded ? panel : false);
-  };
-
-  const handleQuestionSubmit = () => {
-    setQuestionMarkdown(tempQuestion);
-    setShowTextBox(false);
-  };
-
-  const handleKeyMenuClick = (event, entity, attribute) => {
-    setAnchorEl(event.currentTarget);
-    setSelectedEntity(entity);
-    setSelectedAttribute(attribute);
-  };
-
-  const handleKeyMenuClose = (key) => {
-    setAnchorEl(null);
-    if (selectedEntity && selectedAttribute) {
-      updateAttributeKey(selectedEntity, selectedAttribute, key);
+    // Temporary hardcoded test to check if the floating delete button shows up
+    setNodePositions([{ id: 'test-entity', x: 100, y: 100, width: 50, height: 20 }]);
+  }, []); // This will run once when the component mounts
+  
+  useEffect(() => {
+    if (schema.size !== 0) {
+      renderDiagram();
+      console.log("Rendering diagram with schema:", schema);
     }
-    setSelectedEntity(null);
-    setSelectedAttribute(null);
-  };
-
-  const handleTypeMenuClick = (event, entity, attribute) => {
-    setTypeAnchorEl(event.currentTarget);
-    setSelectedTypeEntity(entity);
-    setSelectedTypeAttribute(attribute);
-  };
-
-  const handleTypeMenuClose = (type) => {
-    setTypeAnchorEl(null);
-    if (selectedTypeEntity && selectedTypeAttribute) {
-      setSchema((prevSchema) => {
-        const newSchema = new Map(prevSchema);
-        const entityData = newSchema.get(selectedTypeEntity);
-        if (entityData) {
-          const updatedAttributes = new Map(entityData.attribute);
-          if (updatedAttributes.has(selectedTypeAttribute)) {
-            const attributeData = updatedAttributes.get(selectedTypeAttribute);
-            attributeData.type = type;
-            updatedAttributes.set(selectedTypeAttribute, attributeData);
-          }
-          entityData.attribute = updatedAttributes;
-          newSchema.set(selectedTypeEntity, entityData);
-        }
-        return newSchema;
-      });
-    }
-    setSelectedTypeEntity(null);
-    setSelectedTypeAttribute(null);
-  };
-
-  const handleQuestionsAccordionChange = () => {
-    setExpandedQuestions(!expandedQuestions);
-  };
-
-  const handleAddEntity = (entityName) => {
-    addEntity(entityName);
-    hidePopup();
-  };
-
-  const handleAddAttribute = (entityName, attribute, key = '') => {
-    addAttribute(entityName, attribute, key);
-    hidePopup();
-  };
-
-  const handleRemoveMethod = (entity, methodName) => {
-    removeMethod(entity, methodName);
-  };
-
-  const handleQuestionClick = (question) => {
-    onQuestionClick(question);
-    setSchema(new Map());
-    setRelationships(new Map());
-  };
-
-  const handleMethodLinkClick = (methodName) => {
-    setMethodToAssign(methodName);
-    setEntitySelectPopupOpen(true);
-  };
-
-  const handleAddMethodToEntity = (entity) => {
-    if (methodToAssign) {
-      const methodDetails = {
-        name: methodToAssign,
-        returnType,
-        parameters: '',
-        visibility,
-        static: isStatic, // Include static value from checkbox
-      };
-      addMethod(entity, methodDetails);
-      setMethodToAssign(null);
-      setEntitySelectPopupOpen(false);
-    }
-  };
-
+  }, [schema, relationships, renderDiagram]);
+  
   return (
-    <DrawerContainer ref={controlsRef}>
-      <Box sx={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
-        <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
-          Controls
-        </Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          sx={{ marginLeft: 'auto' }}
-          onClick={() => setShowTextBox(!showTextBox)}
+    <DiagramBox ref={diagramRef} id="diagram">
+      {nodePositions.map((node) => (
+        <Box
+          key={node.id}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          sx={{ position: 'absolute', top: `${node.y}px`, left: `${node.x + node.width}px` }}
         >
-          {showTextBox ? 'Hide' : 'Add UML Question'}
-        </Button>
-      </Box>
-      {showTextBox && (
-        <Box sx={{ marginBottom: '24px' }}>
-          <TextField
-            placeholder="Enter UML question here"
-            value={tempQuestion}
-            onChange={(e) => setTempQuestion(e.target.value)}
-            multiline
-            rows={4}
-            fullWidth
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            sx={{ marginTop: '8px' }}
-            onClick={handleQuestionSubmit}
+          <FloatingButton
+            className="delete-button"
+            onClick={() => removeEntity(node.id)}
           >
-            Submit
-          </Button>
+            <DeleteIcon />
+          </FloatingButton>
         </Box>
-      )}
-      <ContentContainer>
-        <Accordion expanded={expandedQuestions} onChange={handleQuestionsAccordionChange}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6" sx={{ marginBottom: '8px' }}>
-              Questions
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <Box
-              sx={{
-                padding: '16px',
-                backgroundColor: '#f0f0f0',
-                borderRadius: '4px',
-                marginTop: '16px',
-              }}
-            >
-              {questions.map((question, index) => (
-                <Button
-                  key={index}
-                  onClick={() => handleQuestionClick(question)}
-                  fullWidth
-                  sx={{ justifyContent: 'flex-start', marginBottom: '8px' }}
-                >
-                  {question}
-                </Button>
-              ))}
-            </Box>
-          </AccordionDetails>
-        </Accordion>
-        <Divider />
-        <Accordion
-          expanded={expandedPanel === 'entities-panel'}
-          onChange={handleAccordionChange('entities-panel')}
-          disableGutters
-          TransitionProps={{ unmountOnExit: true }}
-        >
-          <AccordionSummaryStyled
-            expandIcon={<ExpandMoreIcon />}
-            aria-controls="entities-content"
-            id="entities-header"
-          >
-            <Typography>Manage Entities and Methods</Typography>
-          </AccordionSummaryStyled>
-          <AccordionDetails sx={{ backgroundColor: '#e0f7fa' }}>
-            {Array.from(schema.entries()).map(([entity, { attribute, methods }]) => (
-              <Box key={entity} sx={{ marginBottom: '16px' }}>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                    {entity}
-                  </Typography>
-                  <IconButton onClick={() => removeEntity(entity)} size="small" sx={{ color: 'red' }}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-                {Array.from(attribute.entries()).map(([attr, { key, type }]) => (
-                  <Box
-                    key={attr}
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    <Typography variant="body1" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {attr} {key && <span>({key})</span>} {type && <span>[{type}]</span>}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <IconButton
-                        onClick={(event) => handleKeyMenuClick(event, entity, attr)}
-                        size="small"
-                        sx={{ color: 'green' }}
-                      >
-                        <KeyIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        onClick={(event) => handleTypeMenuClick(event, entity, attr)}
-                        size="small"
-                        sx={{ color: 'purple' }}
-                      >
-                        <CategoryIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton onClick={() => removeAttribute(entity, attr)} size="small" sx={{ color: 'blue' }}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                ))}
-                {methods && methods.length > 0 && (
-                  <Box sx={{ marginTop: '16px' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                      Methods:
-                    </Typography>
-                    {methods.map((method) => (
-                      <Box
-                        key={method.name}
-                        sx={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: '8px',
-                        }}
-                      >
-                        <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {method.name}({(Array.isArray(method.parameters) ? method.parameters : []).join(', ')}) :{' '}
-                          {method.returnType}
-                        </Typography>
-                        <IconButton onClick={() => handleRemoveMethod(entity, method.name)} size="small" sx={{ color: 'blue' }}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    ))}
-                  </Box>
-                )}
-              </Box>
-            ))}
-          </AccordionDetails>
-        </Accordion>
-        <Accordion
-          expanded={expandedPanel === 'relationships-panel'}
-          onChange={handleAccordionChange('relationships-panel')}
-          disableGutters
-          TransitionProps={{ unmountOnExit: true }}
-        >
-          <AccordionSummaryStyled
-            expandIcon={<ExpandMoreIcon />}
-            aria-controls="relationships-content"
-            id="relationships-header"
-          >
-            <Typography>Manage Relationships</Typography>
-          </AccordionSummaryStyled>
-          <AccordionDetails sx={{ backgroundColor: '#f1f8e9' }}>
-            <RelationshipManager
-              schema={schema}
-              relationships={relationships}
-              addRelationship={addRelationship}
-              editRelationship={editRelationship}
-              removeRelationship={removeRelationship}
-            />
-          </AccordionDetails>
-        </Accordion>
-      </ContentContainer>
-
-      {/* Entity selection popup to assign a method */}
-      {entitySelectPopupOpen && (
-        <PopupContainer>
-          <Typography>Select an entity to assign the method "{methodToAssign}"</Typography>
-          {Array.from(schema.keys()).map((entity) => (
-            <Button key={entity} onClick={() => handleAddMethodToEntity(entity)} sx={{ marginTop: 1 }}>
-              {entity}
-            </Button>
-          ))}
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Return Type</InputLabel>
-            <Select value={returnType} onChange={(e) => setReturnType(e.target.value)}>
-              <MenuItem value="void">void</MenuItem>
-              <MenuItem value="int">int</MenuItem>
-              <MenuItem value="float">float</MenuItem>
-              <MenuItem value="String">String</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Visibility</InputLabel>
-            <Select value={visibility} onChange={(e) => setVisibility(e.target.value)}>
-              <MenuItem value="public">public</MenuItem>
-              <MenuItem value="protected">protected</MenuItem>
-              <MenuItem value="private">private</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControlLabel
-            control={<Checkbox checked={isStatic} onChange={(e) => setIsStatic(e.target.checked)} />}
-            label="Static"
-          />
-        </PopupContainer>
-      )}
-
-      {/* Example clickable method link */}
-      <Typography>
-        Click a method to assign:{" "}
-        <span
-          onClick={() => handleMethodLinkClick("addFish(Fish fish)")}
-          style={{ cursor: 'pointer', color: '#1976d2', textDecoration: 'underline' }}
-        >
-          addFish(Fish fish)
-        </span>
-      </Typography>
-
-      {/* Key Menu */}
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => handleKeyMenuClose('')}>
-        <MenuItem onClick={() => handleKeyMenuClose('')}>Not a key</MenuItem>
-        <MenuItem onClick={() => handleKeyMenuClose('PK')}>Primary Key</MenuItem>
-        <MenuItem onClick={() => handleKeyMenuClose('PPK')}>Partial Primary Key</MenuItem>
-      </Menu>
-      {/* Data Type Menu */}
-      <Menu anchorEl={typeAnchorEl} open={Boolean(typeAnchorEl)} onClose={() => handleTypeMenuClose('')}>
-        <MenuItem onClick={() => handleTypeMenuClose('String')}>String</MenuItem>
-        <MenuItem onClick={() => handleTypeMenuClose('int')}>Integer</MenuItem>
-        <MenuItem onClick={() => handleTypeMenuClose('boolean')}>Boolean</MenuItem>
-        <MenuItem onClick={() => handleTypeMenuClose('float')}>Float</MenuItem>
-      </Menu>
-      <Popup
-        popup={popup}
-        hidePopup={hidePopupMethod}
-        addEntity={handleAddEntity}
-        addAttribute={handleAddAttribute}
-        showSubPopup={showSubPopup}
-        entityPopupRef={entityPopupRef}
-      />
-    </DrawerContainer>
+      ))}
+    </DiagramBox>
   );
 };
 
-export default ControlsComponent;
+export default MermaidDiagram;

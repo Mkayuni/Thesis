@@ -6,13 +6,6 @@ import {
   Button,
   Typography,
   CssBaseline,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Checkbox,
-  FormControlLabel,
 } from '@mui/material';
 import { styled, ThemeProvider } from '@mui/material/styles';
 import ControlsComponent from './ControlsComponent';
@@ -412,7 +405,8 @@ const UMLComponent = () => {
               )}
             </QuestionContainer>
             <Box sx={{ flex: 1, overflow: 'auto', height: '500px', width: '100%' }} ref={umlRef}>
-              <MermaidDiagram schema={schema} relationships={relationships} />
+              <MermaidDiagram schema={schema} relationships={relationships} 
+              removeEntity={removeEntity}/>
             </Box>
             <FloatingButtonsContainer>
               {isFeedbackOpen && (
