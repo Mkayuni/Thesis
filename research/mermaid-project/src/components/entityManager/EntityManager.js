@@ -29,7 +29,7 @@ export const useEntityManagement = () => {
 
       const newSchema = new Map(prevSchema);
       newSchema.delete(entity);
-      return newSchema;
+      return new Map(newSchema);
     });
   }, []);
 

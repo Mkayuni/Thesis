@@ -124,90 +124,101 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, addAttribute}) =>
       const diagramElement = diagramRef.current;
       if (diagramElement) {
         diagramElement.innerHTML = svgGraph;
-
         const svg = diagramElement.querySelector('svg');
         if (svg) {
+          // Set overflow to visible for the SVG container
+          svg.style.overflow = 'visible';
+          
+          // Add padding to the SVG to ensure icons are not cut off
+          svg.setAttribute('viewBox', `-20 -20 ${svg.getBBox().width + 40} ${svg.getBBox().height + 40}`);
+          svg.style.padding = '20px';
+
           const nodes = svg.querySelectorAll('g[class^="node"]');
 
           nodes.forEach((node) => {
             const nodeId = node.getAttribute('id');
             if (nodeId) {
-              // Delay the fetching of bounding box to ensure SVG is fully rendered
-              setTimeout(() => {
-                const bbox = node.getBBox();
-                let iconsVisible = false;
+              const bbox = node.getBBox();
 
-                // Create a group to hold the icons
-                const iconsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+              // Create a group for the icons
+              const iconsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+              iconsGroup.classList.add('icons-group');
 
-                // Create edit button (pencil icon)
-                const editButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                editButton.setAttribute('x', bbox.x + bbox.width + 10);
-                editButton.setAttribute('y', bbox.y + 10);
-                editButton.setAttribute('fill', '#007bff');
-                editButton.style.cursor = 'pointer';
-                editButton.textContent = '✏️';
+              let iconsVisible = false;
 
-                // Create delete button (initially hidden)
-                const deleteButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                deleteButton.setAttribute('x', bbox.x + bbox.width + 10);
-                deleteButton.setAttribute('y', bbox.y + 30);
-                deleteButton.setAttribute('fill', '#ff4d4d');
-                deleteButton.style.cursor = 'pointer';
-                deleteButton.style.display = 'none';
-                deleteButton.textContent = '🗑️';
-                deleteButton.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  removeEntity(nodeId);
-                });
+              // Create the edit button
+              const editButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+              editButton.setAttribute('x', bbox.x + bbox.width + 10);
+              editButton.setAttribute('y', bbox.y + 10);
+              editButton.setAttribute('fill', '#007bff');
+              editButton.style.cursor = 'pointer';
+              editButton.textContent = '✏️';
 
-                // Create add button (initially hidden)
-                const addButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                addButton.setAttribute('x', bbox.x + bbox.width + 10);
-                addButton.setAttribute('y', bbox.y + 50);
-                addButton.setAttribute('fill', '#4caf50');
-                addButton.style.cursor = 'pointer';
-                addButton.style.display = 'none';
-                addButton.textContent = '➕';
-                addButton.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  addAttribute(nodeId);
-                });
+              // Create the delete button
+              const deleteButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+              deleteButton.setAttribute('x', bbox.x + bbox.width + 10);
+              deleteButton.setAttribute('y', bbox.y + 30);
+              deleteButton.setAttribute('fill', '#ff4d4d');
+              deleteButton.style.cursor = 'pointer';
+              deleteButton.style.display = 'none';
+              deleteButton.textContent = '🗑️';
+              deleteButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeEntity(nodeId);
+              });
 
-                // Append buttons to the group
-                iconsGroup.appendChild(editButton);
-                iconsGroup.appendChild(deleteButton);
-                iconsGroup.appendChild(addButton);
-                node.appendChild(iconsGroup);
+              // Create the add button
+              const addButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+              addButton.setAttribute('x', bbox.x + bbox.width + 10);
+              addButton.setAttribute('y', bbox.y + 50);
+              addButton.setAttribute('fill', '#4caf50');
+              addButton.style.cursor = 'pointer';
+              addButton.style.display = 'none';
+              addButton.textContent = '➕';
+              addButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                addAttribute(nodeId);
+              });
 
-                // Toggle icons visibility when clicking the edit button
-                editButton.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  iconsVisible = !iconsVisible;
-                  deleteButton.style.display = iconsVisible ? 'block' : 'none';
-                  addButton.style.display = iconsVisible ? 'block' : 'none';
-                });
+              iconsGroup.appendChild(editButton);
+              iconsGroup.appendChild(deleteButton);
+              iconsGroup.appendChild(addButton);
+              node.appendChild(iconsGroup);
 
-                // Show edit button on hover
-                node.addEventListener('mouseenter', () => {
-                  editButton.style.display = 'block';
-                });
+              const showIcons = () => {
+                iconsVisible = true;
+                editButton.style.display = 'block';
+              };
 
-                // Hide icons when mouse leaves the node
-                node.addEventListener('mouseleave', () => {
-                  if (!iconsVisible) {
-                    editButton.style.display = 'none';
-                    deleteButton.style.display = 'none';
-                    addButton.style.display = 'none';
-                  }
-                });
-              }, 100); // Delay to ensure SVG is rendered
+              const hideIcons = () => {
+                if (!iconsVisible) {
+                  editButton.style.display = 'none';
+                  deleteButton.style.display = 'none';
+                  addButton.style.display = 'none';
+                }
+              };
+
+              // Toggle icons visibility on edit button click
+              editButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                iconsVisible = !iconsVisible;
+                deleteButton.style.display = iconsVisible ? 'block' : 'none';
+                addButton.style.display = iconsVisible ? 'block' : 'none';
+              });
+
+              node.addEventListener('mouseenter', showIcons);
+              iconsGroup.addEventListener('mouseenter', showIcons);
+
+              // Prevent icons from disappearing when hovering over them
+              iconsGroup.addEventListener('mouseleave', hideIcons);
+              node.addEventListener('mouseleave', hideIcons);
             }
           });
         }
       }
     });
   }, [schemaToMermaidSource, removeEntity, addAttribute]);
+
 
   const handleMouseEnter = (event) => {
     const button = event.currentTarget.querySelector('.delete-button');

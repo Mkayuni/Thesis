@@ -116,6 +116,10 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, addAttribute}) =>
   }, [schema, relationships]);
 
   // Function to render the Mermaid diagram
+  // Check if functions are being passed correctly
+  console.log('removeEntity:', removeEntity);
+  console.log('addAttribute:', addAttribute);
+
   const renderDiagram = useCallback(() => {
     const source = `classDiagram\n${schemaToMermaidSource()}`;
     mermaid.mermaidAPI.initialize({ startOnLoad: false });
@@ -126,10 +130,18 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, addAttribute}) =>
         diagramElement.innerHTML = svgGraph;
         const svg = diagramElement.querySelector('svg');
         if (svg) {
+          // Set overflow to visible for the SVG container
+          svg.style.overflow = 'visible';
+          
+          // Add padding to the SVG to ensure icons are not cut off
+          svg.setAttribute('viewBox', `-20 -20 ${svg.getBBox().width + 40} ${svg.getBBox().height + 40}`);
+          svg.style.padding = '20px';
+
           const nodes = svg.querySelectorAll('g[class^="node"]');
 
           nodes.forEach((node) => {
             const nodeId = node.getAttribute('id');
+            console.log('Processing node:', nodeId); // Debugging log
             if (nodeId) {
               const bbox = node.getBBox();
 
@@ -157,7 +169,13 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, addAttribute}) =>
               deleteButton.textContent = '🗑️';
               deleteButton.addEventListener('click', (e) => {
                 e.stopPropagation();
-                removeEntity(nodeId);
+                console.log('Delete button clicked for node:', nodeId); // Debugging log
+                if (typeof removeEntity === 'function') {
+                  removeEntity(nodeId);
+                  console.log('Entity removed:', nodeId); // Confirm removal
+                } else {
+                  console.error('removeEntity function is not defined');
+                }
               });
 
               // Create the add button
