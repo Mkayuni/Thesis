@@ -1,9 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import mermaid from 'mermaid';
-import { Box, IconButton } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
+import { Box } from '@mui/material';
 import { styled } from '@mui/material/styles';
-
 
 const DiagramBox = styled(Box)(({ theme }) => ({
   padding: theme.spacing(2),
@@ -11,64 +9,100 @@ const DiagramBox = styled(Box)(({ theme }) => ({
   borderRadius: theme.shape.borderRadius,
   boxShadow: theme.shadows[2],
   flex: 3,
-  overflow: 'visible', // Ensure overflow is visible
+  overflow: 'visible',
   width: '100%',
   height: '100%',
   position: 'relative',
   zIndex: 0,
 }));
 
-const FloatingButton = styled(IconButton)(({ theme }) => ({
-  position: 'absolute',
-  backgroundColor: '#ff5722',
-  color: '#fff',
-  display: 'none', // Initially hidden
-  zIndex: 1000,
-  '&:hover': {
-    backgroundColor: '#e64a19',
-  },
-}));
-
 const capitalizeFirstLetter = (string) => string.charAt(0).toUpperCase() + string.slice(1);
 
-const getStyles = (options) => `
-  .label {
-    font-family: ${options.fontFamily};
-    color: ${options.nodeTextColor || options.textColor};
-  }
-  .cluster-label text {
-    fill: ${options.titleColor};
-  }
-  .node rect,
-  .node circle,
-  .node ellipse {
-    fill: #f5f5f5 !important;
-    stroke: #000 !important;
-    stroke-width: 2px !important;
-  }
-  .node text.entity-name {
-    font-weight: bold !important;
-    font-size: 20px !important;
-  }
-  .node text.attribute {
-    font-size: 16px !important;
-    font-style: italic !important;
-  }
-  .node rect:first-of-type {
-    stroke: #000 !important;
-    stroke-width: 2px !important;
-  }
-  text[visibility="hidden"] {
-    display: none !important;
-  }
-`;
+const normalizeEntityName = (name) => {
+  return name.replace(/\s+/g, '').toLowerCase();
+};
 
-const MermaidDiagram = ({ schema, relationships, removeEntity, addAttribute}) => {
+const extractEntityName = (nodeId) => {
+  const parts = nodeId.split('-');
+  return parts.length >= 2 ? normalizeEntityName(parts[1]) : normalizeEntityName(nodeId);
+};
+
+const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, addRelationship }) => {
   const diagramRef = useRef(null);
-  const [nodePositions, setNodePositions] = useState([]);
+  const [sourceEntity, setSourceEntity] = useState(null); // Track the source entity for relationships
+  const [showCircles, setShowCircles] = useState(false); // Track whether to show the circles
 
-   // Function to convert schema to Mermaid source
-   const schemaToMermaidSource = useCallback(() => {
+  const removeLastAttribute = (entityName) => {
+    const normalizedEntityName = normalizeEntityName(entityName);
+    const entity = schema.get(normalizedEntityName);
+    if (entity && entity.attribute.size > 0) {
+      const lastAttribute = Array.from(entity.attribute.keys()).pop();
+      if (lastAttribute) {
+        removeAttribute(normalizedEntityName, lastAttribute);
+      }
+    } else {
+      console.error(`Entity "${normalizedEntityName}" does not exist or has no attributes.`);
+    }
+  };
+
+  // Function to handle entity selection (only for circles)
+  const handleEntityClick = (entityName) => {
+    if (!sourceEntity) {
+      // If no source entity is selected, set this as the source
+      setSourceEntity(entityName);
+      console.log('Source entity selected:', entityName); // Debugging log
+    } else {
+      // If a source entity is already selected, set this as the target and create a relationship
+      const targetEntity = entityName;
+      console.log('Target entity selected:', targetEntity); // Debugging log
+      const cardinalityA = '1'; // Default cardinality
+      const cardinalityB = '*'; // Default cardinality
+      addRelationship(sourceEntity, targetEntity, cardinalityA, cardinalityB);
+      setSourceEntity(null); // Reset source entity
+      setShowCircles(false); // Hide circles after relationship is created
+    }
+  };
+
+  // Add circle indicators for target entities
+  const addCircleIndicators = (svg) => {
+    const nodes = svg.querySelectorAll('g[class^="node"]');
+    nodes.forEach((node) => {
+      const nodeId = node.getAttribute('id');
+      if (nodeId) {
+        const entityName = extractEntityName(nodeId);
+
+        // Remove existing circle if any
+        const existingCircle = node.querySelector('.target-circle');
+        if (existingCircle) {
+          existingCircle.remove();
+        }
+
+        // Add a circle indicator if a source entity is selected and this is not the source entity
+        if (showCircles && sourceEntity && entityName !== sourceEntity) {
+          const bbox = node.getBBox();
+
+          // Calculate the position of the relationship symbol
+          const relationshipButtonX = bbox.x + bbox.width + 10; // X position of the relationship symbol
+          const relationshipButtonY = bbox.y + 70; // Y position of the relationship symbol
+
+          // Add a circle below the relationship symbol
+          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          circle.setAttribute('cx', relationshipButtonX + 5); // Adjust X position (center of the relationship symbol)
+          circle.setAttribute('cy', relationshipButtonY + 20); // Adjust Y position (below the relationship symbol)
+          circle.setAttribute('r', 10); // Circle radius
+          circle.setAttribute('fill', '#00ff00'); // Green color
+          circle.setAttribute('class', 'target-circle');
+          circle.style.cursor = 'pointer';
+          circle.addEventListener('click', () => {
+            handleEntityClick(entityName);
+          });
+          node.appendChild(circle);
+        }
+      }
+    });
+  };
+
+  const schemaToMermaidSource = useCallback(() => {
     let schemaText = [];
     schema.forEach((schemaItem) => {
       const entityName = capitalizeFirstLetter(schemaItem.entity);
@@ -85,13 +119,12 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, addAttribute}) =>
         return `  ${visibility}${attItem.attribute}: ${attItem.type} ${attItem.key ? `(${attItem.key})` : ''}`;
       });
 
-      const methodLines = schemaItem.methods.map((method) => {
+      const methodLines = schemaItem.methods?.map((method) => {
         const visibilitySymbol = method.visibility === 'private' ? '-' : method.visibility === 'protected' ? '#' : '+';
         const staticKeyword = method.static ? 'static ' : '';
-        const parameters = Array.isArray(method.parameters) ? method.parameters.join(', ') : '';
-        const returnType = method.returnType ? `:: ${method.returnType}` : '';
-        return `  ${visibilitySymbol} ${staticKeyword}${method.name}(${parameters})${returnType}`;
-      });
+        const parameters = method.parameters ? method.parameters.join(', ') : '';
+        return `  ${visibilitySymbol}${staticKeyword}${method.name}(${parameters})`;
+      }) || [];
 
       if (attributeLines.length > 0) {
         item += attributeLines.join('\n');
@@ -108,58 +141,50 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, addAttribute}) =>
     });
 
     relationships.forEach((rel) => {
-      const item = `${capitalizeFirstLetter(rel.relationA)}"${rel.cardinalityA}"--"${rel.cardinalityB}"${capitalizeFirstLetter(rel.relationB)}`;
-      schemaText.push(item);
+      schemaText.push(`${capitalizeFirstLetter(rel.relationA)}"${rel.cardinalityA}"--"${rel.cardinalityB}"${capitalizeFirstLetter(rel.relationB)}`);
     });
 
     return schemaText.join('\n');
   }, [schema, relationships]);
 
-  // Function to render the Mermaid diagram
-  // Check if functions are being passed correctly
-  console.log('removeEntity:', removeEntity);
-  console.log('addAttribute:', addAttribute);
-
   const renderDiagram = useCallback(() => {
     const source = `classDiagram\n${schemaToMermaidSource()}`;
-    mermaid.mermaidAPI.initialize({ startOnLoad: false });
+    console.log('Mermaid source:', source);
 
+    mermaid.mermaidAPI.initialize({ startOnLoad: false });
     mermaid.mermaidAPI.render('umlDiagram', source, (svgGraph) => {
       const diagramElement = diagramRef.current;
       if (diagramElement) {
         diagramElement.innerHTML = svgGraph;
         const svg = diagramElement.querySelector('svg');
+
         if (svg) {
-          // Set overflow to visible for the SVG container
           svg.style.overflow = 'visible';
-          
-          // Add padding to the SVG to ensure icons are not cut off
           svg.setAttribute('viewBox', `-20 -20 ${svg.getBBox().width + 40} ${svg.getBBox().height + 40}`);
           svg.style.padding = '20px';
 
-          const nodes = svg.querySelectorAll('g[class^="node"]');
+          // Add circle indicators for target entities
+          addCircleIndicators(svg);
 
+          const nodes = svg.querySelectorAll('g[class^="node"]');
           nodes.forEach((node) => {
             const nodeId = node.getAttribute('id');
-            console.log('Processing node:', nodeId); // Debugging log
             if (nodeId) {
+              const entityName = extractEntityName(nodeId);
+
               const bbox = node.getBBox();
 
-              // Create a group for the icons
               const iconsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
               iconsGroup.classList.add('icons-group');
 
-              let iconsVisible = false;
-
-              // Create the edit button
               const editButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
               editButton.setAttribute('x', bbox.x + bbox.width + 10);
               editButton.setAttribute('y', bbox.y + 10);
               editButton.setAttribute('fill', '#007bff');
               editButton.style.cursor = 'pointer';
+              editButton.style.display = 'block';
               editButton.textContent = '✏️';
 
-              // Create the delete button
               const deleteButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
               deleteButton.setAttribute('x', bbox.x + bbox.width + 10);
               deleteButton.setAttribute('y', bbox.y + 30);
@@ -169,109 +194,81 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, addAttribute}) =>
               deleteButton.textContent = '🗑️';
               deleteButton.addEventListener('click', (e) => {
                 e.stopPropagation();
-                console.log('Delete button clicked for node:', nodeId); // Debugging log
-                if (typeof removeEntity === 'function') {
-                  removeEntity(nodeId);
-                  console.log('Entity removed:', nodeId); // Confirm removal
-                } else {
-                  console.error('removeEntity function is not defined');
+                const entityName = extractEntityName(nodeId);
+                if (schema.has(entityName)) {
+                  removeEntity(entityName);
                 }
               });
 
-              // Create the add button
-              const addButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              addButton.setAttribute('x', bbox.x + bbox.width + 10);
-              addButton.setAttribute('y', bbox.y + 50);
-              addButton.setAttribute('fill', '#4caf50');
-              addButton.style.cursor = 'pointer';
-              addButton.style.display = 'none';
-              addButton.textContent = '➕';
-              addButton.addEventListener('click', (e) => {
+              const minusButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+              minusButton.setAttribute('x', bbox.x + bbox.width + 10);
+              minusButton.setAttribute('y', bbox.y + 50);
+              minusButton.setAttribute('fill', '#4caf50');
+              minusButton.style.cursor = 'pointer';
+              minusButton.style.display = 'none';
+              minusButton.textContent = '➖';
+              minusButton.addEventListener('click', (e) => {
                 e.stopPropagation();
-                addAttribute(nodeId);
+                const entityName = extractEntityName(nodeId);
+                removeLastAttribute(entityName);
+              });
+
+              const relationshipButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+              relationshipButton.setAttribute('x', bbox.x + bbox.width + 10);
+              relationshipButton.setAttribute('y', bbox.y + 70);
+              relationshipButton.setAttribute('fill', '#ff9800');
+              relationshipButton.style.cursor = 'pointer';
+              relationshipButton.style.display = 'none'; // Initially hidden
+              relationshipButton.textContent = '🔗';
+              relationshipButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setShowCircles(true); // Show circles when relationship symbol is clicked
+                setSourceEntity(entityName); // Set the source entity
+                addCircleIndicators(svg); // Update circle indicators after click
+              });
+
+              // Toggle visibility of delete, minus, and relationship buttons
+              editButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteButton.style.display = deleteButton.style.display === 'none' ? 'block' : 'none';
+                minusButton.style.display = minusButton.style.display === 'none' ? 'block' : 'none';
+                relationshipButton.style.display = relationshipButton.style.display === 'none' ? 'block' : 'none';
               });
 
               iconsGroup.appendChild(editButton);
               iconsGroup.appendChild(deleteButton);
-              iconsGroup.appendChild(addButton);
+              iconsGroup.appendChild(minusButton);
+              iconsGroup.appendChild(relationshipButton);
               node.appendChild(iconsGroup);
-
-              const showIcons = () => {
-                iconsVisible = true;
-                editButton.style.display = 'block';
-              };
-
-              const hideIcons = () => {
-                if (!iconsVisible) {
-                  editButton.style.display = 'none';
-                  deleteButton.style.display = 'none';
-                  addButton.style.display = 'none';
-                }
-              };
-
-              // Toggle icons visibility on edit button click
-              editButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                iconsVisible = !iconsVisible;
-                deleteButton.style.display = iconsVisible ? 'block' : 'none';
-                addButton.style.display = iconsVisible ? 'block' : 'none';
-              });
-
-              node.addEventListener('mouseenter', showIcons);
-              iconsGroup.addEventListener('mouseenter', showIcons);
-
-              // Prevent icons from disappearing when hovering over them
-              iconsGroup.addEventListener('mouseleave', hideIcons);
-              node.addEventListener('mouseleave', hideIcons);
             }
           });
         }
       }
     });
-  }, [schemaToMermaidSource, removeEntity, addAttribute]);
+  }, [schemaToMermaidSource, removeEntity, schema, removeLastAttribute, showCircles]);
 
-
-  const handleMouseEnter = (event) => {
-    const button = event.currentTarget.querySelector('.delete-button');
-    if (button) button.style.display = 'block';
-  };
-
-  const handleMouseLeave = (event) => {
-    const button = event.currentTarget.querySelector('.delete-button');
-    if (button) button.style.display = 'none';
-  };
-
-  useEffect(() => {
-    // Temporary hardcoded test to check if the floating delete button shows up
-    setNodePositions([{ id: 'test-entity', x: 100, y: 100, width: 50, height: 20 }]);
-  }, []); // This will run once when the component mounts
-  
   useEffect(() => {
     if (schema.size !== 0) {
       renderDiagram();
-      console.log("Rendering diagram with schema:", schema);
     }
   }, [schema, relationships, renderDiagram]);
-  
-  return (
-    <DiagramBox ref={diagramRef} id="diagram">
-      {nodePositions.map((node) => (
-        <Box
-          key={node.id}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-          sx={{ position: 'absolute', top: `${node.y}px`, left: `${node.x + node.width}px` }}
-        >
-          <FloatingButton
-            className="delete-button"
-            onClick={() => removeEntity(node.id)}
-          >
-            <DeleteIcon />
-          </FloatingButton>
-        </Box>
-      ))}
-    </DiagramBox>
-  );
+
+  // Hide circles when clicking outside the diagram
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (diagramRef.current && !diagramRef.current.contains(event.target)) {
+        setShowCircles(false);
+        setSourceEntity(null); // Reset source entity
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  return <DiagramBox ref={diagramRef} id="diagram" />;
 };
 
 export default MermaidDiagram;

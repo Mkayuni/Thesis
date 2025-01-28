@@ -33,6 +33,8 @@ const UMLComponent = () => {
     addMethod,
     removeMethod, 
   } = useEntityManagement();
+  
+  
 
   const {
     popup,
@@ -406,7 +408,7 @@ const UMLComponent = () => {
             </QuestionContainer>
             <Box sx={{ flex: 1, overflow: 'auto', height: '500px', width: '100%' }} ref={umlRef}>
               <MermaidDiagram schema={schema} relationships={relationships} 
-              removeEntity={removeEntity}/>
+              removeEntity={removeEntity} removeAttribute={removeAttribute} addRelationship={addRelationship}/>
             </Box>
             <FloatingButtonsContainer>
               {isFeedbackOpen && (
