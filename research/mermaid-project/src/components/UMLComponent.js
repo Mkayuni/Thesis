@@ -408,7 +408,7 @@ const UMLComponent = () => {
             </QuestionContainer>
             <Box sx={{ flex: 1, overflow: 'auto', height: '500px', width: '100%' }} ref={umlRef}>
               <MermaidDiagram schema={schema} relationships={relationships} 
-              removeEntity={removeEntity} removeAttribute={removeAttribute} addRelationship={addRelationship}/>
+              removeEntity={removeEntity} removeAttribute={removeAttribute} addRelationship={addRelationship} removeRelationship={removeRelationship}/>
             </Box>
             <FloatingButtonsContainer>
               {isFeedbackOpen && (

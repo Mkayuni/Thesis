@@ -1,92 +1,124 @@
 import React, { useState } from 'react';
-import { Box, Button, Typography, Select, MenuItem, TextField, Accordion, AccordionSummary, AccordionDetails, IconButton } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { Box, Typography, Autocomplete, TextField, Chip, IconButton } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import CloseIcon from '@mui/icons-material/Close';
 
-const RelationshipManager = ({ schema, relationships, addRelationship, removeRelationship }) => {
+const RelationshipManager = ({ schema, relationships, addRelationship, removeRelationship, onClose }) => {
   const [relationA, setRelationA] = useState('');
   const [relationB, setRelationB] = useState('');
-  const [cardinalityA, setCardinalityA] = useState('');
-  const [cardinalityB, setCardinalityB] = useState('');
-  const [cardinalityText, setCardinalityText] = useState('');
-  const [expanded, setExpanded] = useState(false);
+  const [cardinalityA, setCardinalityA] = useState('1..1');
+  const [cardinalityB, setCardinalityB] = useState('1..1');
 
   const entities = Array.from(schema.keys());
+  const cardinalityOptions = ['1..1', '0..1', '1..*', '0..*'];
 
   const handleAddRelationship = () => {
     if (relationA && relationB && cardinalityA && cardinalityB) {
-      addRelationship(relationA, relationB, cardinalityA, cardinalityB, cardinalityText);
+      addRelationship(relationA, relationB, cardinalityA, cardinalityB);
       // Reset the form
       setRelationA('');
       setRelationB('');
-      setCardinalityA('');
-      setCardinalityB('');
-      setCardinalityText('');
+      setCardinalityA('1..1');
+      setCardinalityB('1..1');
     }
   };
 
-  const handleAccordionChange = () => {
-    setExpanded(!expanded);
-  };
-
   return (
-    <Box>
-      <Typography variant="h6" gutterBottom>Add Relationship</Typography>
-      <Box display="flex" flexDirection="column" gap={2}>
-        <Select value={relationA} onChange={(e) => setRelationA(e.target.value)} displayEmpty>
-          <MenuItem value="" disabled>Select first entity</MenuItem>
-          {entities.map((entity) => (
-            <MenuItem key={entity} value={entity}>{entity}</MenuItem>
-          ))}
-        </Select>
-        <Select value={cardinalityA} onChange={(e) => setCardinalityA(e.target.value)} displayEmpty>
-          <MenuItem value="" disabled>Select cardinality for first entity</MenuItem>
-          <MenuItem value="1..1">1..1</MenuItem>
-          <MenuItem value="0..1">0..1</MenuItem>
-          <MenuItem value="1..*">1..*</MenuItem>
-          <MenuItem value="0..*">0..*</MenuItem>
-        </Select>
-        <Select value={relationB} onChange={(e) => setRelationB(e.target.value)} displayEmpty>
-          <MenuItem value="" disabled>Select second entity</MenuItem>
-          {entities.map((entity) => (
-            <MenuItem key={entity} value={entity}>{entity}</MenuItem>
-          ))}
-        </Select>
-        <Select value={cardinalityB} onChange={(e) => setCardinalityB(e.target.value)} displayEmpty>
-          <MenuItem value="" disabled>Select cardinality for second entity</MenuItem>
-          <MenuItem value="1..1">1..1</MenuItem>
-          <MenuItem value="0..1">0..1</MenuItem>
-          <MenuItem value="1..*">1..*</MenuItem>
-          <MenuItem value="0..*">0..*</MenuItem>
-        </Select>
-        <TextField
-          placeholder="Enter relationship text"
-          value={cardinalityText}
-          onChange={(e) => setCardinalityText(e.target.value)}
+    <Box sx={{ width: '240px', p: 1.5, border: '1px solid #ddd', borderRadius: '8px', backgroundColor: '#f9f9f9', position: 'relative' }}>
+      {/* Close Button */}
+      <IconButton
+        onClick={onClose}
+        size="small"
+        sx={{ position: 'absolute', top: 8, right: 8, color: '#666' }}
+      >
+        <CloseIcon fontSize="small" />
+      </IconButton>
+
+      {/* Title */}
+      <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold', color: '#555', pr: 2 }}>
+        Relationships
+      </Typography>
+
+      {/* Add Relationship Section */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+        <Autocomplete
+          size="small"
+          options={entities}
+          value={relationA}
+          onChange={(_, newValue) => setRelationA(newValue)}
+          renderInput={(params) => <TextField {...params} label="Entity A" size="small" />}
         />
-        <Button variant="contained" color="primary" onClick={handleAddRelationship}>
-          Add
-        </Button>
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          {cardinalityOptions.map((option) => (
+            <Chip
+              key={option}
+              label={option}
+              onClick={() => setCardinalityA(option)}
+              variant={cardinalityA === option ? 'filled' : 'outlined'}
+              color="primary"
+              size="small"
+              sx={{ cursor: 'pointer', flex: 1, fontSize: '0.75rem' }}
+            />
+          ))}
+        </Box>
+        <Autocomplete
+          size="small"
+          options={entities}
+          value={relationB}
+          onChange={(_, newValue) => setRelationB(newValue)}
+          renderInput={(params) => <TextField {...params} label="Entity B" size="small" />}
+        />
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          {cardinalityOptions.map((option) => (
+            <Chip
+              key={option}
+              label={option}
+              onClick={() => setCardinalityB(option)}
+              variant={cardinalityB === option ? 'filled' : 'outlined'}
+              color="secondary"
+              size="small"
+              sx={{ cursor: 'pointer', flex: 1, fontSize: '0.75rem' }}
+            />
+          ))}
+        </Box>
+        <Chip
+          label="Add Relationship"
+          onClick={handleAddRelationship}
+          color="success"
+          size="small"
+          sx={{ cursor: 'pointer', mt: 1, fontSize: '0.75rem' }}
+        />
       </Box>
-      <Accordion expanded={expanded} onChange={handleAccordionChange}>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6" gutterBottom>Edit Relationship</Typography>
-        </AccordionSummary>
-        <AccordionDetails>
-          <ul>
-            {Array.from(relationships.values()).map((rel) => (
-              <li key={rel.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography>
-                  {rel.relationA} {rel.cardinalityA} - {rel.cardinalityB} {rel.relationB}: {rel.cardinalityText}
-                </Typography>
-                <IconButton onClick={() => removeRelationship(rel.id)} size="small" sx={{ color: 'red' }}>
-                  <DeleteIcon />
-                </IconButton>
-              </li>
-            ))}
-          </ul>
-        </AccordionDetails>
-      </Accordion>
+
+      {/* List of Relationships */}
+      <Box sx={{ maxHeight: '150px', overflowY: 'auto' }}>
+        {Array.from(relationships.values()).map((rel) => (
+          <Box
+            key={rel.id}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              p: 0.5,
+              mb: 0.5,
+              backgroundColor: '#fff',
+              borderRadius: '4px',
+              border: '1px solid #eee',
+            }}
+          >
+            <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+              {rel.relationA} {rel.cardinalityA} - {rel.cardinalityB} {rel.relationB}
+            </Typography>
+            <IconButton
+              onClick={() => removeRelationship(rel.id)}
+              size="small"
+              sx={{ color: 'red', p: 0.5 }}
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        ))}
+      </Box>
     </Box>
   );
 };

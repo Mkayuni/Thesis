@@ -1,19 +1,47 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import mermaid from 'mermaid';
-import { Box } from '@mui/material';
+import { Box, Tooltip, IconButton, Typography, Button, Select, MenuItem } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import RelationshipManager from '../relationshipManager/RelationshipManager';
+import { generateGettersAndSetters, SYNTAX_TYPES } from '../ui/ui';
+import Editor from '@monaco-editor/react';
 
+// Styled components for modern UI
 const DiagramBox = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(2),
-  backgroundColor: '#ffffff',
-  borderRadius: theme.shape.borderRadius,
-  boxShadow: theme.shadows[2],
-  flex: 3,
-  overflow: 'visible',
+  padding: theme.spacing(3),
+  backgroundColor: '#f5f5f5',
+  borderRadius: '12px',
+  boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.1)',
+  overflow: 'auto',
   width: '100%',
-  height: '100%',
+  minHeight: '400px',
+  height: 'auto',
   position: 'relative',
   zIndex: 0,
+  border: '1px solid #e0e0e0',
+}));
+
+const Toolbar = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: theme.spacing(2),
+  backgroundColor: '#ffffff',
+  borderRadius: '8px',
+  boxShadow: '0px 2px 10px rgba(0, 0, 0, 0.05)',
+  marginBottom: theme.spacing(2),
+}));
+
+const WorkbenchBox = styled(Box)(({ theme }) => ({
+  position: 'absolute',
+  top: '60px',
+  right: '20px',
+  zIndex: 1000,
+  backgroundColor: '#ffffff',
+  borderRadius: '8px',
+  boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.1)',
+  padding: theme.spacing(2),
+  width: '600px',
 }));
 
 const capitalizeFirstLetter = (string) => string.charAt(0).toUpperCase() + string.slice(1);
@@ -27,10 +55,13 @@ const extractEntityName = (nodeId) => {
   return parts.length >= 2 ? normalizeEntityName(parts[1]) : normalizeEntityName(nodeId);
 };
 
-const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, addRelationship }) => {
+const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, addRelationship, removeRelationship }) => {
   const diagramRef = useRef(null);
-  const [sourceEntity, setSourceEntity] = useState(null); // Track the source entity for relationships
-  const [showCircles, setShowCircles] = useState(false); // Track whether to show the circles
+  const [showRelationshipManager, setShowRelationshipManager] = useState(false);
+  const [showWorkbench, setShowWorkbench] = useState(false);
+  const [code, setCode] = useState('');
+  const [syntax, setSyntax] = useState(SYNTAX_TYPES.JAVA);
+  const [generatedCode, setGeneratedCode] = useState('');
 
   const removeLastAttribute = (entityName) => {
     const normalizedEntityName = normalizeEntityName(entityName);
@@ -43,63 +74,6 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, 
     } else {
       console.error(`Entity "${normalizedEntityName}" does not exist or has no attributes.`);
     }
-  };
-
-  // Function to handle entity selection (only for circles)
-  const handleEntityClick = (entityName) => {
-    if (!sourceEntity) {
-      // If no source entity is selected, set this as the source
-      setSourceEntity(entityName);
-      console.log('Source entity selected:', entityName); // Debugging log
-    } else {
-      // If a source entity is already selected, set this as the target and create a relationship
-      const targetEntity = entityName;
-      console.log('Target entity selected:', targetEntity); // Debugging log
-      const cardinalityA = '1'; // Default cardinality
-      const cardinalityB = '*'; // Default cardinality
-      addRelationship(sourceEntity, targetEntity, cardinalityA, cardinalityB);
-      setSourceEntity(null); // Reset source entity
-      setShowCircles(false); // Hide circles after relationship is created
-    }
-  };
-
-  // Add circle indicators for target entities
-  const addCircleIndicators = (svg) => {
-    const nodes = svg.querySelectorAll('g[class^="node"]');
-    nodes.forEach((node) => {
-      const nodeId = node.getAttribute('id');
-      if (nodeId) {
-        const entityName = extractEntityName(nodeId);
-
-        // Remove existing circle if any
-        const existingCircle = node.querySelector('.target-circle');
-        if (existingCircle) {
-          existingCircle.remove();
-        }
-
-        // Add a circle indicator if a source entity is selected and this is not the source entity
-        if (showCircles && sourceEntity && entityName !== sourceEntity) {
-          const bbox = node.getBBox();
-
-          // Calculate the position of the relationship symbol
-          const relationshipButtonX = bbox.x + bbox.width + 10; // X position of the relationship symbol
-          const relationshipButtonY = bbox.y + 70; // Y position of the relationship symbol
-
-          // Add a circle below the relationship symbol
-          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-          circle.setAttribute('cx', relationshipButtonX + 5); // Adjust X position (center of the relationship symbol)
-          circle.setAttribute('cy', relationshipButtonY + 20); // Adjust Y position (below the relationship symbol)
-          circle.setAttribute('r', 10); // Circle radius
-          circle.setAttribute('fill', '#00ff00'); // Green color
-          circle.setAttribute('class', 'target-circle');
-          circle.style.cursor = 'pointer';
-          circle.addEventListener('click', () => {
-            handleEntityClick(entityName);
-          });
-          node.appendChild(circle);
-        }
-      }
-    });
   };
 
   const schemaToMermaidSource = useCallback(() => {
@@ -163,31 +137,27 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, 
           svg.setAttribute('viewBox', `-20 -20 ${svg.getBBox().width + 40} ${svg.getBBox().height + 40}`);
           svg.style.padding = '20px';
 
-          // Add circle indicators for target entities
-          addCircleIndicators(svg);
-
           const nodes = svg.querySelectorAll('g[class^="node"]');
           nodes.forEach((node) => {
             const nodeId = node.getAttribute('id');
             if (nodeId) {
               const entityName = extractEntityName(nodeId);
-
               const bbox = node.getBBox();
 
               const iconsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
               iconsGroup.classList.add('icons-group');
 
               const editButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              editButton.setAttribute('x', bbox.x + bbox.width + 10);
-              editButton.setAttribute('y', bbox.y + 10);
+              editButton.setAttribute('x', bbox.x + bbox.width + 15);
+              editButton.setAttribute('y', bbox.y + 15);
               editButton.setAttribute('fill', '#007bff');
               editButton.style.cursor = 'pointer';
               editButton.style.display = 'block';
               editButton.textContent = '✏️';
 
               const deleteButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              deleteButton.setAttribute('x', bbox.x + bbox.width + 10);
-              deleteButton.setAttribute('y', bbox.y + 30);
+              deleteButton.setAttribute('x', bbox.x + bbox.width + 15);
+              deleteButton.setAttribute('y', bbox.y + 35);
               deleteButton.setAttribute('fill', '#ff4d4d');
               deleteButton.style.cursor = 'pointer';
               deleteButton.style.display = 'none';
@@ -201,8 +171,8 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, 
               });
 
               const minusButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              minusButton.setAttribute('x', bbox.x + bbox.width + 10);
-              minusButton.setAttribute('y', bbox.y + 50);
+              minusButton.setAttribute('x', bbox.x + bbox.width + 15);
+              minusButton.setAttribute('y', bbox.y + 55);
               minusButton.setAttribute('fill', '#4caf50');
               minusButton.style.cursor = 'pointer';
               minusButton.style.display = 'none';
@@ -214,20 +184,17 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, 
               });
 
               const relationshipButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              relationshipButton.setAttribute('x', bbox.x + bbox.width + 10);
-              relationshipButton.setAttribute('y', bbox.y + 70);
+              relationshipButton.setAttribute('x', bbox.x + bbox.width + 15);
+              relationshipButton.setAttribute('y', bbox.y + 75);
               relationshipButton.setAttribute('fill', '#ff9800');
               relationshipButton.style.cursor = 'pointer';
-              relationshipButton.style.display = 'none'; // Initially hidden
+              relationshipButton.style.display = 'none';
               relationshipButton.textContent = '🔗';
               relationshipButton.addEventListener('click', (e) => {
                 e.stopPropagation();
-                setShowCircles(true); // Show circles when relationship symbol is clicked
-                setSourceEntity(entityName); // Set the source entity
-                addCircleIndicators(svg); // Update circle indicators after click
+                setShowRelationshipManager(true);
               });
 
-              // Toggle visibility of delete, minus, and relationship buttons
               editButton.addEventListener('click', (e) => {
                 e.stopPropagation();
                 deleteButton.style.display = deleteButton.style.display === 'none' ? 'block' : 'none';
@@ -245,7 +212,7 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, 
         }
       }
     });
-  }, [schemaToMermaidSource, removeEntity, schema, removeLastAttribute, showCircles]);
+  }, [schemaToMermaidSource, removeEntity, schema, removeLastAttribute]);
 
   useEffect(() => {
     if (schema.size !== 0) {
@@ -253,22 +220,207 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, 
     }
   }, [schema, relationships, renderDiagram]);
 
-  // Hide circles when clicking outside the diagram
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (diagramRef.current && !diagramRef.current.contains(event.target)) {
-        setShowCircles(false);
-        setSourceEntity(null); // Reset source entity
+  const handleGenerate = () => {
+    const mermaidSource = schemaToMermaidSource();
+    const generated = parseMermaidToCode(mermaidSource, syntax);
+    setGeneratedCode(generated);
+    setCode(generated); // Update Monaco Editor with generated code
+  };
+
+
+//Parse MErmaid to Code
+const parseMermaidToCode = (mermaidSource, syntax) => {
+  const classRegex = /class\s+(\w+)\s*\{([^}]*)\}/g;
+  const relationshipRegex = /(\w+)"([^"]+)"--"([^"]+)"(\w+)/g;
+
+  let code = '';
+  let match;
+
+  while ((match = classRegex.exec(mermaidSource)) !== null) {
+      const [, className, classContent] = match;
+      code += generateClassCode(className, classContent, syntax) + '\n\n';
+  }
+
+  while ((match = relationshipRegex.exec(mermaidSource)) !== null) {
+    const [, classA, cardinalityA, cardinalityB, classB] = match;
+    const commentSymbol = syntax === SYNTAX_TYPES.PYTHON ? "#" : "//";
+    code += `${commentSymbol} Relationship: ${classA} "${cardinalityA}" -- "${cardinalityB}" ${classB}\n`;
+}
+
+  return code.trim();
+};
+
+const generateClassCode = (className, classContent, syntax) => {
+  // Updated regex: Handles missing types and ensures correct attribute extraction
+  const attributeRegex = /(?:\s*[-+#]?\s*)(\w+)\s*:\s*([\w<>]*)?/g;
+  let attributes = [];
+  let match;
+
+  while ((match = attributeRegex.exec(classContent)) !== null) {
+      let [, attributeName, attributeType] = match;
+
+      // Assign default types if missing
+      if (!attributeType || attributeType.trim() === '') {
+          attributeType = syntax === SYNTAX_TYPES.JAVA ? 'Object' : 'Any';
       }
-    };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+      attributes.push({ name: attributeName, type: attributeType });
+  }
 
-  return <DiagramBox ref={diagramRef} id="diagram" />;
+  return syntax === SYNTAX_TYPES.JAVA 
+      ? generateJavaClass(className, attributes) 
+      : generatePythonClass(className, attributes);
+};
+
+const generateJavaClass = (className, attributes) => {
+  let code = `public class ${className} {\n`;
+
+  if (attributes.length === 0) {
+      code += "    // No attributes\n";
+  }
+
+  // Generate fields
+  attributes.forEach(({ name, type }) => {
+      code += `    private ${type} ${name};\n`;
+  });
+
+  // Generate getters and setters
+  attributes.forEach(({ name, type }) => {
+      const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+      code += `
+  public ${type} get${capitalizedName}() {
+      return this.${name};
+  }
+
+  public void set${capitalizedName}(${type} ${name}) {
+      this.${name} = ${name};
+  }\n`;
+  });
+
+  code += '}';
+  return code;
+};
+
+const generatePythonClass = (className, attributes) => {
+  let code = `class ${className}:\n`;
+
+  if (attributes.length === 0) {
+      code += "    # No attributes\n";
+      return code;
+  }
+
+  // Generate __init__ method
+  code += "    def __init__(self):\n";
+  attributes.forEach(({ name }) => {
+      code += `        self._${name} = None\n`;
+  });
+
+  // Generate properties (getters and setters)
+  attributes.forEach(({ name }) => {
+      code += `
+
+  @property
+  def ${name}(self):
+      return self._${name}
+
+  @${name}.setter
+  def ${name}(self, value):
+      self._${name} = value\n`;
+  });
+
+  return code;
+};
+
+  return (
+    <Box>
+      <Toolbar>
+        <Typography variant="h6" color="primary">
+          WorkBench
+        </Typography>
+        <Box>
+          <Tooltip title="Add Relationship">
+            <IconButton color="primary" onClick={() => setShowRelationshipManager(true)}>
+              🔗
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Open WorkBench">
+            <IconButton color="primary" onClick={() => setShowWorkbench(true)}>
+              🛠️
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Toolbar>
+      <DiagramBox ref={diagramRef} id="diagram" />
+      {showRelationshipManager && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '60px',
+            right: '20px',
+            zIndex: 1000,
+          }}
+        >
+          <RelationshipManager
+            schema={schema}
+            relationships={relationships}
+            addRelationship={addRelationship}
+            removeRelationship={removeRelationship}
+            onClose={() => setShowRelationshipManager(false)}
+          />
+        </Box>
+      )}
+      {showWorkbench && (
+        <WorkbenchBox>
+          <Typography variant="h6" gutterBottom>
+            WorkBench
+          </Typography>
+          <Select
+            value={syntax}
+            onChange={(e) => setSyntax(e.target.value)}
+            fullWidth
+            sx={{ mb: 2 }}
+          >
+            <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
+            <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
+          </Select>
+          <Editor
+            height="300px"
+            language={syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
+            theme="vs-light"
+            value={code}
+            onChange={(value) => setCode(value)}
+            options={{
+              automaticLayout: true,
+              padding: { top: 10, bottom: 10 },
+            }}
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleGenerate}
+            sx={{ mr: 2, mt: 2 }}
+          >
+            Generate
+          </Button>
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={() => setShowWorkbench(false)}
+            sx={{ mt: 2 }}
+          >
+            Close
+          </Button>
+          {generatedCode && (
+            <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+              <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
+                {generatedCode}
+              </Typography>
+            </Box>
+          )}
+        </WorkbenchBox>
+      )}
+    </Box>
+  );
 };
 
 export default MermaidDiagram;
