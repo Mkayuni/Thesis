@@ -3,7 +3,7 @@ import mermaid from 'mermaid';
 import { Box, Tooltip, IconButton, Typography, Button, Select, MenuItem } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import RelationshipManager from '../relationshipManager/RelationshipManager';
-import { generateGettersAndSetters, SYNTAX_TYPES } from '../ui/ui';
+import { SYNTAX_TYPES } from '../ui/ui';
 import Editor from '@monaco-editor/react';
 
 // Styled components for modern UI
@@ -55,13 +55,14 @@ const extractEntityName = (nodeId) => {
   return parts.length >= 2 ? normalizeEntityName(parts[1]) : normalizeEntityName(nodeId);
 };
 
-const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, addRelationship, removeRelationship }) => {
+const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, addAttribute, addEntity, addRelationship, removeRelationship }) => {
   const diagramRef = useRef(null);
   const [showRelationshipManager, setShowRelationshipManager] = useState(false);
   const [showWorkbench, setShowWorkbench] = useState(false);
   const [code, setCode] = useState('');
   const [syntax, setSyntax] = useState(SYNTAX_TYPES.JAVA);
   const [generatedCode, setGeneratedCode] = useState('');
+  const [isCodeModified, setIsCodeModified] = useState(false);
 
   const removeLastAttribute = (entityName) => {
     const normalizedEntityName = normalizeEntityName(entityName);
@@ -227,65 +228,160 @@ const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, 
     setCode(generated); // Update Monaco Editor with generated code
   };
 
+  const handleUpdate = () => {
+    const updatedSchema = parseCodeToSchema(code, syntax);
+    applySchemaUpdates(updatedSchema);
+    setIsCodeModified(false); // Reset modification flag
+    renderDiagram(); // Re-render the diagram
+  };
 
-//Parse MErmaid to Code
-const parseMermaidToCode = (mermaidSource, syntax) => {
-  const classRegex = /class\s+(\w+)\s*\{([^}]*)\}/g;
-  const relationshipRegex = /(\w+)"([^"]+)"--"([^"]+)"(\w+)/g;
+  const parseCodeToSchema = (sourceCode, syntaxType) => {
+    const schemaMap = new Map();
 
-  let code = '';
-  let match;
+    if (syntaxType === SYNTAX_TYPES.JAVA) {
+      const classRegex = /public class (\w+) \{([^}]+)\}/g;
+      const fieldRegex = /private (\w+) (\w+);/g;
 
-  while ((match = classRegex.exec(mermaidSource)) !== null) {
+      let classMatch;
+      while ((classMatch = classRegex.exec(sourceCode)) !== null) {
+        const className = classMatch[1].toLowerCase();
+        const classContent = classMatch[2];
+        const attributes = new Map();
+
+        let fieldMatch;
+        while ((fieldMatch = fieldRegex.exec(classContent)) !== null) {
+          const type = fieldMatch[1];
+          const name = fieldMatch[2];
+          attributes.set(name, { type });
+        }
+
+        schemaMap.set(className, {
+          entity: className,
+          attribute: attributes,
+          methods: [],
+        });
+      }
+    } else {
+      const classRegex = /class (\w+):\s*def __init__\(self\):\s*((?:.|\n)*?)(?=\n\S|$)/g;
+      const attrRegex = /self\._(\w+): (\w+) = None/g;
+
+      let classMatch;
+      while ((classMatch = classRegex.exec(sourceCode)) !== null) {
+        const className = classMatch[1].toLowerCase();
+        const initContent = classMatch[2];
+        const attributes = new Map();
+
+        let attrMatch;
+        while ((attrMatch = attrRegex.exec(initContent)) !== null) {
+          const name = attrMatch[1];
+          const type = attrMatch[2];
+          attributes.set(name, { type });
+        }
+
+        schemaMap.set(className, {
+          entity: className,
+          attribute: attributes,
+          methods: [],
+        });
+      }
+    }
+
+    return schemaMap;
+  };
+
+  const applySchemaUpdates = (updatedSchema) => {
+    // Remove entities not present in updated schema
+    schema.forEach((_, entityName) => {
+      if (!updatedSchema.has(entityName)) {
+        removeEntity(entityName);
+      }
+    });
+
+    // Update existing or add new entities
+    updatedSchema.forEach((newEntity, entityName) => {
+      const currentEntity = schema.get(entityName);
+
+      if (currentEntity) {
+        // Update attributes
+        currentEntity.attribute.forEach((_, attrName) => {
+          if (!newEntity.attribute.has(attrName)) {
+            removeAttribute(entityName, attrName);
+          }
+        });
+
+        newEntity.attribute.forEach((newAttr, attrName) => {
+          const currentAttr = currentEntity.attribute.get(attrName);
+          if (!currentAttr || currentAttr.type !== newAttr.type) {
+            if (currentAttr) removeAttribute(entityName, attrName);
+            addAttribute(entityName, attrName, currentAttr?.key || '', newAttr.type);
+          }
+        });
+      } else {
+        // Add new entity
+        addEntity(entityName);
+        newEntity.attribute.forEach((newAttr, attrName) => {
+          addAttribute(entityName, attrName, '', newAttr.type);
+        });
+      }
+    });
+  };
+
+  const parseMermaidToCode = (mermaidSource, syntax) => {
+    const classRegex = /class\s+(\w+)\s*\{([^}]*)\}/g;
+    const relationshipRegex = /(\w+)"([^"]+)"--"([^"]+)"(\w+)/g;
+
+    let code = '';
+    let match;
+
+    while ((match = classRegex.exec(mermaidSource)) !== null) {
       const [, className, classContent] = match;
       code += generateClassCode(className, classContent, syntax) + '\n\n';
-  }
+    }
 
-  while ((match = relationshipRegex.exec(mermaidSource)) !== null) {
-    const [, classA, cardinalityA, cardinalityB, classB] = match;
-    const commentSymbol = syntax === SYNTAX_TYPES.PYTHON ? "#" : "//";
-    code += `${commentSymbol} Relationship: ${classA} "${cardinalityA}" -- "${cardinalityB}" ${classB}\n`;
-}
+    while ((match = relationshipRegex.exec(mermaidSource)) !== null) {
+      const [, classA, cardinalityA, cardinalityB, classB] = match;
+      const commentSymbol = syntax === SYNTAX_TYPES.PYTHON ? "#" : "//";
+      code += `${commentSymbol} Relationship: ${classA} "${cardinalityA}" -- "${cardinalityB}" ${classB}\n`;
+    }
 
-  return code.trim();
-};
+    return code.trim();
+  };
 
-const generateClassCode = (className, classContent, syntax) => {
-  // Updated regex: Handles missing types and ensures correct attribute extraction
-  const attributeRegex = /(?:\s*[-+#]?\s*)(\w+)\s*:\s*([\w<>]*)?/g;
-  let attributes = [];
-  let match;
+  const generateClassCode = (className, classContent, syntax) => {
+    const attributeRegex = /(?:\s*[-+#]?\s*)(\w+)\s*:\s*([\w<>]*)?/g;
+    let attributes = [];
+    let match;
 
-  while ((match = attributeRegex.exec(classContent)) !== null) {
+    while ((match = attributeRegex.exec(classContent)) !== null) {
       let [, attributeName, attributeType] = match;
 
       // Assign default types if missing
       if (!attributeType || attributeType.trim() === '') {
-          attributeType = syntax === SYNTAX_TYPES.JAVA ? 'Object' : 'Any';
+        attributeType = syntax === SYNTAX_TYPES.JAVA ? 'Object' : 'Any';
       }
 
       attributes.push({ name: attributeName, type: attributeType });
-  }
+    }
 
-  return syntax === SYNTAX_TYPES.JAVA 
-      ? generateJavaClass(className, attributes) 
+    return syntax === SYNTAX_TYPES.JAVA
+      ? generateJavaClass(className, attributes)
       : generatePythonClass(className, attributes);
-};
+  };
 
-const generateJavaClass = (className, attributes) => {
-  let code = `public class ${className} {\n`;
+  const generateJavaClass = (className, attributes) => {
+    let code = `public class ${className} {\n`;
 
-  if (attributes.length === 0) {
+    if (attributes.length === 0) {
       code += "    // No attributes\n";
-  }
+    }
 
-  // Generate fields
-  attributes.forEach(({ name, type }) => {
+    // Generate fields
+    attributes.forEach(({ name, type }) => {
       code += `    private ${type} ${name};\n`;
-  });
+    });
 
-  // Generate getters and setters
-  attributes.forEach(({ name, type }) => {
+    // Generate getters and setters
+    attributes.forEach(({ name, type }) => {
       const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
       code += `
   public ${type} get${capitalizedName}() {
@@ -295,28 +391,28 @@ const generateJavaClass = (className, attributes) => {
   public void set${capitalizedName}(${type} ${name}) {
       this.${name} = ${name};
   }\n`;
-  });
+    });
 
-  code += '}';
-  return code;
-};
+    code += '}';
+    return code;
+  };
 
-const generatePythonClass = (className, attributes) => {
-  let code = `class ${className}:\n`;
+  const generatePythonClass = (className, attributes) => {
+    let code = `class ${className}:\n`;
 
-  if (attributes.length === 0) {
+    if (attributes.length === 0) {
       code += "    # No attributes\n";
       return code;
-  }
+    }
 
-  // Generate __init__ method
-  code += "    def __init__(self):\n";
-  attributes.forEach(({ name }) => {
+    // Generate __init__ method
+    code += "    def __init__(self):\n";
+    attributes.forEach(({ name }) => {
       code += `        self._${name} = None\n`;
-  });
+    });
 
-  // Generate properties (getters and setters)
-  attributes.forEach(({ name }) => {
+    // Generate properties (getters and setters)
+    attributes.forEach(({ name }) => {
       code += `
 
   @property
@@ -326,10 +422,10 @@ const generatePythonClass = (className, attributes) => {
   @${name}.setter
   def ${name}(self, value):
       self._${name} = value\n`;
-  });
+    });
 
-  return code;
-};
+    return code;
+  };
 
   return (
     <Box>
@@ -371,53 +467,65 @@ const generatePythonClass = (className, attributes) => {
       )}
       {showWorkbench && (
         <WorkbenchBox>
-          <Typography variant="h6" gutterBottom>
-            WorkBench
-          </Typography>
-          <Select
-            value={syntax}
-            onChange={(e) => setSyntax(e.target.value)}
-            fullWidth
-            sx={{ mb: 2 }}
-          >
-            <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
-            <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
-          </Select>
-          <Editor
-            height="300px"
-            language={syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
-            theme="vs-light"
-            value={code}
-            onChange={(value) => setCode(value)}
-            options={{
-              automaticLayout: true,
-              padding: { top: 10, bottom: 10 },
-            }}
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleGenerate}
-            sx={{ mr: 2, mt: 2 }}
-          >
-            Generate
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            onClick={() => setShowWorkbench(false)}
-            sx={{ mt: 2 }}
-          >
-            Close
-          </Button>
-          {generatedCode && (
-            <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-              <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
-                {generatedCode}
-              </Typography>
-            </Box>
-          )}
-        </WorkbenchBox>
+        <Typography variant="h6" gutterBottom>
+          WorkBench
+        </Typography>
+        <Select
+          value={syntax}
+          onChange={(e) => setSyntax(e.target.value)}
+          fullWidth
+          sx={{ mb: 2 }}
+        >
+          <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
+          <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
+        </Select>
+        <Editor
+          height="300px"
+          language={syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
+          theme="vs-light"
+          value={code}
+          onChange={(value) => {
+            setCode(value);
+            setIsCodeModified(true); // Enable the Update button when code is modified
+          }}
+          options={{
+            automaticLayout: true,
+            padding: { top: 10, bottom: 10 },
+          }}
+        />
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleGenerate}
+          sx={{ mr: 2, mt: 2 }}
+        >
+          Generate
+        </Button>
+        <Button
+          variant="contained"
+          color="secondary"
+          onClick={handleUpdate}
+          disabled={!isCodeModified}
+          sx={{ mt: 2, mr: 2 }}
+        >
+          Update
+        </Button>
+        <Button
+          variant="outlined"
+          color="secondary"
+          onClick={() => setShowWorkbench(false)}
+          sx={{ mt: 2 }}
+        >
+          Close
+        </Button>
+        {generatedCode && (
+          <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+            <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
+              {generatedCode}
+            </Typography>
+          </Box>
+        )}
+      </WorkbenchBox>
       )}
     </Box>
   );
