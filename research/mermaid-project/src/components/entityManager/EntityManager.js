@@ -15,6 +15,7 @@ export const useEntityManagement = () => {
 
       const newSchema = new Map(prevSchema);
       newSchema.set(entity, { entity, attribute: new Map(), methods });
+      console.log(`Added Entity: ${entity}`); // Log added entity
       return newSchema;
     });
   }, []);
@@ -29,12 +30,13 @@ export const useEntityManagement = () => {
 
       const newSchema = new Map(prevSchema);
       newSchema.delete(entity);
-      return newSchema;
+      console.log(`Removed Entity: ${entity}`); // Log removed entity
+      return new Map(newSchema);
     });
   }, []);
 
   // Function to add a new attribute to an entity
-  const addAttribute = useCallback((entity, attribute, type = 'String', key = '') => {
+  const addAttribute = useCallback((entity, attribute, type = '', key = '') => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
@@ -42,24 +44,29 @@ export const useEntityManagement = () => {
         console.warn(`Entity "${entity}" does not exist.`);
         return prevSchema; // Avoid adding attributes to non-existent entities
       }
-
+  
+      if (!type) {
+        console.warn(`Type is empty for Attribute: ${attribute} in Entity: ${entity}`); // Log warning for empty type
+      }
+  
       const attributes = Array.from(entityData.attribute.entries());
       const attributeIndex = attributes.findIndex(([attr]) => attr === attribute);
-
+  
       if (attributeIndex !== -1) {
         attributes.splice(attributeIndex, 1);
       }
-
+  
       const newAttribute = { attribute, type, key, visibility: 'private' }; // Include type
-
+  
       if (key) {
         attributes.unshift([attribute, newAttribute]);
       } else {
         attributes.push([attribute, newAttribute]);
       }
-
+  
       entityData.attribute = new Map(attributes);
       newSchema.set(entity, entityData);
+      console.log(`Added Attribute: ${attribute} to Entity: ${entity}, Type: ${type}`); // Log added attribute
       return newSchema;
     });
   }, []);
@@ -89,6 +96,7 @@ export const useEntityManagement = () => {
 
         entityData.attribute = new Map(attributes);
         newSchema.set(entity, entityData);
+        console.log(`Updated Attribute Key: ${attribute} in Entity: ${entity}, New Key: ${newKey}`); // Log updated key
       }
       return newSchema;
     });
@@ -106,6 +114,7 @@ export const useEntityManagement = () => {
 
       entityData.attribute.delete(attribute);
       newSchema.set(entity, entityData);
+      console.log(`Removed Attribute: ${attribute} from Entity: ${entity}`); // Log removed attribute
       return newSchema;
     });
   }, []);
@@ -123,6 +132,7 @@ export const useEntityManagement = () => {
       const existingMethods = entityData.methods || [];
       entityData.methods = [...existingMethods, methodDetails]; // Add method details
       newSchema.set(entity, entityData);
+      console.log(`Added Method: ${methodDetails.name} to Entity: ${entity}`); // Log added method
       return newSchema;
     });
   }, []);
@@ -139,6 +149,7 @@ export const useEntityManagement = () => {
 
       entityData.methods = entityData.methods.filter((method) => method.name !== methodName);
       newSchema.set(entity, entityData);
+      console.log(`Removed Method: ${methodName} from Entity: ${entity}`); // Log removed method
       return newSchema;
     });
   }, []);
@@ -158,6 +169,7 @@ export const useEntityManagement = () => {
       const newRelationships = new Map(prevRelationships);
       const id = newRelationships.size + 1;
       newRelationships.set(id, { id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText });
+      console.log(`Added Relationship: ${relationA} -- ${relationB}`); // Log added relationship
       return newRelationships;
     });
   }, []);
@@ -172,6 +184,7 @@ export const useEntityManagement = () => {
       }
 
       newRelationships.set(id, { id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText });
+      console.log(`Edited Relationship: ${relationA} -- ${relationB}`); // Log edited relationship
       return newRelationships;
     });
   }, []);
@@ -186,6 +199,7 @@ export const useEntityManagement = () => {
       }
 
       newRelationships.delete(id);
+      console.log(`Removed Relationship with ID: ${id}`); // Log removed relationship
       return newRelationships;
     });
   }, []);

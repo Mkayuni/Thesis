@@ -6,8 +6,8 @@ import './App.css';
 
 function App() {
   const [schema, setSchema] = useState(new Map());
-  const [relationships, setRelationships] = useState([]);
-  const [setAttributes] = useState(new Map());
+  const [relationships, setRelationships] = useState(new Map()); 
+  const [attributes, setAttributes] = useState(new Map()); 
 
   return (
     <div className="App">
@@ -16,7 +16,8 @@ function App() {
         setRelationships={setRelationships}
         schema={schema}
         relationships={relationships}
-        setAttributes={setAttributes}
+        setAttributes={setAttributes} 
+        attributes={attributes} 
       />
     </div>
   );

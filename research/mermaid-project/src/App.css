@@ -6,5 +6,120 @@
   height: 100vh;
   margin: 0;
   font-family: 'Roboto', sans-serif;
-  background-color: #f5f5f5;
+  
+  /* More professional background */
+  background: linear-gradient(to bottom, #e0e0e0, #f5f5f5);
+  color: #2c3e50; /* Darker, more professional text color */
+  
+  /* Adds depth */
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  padding: 20px;
+  
+  /* Subtle border for a refined look */
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Optional: Improve text styling */
+h1 {
+  font-size: 2rem;
+  font-weight: 600;
+  color: #34495e; /* Darker, more professional heading color */
+  margin-bottom: 10px;
+  letter-spacing: -0.5px; /* Slight letter spacing for elegance */
+}
+
+p {
+  font-size: 1.1rem;
+  max-width: 80%;
+  text-align: center;
+  color: #4a5568; /* Slightly muted text color for readability */
+  line-height: 1.6; /* Improved line height for better readability */
+}
+
+/* Advanced link styling with blue square hover effect */
+a {
+  color: #3498db; /* Professional blue for links */
+  text-decoration: none;
+  position: relative;
+  transition: color 0.2s ease;
+}
+
+a::before {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: #3498db; /* Blue underline */
+  transform: scaleX(0); /* Initially hidden */
+  transform-origin: right;
+  transition: transform 0.2s ease;
+}
+
+a:hover {
+  color: #2980b9; /* Darker blue on hover */
+}
+
+a:hover::before {
+  transform: scaleX(1); /* Reveal the underline on hover */
+  transform-origin: left;
+}
+
+/* Circular blue hover effect for icon buttons */
+.icon-button {
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 10px;
+  border-radius: 50%; /* Circular shape */
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button:hover {
+  background-color: rgba(52, 152, 219, 0.1); /* Light blue background on hover */
+}
+
+.icon-button svg {
+  fill: #3498db; /* Icon color */
+  transition: fill 0.2s ease;
+}
+
+.icon-button:hover svg {
+  fill: #2980b9; /* Darker blue on hover */
+}
+
+/* Button styling for a professional look */
+button {
+  background-color: #3498db; /* Matching link color */
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+button:hover {
+  background-color: #2980b9; /* Darker blue on hover */
+}
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  .App {
+    padding: 15px;
+  }
+
+  h1 {
+    font-size: 1.8rem;
+  }
+
+  p {
+    font-size: 1rem;
+  }
 }
