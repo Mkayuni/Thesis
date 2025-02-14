@@ -120,29 +120,44 @@ const UMLComponent = () => {
 
   const syncJavaCodeWithSchema = (javaCode) => {
     const parsedSchema = parseCodeToSchema(javaCode, SYNTAX_TYPES.JAVA);
-
-    // Update the schema with the parsed data
+  
     parsedSchema.forEach((newEntity, entityName) => {
       const currentEntity = schema.get(entityName);
+      
       if (currentEntity) {
         // Update attributes
         newEntity.attribute.forEach((newAttr, attrName) => {
           const currentAttr = currentEntity.attribute.get(attrName);
           if (!currentAttr || currentAttr.type !== newAttr.type) {
-            // Add or update the attribute with the correct type
             addAttribute(entityName, attrName, newAttr.type);
+          }
+        });
+  
+        // Update methods
+        newEntity.methods.forEach((newMethod) => {
+          const existingMethods = currentEntity.methods || [];
+          const methodExists = existingMethods.some((m) => m.name === newMethod.name);
+  
+          if (!methodExists) {
+            addMethod(entityName, newMethod);
           }
         });
       } else {
         // Add new entity
         addEntity(entityName);
+  
+        // Add attributes
         newEntity.attribute.forEach((newAttr, attrName) => {
           addAttribute(entityName, attrName, newAttr.type);
+        });
+  
+        // Add methods
+        newEntity.methods.forEach((newMethod) => {
+          addMethod(entityName, newMethod);
         });
       }
     });
   };
-
   
 
   const handleAddMethodClick = (entity, methodDetails) => {
@@ -427,7 +442,8 @@ const UMLComponent = () => {
             </QuestionContainer>
             <Box sx={{ flex: 1, overflow: 'auto', height: '500px', width: '100%' }} ref={umlRef}>
               <MermaidDiagram schema={schema} relationships={relationships} 
-              removeEntity={removeEntity} removeAttribute={removeAttribute} addRelationship={addRelationship} removeRelationship={removeRelationship} addEntity={addEntity} addAttribute={addAttribute}  updateAttributeKey={updateAttributeKey} editRelationship={editRelationship}/>
+              removeEntity={removeEntity} removeAttribute={removeAttribute} addRelationship={addRelationship} removeRelationship={removeRelationship} addEntity={addEntity} addAttribute={addAttribute}  updateAttributeKey={updateAttributeKey} editRelationship={editRelationship} methods={methods} addMethod={addMethod}
+              removeMethod={removeMethod}/>
             </Box>
             <FloatingButtonsContainer>
               {isFeedbackOpen && (

@@ -22,58 +22,58 @@ const formatType = (type) => {
   return formattedType;
 };
 
-// Convert schema and relationships into a Mermaid diagram source string
-export const schemaToMermaidSource = (schema, relationships) => {
-  let schemaText = [];
-  schema.forEach((schemaItem) => {
-    const entityName = capitalizeFirstLetter(schemaItem.entity);
-    let item = `class ${entityName} {\n`;
-
-    // Sort attributes (primary keys first)
-    const attributes = Array.from(schemaItem.attribute.values()).sort((a, b) => {
-      if ((a.key === 'PK' || a.key === 'PPK') && (b.key !== 'PK' && b.key !== 'PPK')) return -1;
-      if ((b.key === 'PK' || b.key === 'PPK') && (a.key !== 'PK' && a.key !== 'PPK')) return 1;
-      return 0;
+  // Convert schema and relationships into a Mermaid diagram source string
+  export const schemaToMermaidSource = (schema, relationships) => {
+    let schemaText = [];
+    schema.forEach((schemaItem) => {
+      const entityName = capitalizeFirstLetter(schemaItem.entity);
+      let item = `class ${entityName} {\n`;
+  
+      // Sort attributes (primary keys first)
+      const attributes = Array.from(schemaItem.attribute.values()).sort((a, b) => {
+        if ((a.key === 'PK' || a.key === 'PPK') && (b.key !== 'PK' && b.key !== 'PPK')) return -1;
+        if ((b.key === 'PK' || b.key === 'PPK') && (a.key !== 'PK' && a.key !== 'PPK')) return 1;
+        return 0;
+      });
+  
+      // Generate attribute lines
+      const attributeLines = attributes.map((attItem) => {
+        const visibility = attItem.visibility === 'private' ? '-' : attItem.visibility === 'protected' ? '#' : '+';
+        const formattedType = formatType(attItem.type); // Apply the formatType function here
+        return `  ${visibility}${attItem.attribute}: ${formattedType}`; // Always display the type
+      });
+  
+      // Generate method lines
+      const methodLines = schemaItem.methods?.map((method) => {
+        const visibilitySymbol = method.visibility === 'private' ? '-' : method.visibility === 'protected' ? '#' : '+';
+        const staticKeyword = method.static ? 'static ' : '';
+        const parameters = method.parameters ? method.parameters.join(', ') : '';
+        return `  ${visibilitySymbol}${staticKeyword}${method.name}(${parameters})`; // Add methods with parameters
+      }) || [];
+  
+      // Add attributes to the class
+      if (attributeLines.length > 0) {
+        item += attributeLines.join('\n');
+      } else {
+        item += '  No attributes\n';
+      }
+  
+      // Add methods to the class
+      if (methodLines.length > 0) {
+        item += '\n' + methodLines.join('\n');
+      }
+  
+      item += '\n}\n';
+      schemaText.push(item);
     });
-
-    // Generate attribute lines
-    const attributeLines = attributes.map((attItem) => {
-      const visibility = attItem.visibility === 'private' ? '-' : attItem.visibility === 'protected' ? '#' : '+';
-      const formattedType = formatType(attItem.type); // Apply the formatType function here
-      return `  ${visibility}${attItem.attribute}: ${formattedType}`; // Always display the type
+  
+    // Add relationships to the diagram
+    relationships.forEach((rel) => {
+      schemaText.push(`${capitalizeFirstLetter(rel.relationA)}"${rel.cardinalityA}"--"${rel.cardinalityB}"${capitalizeFirstLetter(rel.relationB)}`);
     });
-
-    // Generate method lines
-    const methodLines = schemaItem.methods?.map((method) => {
-      const visibilitySymbol = method.visibility === 'private' ? '-' : method.visibility === 'protected' ? '#' : '+';
-      const staticKeyword = method.static ? 'static ' : '';
-      const parameters = method.parameters ? method.parameters.join(', ') : '';
-      return `  ${visibilitySymbol}${staticKeyword}${method.name}(${parameters})`;
-    }) || [];
-
-    // Add attributes to the class
-    if (attributeLines.length > 0) {
-      item += attributeLines.join('\n');
-    } else {
-      item += '  No attributes\n';
-    }
-
-    // Add methods to the class
-    if (methodLines.length > 0) {
-      item += '\n' + methodLines.join('\n');
-    }
-
-    item += '\n}\n';
-    schemaText.push(item);
-  });
-
-  // Add relationships to the diagram
-  relationships.forEach((rel) => {
-    schemaText.push(`${capitalizeFirstLetter(rel.relationA)}"${rel.cardinalityA}"--"${rel.cardinalityB}"${capitalizeFirstLetter(rel.relationB)}`);
-  });
-
-  return schemaText.join('\n');
-};
+  
+    return schemaText.join('\n');
+  };
 
 // Normalize type by removing unwanted characters like brackets or parentheses
 const normalizeType = (type) => {
@@ -81,59 +81,93 @@ const normalizeType = (type) => {
   return type.replace(/[\[\]]/g, '').trim(); // Only remove brackets, not parentheses
 };
 
+
 // Parse source code into a schema format
 export const parseCodeToSchema = (sourceCode, syntaxType) => {
   const schemaMap = new Map();
 
   if (syntaxType === SYNTAX_TYPES.JAVA) {
-    const classRegex = /public class (\w+) \{([^}]+)\}/g;
+    const classRegex = /public class (\w+) \{([^}]*)\}/g;
     const fieldRegex = /private (\w+)\s+(\w+);/g;
+    const methodRegex = /(public|private|protected)\s+(\w+)\s+(\w+)\(([^)]*)\)/g;
 
     let classMatch;
     while ((classMatch = classRegex.exec(sourceCode)) !== null) {
       const className = classMatch[1].toLowerCase();
       const classContent = classMatch[2];
       const attributes = new Map();
+      const methods = [];
 
+      // Parse fields
       let fieldMatch;
       while ((fieldMatch = fieldRegex.exec(classContent)) !== null) {
-        const type = fieldMatch[1]; // Extract type (e.g., String, int)
-        const name = fieldMatch[2]; // Extract attribute name (e.g., preferredfood, event)
+        const type = fieldMatch[1];
+        const name = fieldMatch[2];
         attributes.set(name, { type });
       }
 
-      schemaMap.set(className, {
-        entity: className,
-        attribute: attributes,
-        methods: [],
-      });
-    }
-  } else if (syntaxType === SYNTAX_TYPES.PYTHON) {
-    const classRegex = /class (\w+):\s*def __init__\(self\):\s*((?:.|\n)*?)(?=\n\S|$)/g;
-    const attrRegex = /self\._(\w+)\s*:\s*(\w+)\s*=\s*None/g;
+      // Parse methods
+      let methodMatch;
+      while ((methodMatch = methodRegex.exec(classContent)) !== null) {
+        const visibility = methodMatch[1]; // public/private/protected
+        const returnType = methodMatch[2]; // Return type (int, void, etc.)
+        const methodName = methodMatch[3]; // Method name
+        const parameters = methodMatch[4]
+          ? methodMatch[4].split(',').map((param) => param.trim())
+          : [];
 
-    let classMatch;
-    while ((classMatch = classRegex.exec(sourceCode)) !== null) {
-      const className = classMatch[1].toLowerCase();
-      const initContent = classMatch[2];
-      const attributes = new Map();
-
-      let attrMatch;
-      while ((attrMatch = attrRegex.exec(initContent)) !== null) {
-        const name = attrMatch[1];
-        const type = normalizeType(attrMatch[2]); // Normalize the type
-        attributes.set(name, { type: type }); // No default type
+        methods.push({ visibility, returnType, name: methodName, parameters });
       }
 
       schemaMap.set(className, {
         entity: className,
         attribute: attributes,
-        methods: [],
+        methods: methods, // Add methods to schema
       });
     }
-  }
+    } else if (syntaxType === SYNTAX_TYPES.PYTHON) {
+      const classRegex = /class (\w+):\s*((?:.|\n)*?)(?=\n\S|$)/g;
+      const attrRegex = /self\.(\w+)\s*:\s*(\w+)/g;
+      const methodRegex = /def (\w+)\((self,?[^)]*)\):/g;
 
-  return schemaMap;
+      let classMatch;
+      while ((classMatch = classRegex.exec(sourceCode)) !== null) {
+        const className = classMatch[1].toLowerCase();
+        const classContent = classMatch[2];
+        const attributes = new Map();
+        const methods = [];
+
+        let attrMatch;
+        while ((attrMatch = attrRegex.exec(classContent)) !== null) {
+          const name = attrMatch[1];
+          const type = attrMatch[2]; 
+          attributes.set(name, { type });
+        }
+
+        let methodMatch;
+        while ((methodMatch = methodRegex.exec(classContent)) !== null) {
+          const methodName = methodMatch[1];
+          const parameters = methodMatch[2].split(',').map(param => param.trim()).slice(1); // Remove 'self'
+
+          console.log(`Found method: ${methodName} with parameters: ${parameters.join(', ')}`);
+
+          methods.push({ visibility: "public", returnType: "", name: methodName, parameters });
+        }
+
+        console.log(`Adding class ${className} with ${methods.length} methods and ${attributes.size} attributes.`);
+        
+        schemaMap.set(className, {
+          entity: className,
+          attribute: attributes,
+          methods: methods,
+        });
+      }
+    }
+
+    // Log the final schema map for debugging
+    console.log("Final schema map:", schemaMap);
+
+    return schemaMap;
 };
 
 // Apply updates to the schema based on changes

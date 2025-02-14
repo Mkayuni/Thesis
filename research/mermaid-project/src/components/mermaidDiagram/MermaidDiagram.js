@@ -197,7 +197,7 @@ const MermaidDiagram = ({
   // Sync Java code with the schema
   const syncJavaCodeWithSchema = (javaCode) => {
     const parsedSchema = parseCodeToSchema(javaCode, SYNTAX_TYPES.JAVA);
-
+  
     // Update the schema with the parsed data
     parsedSchema.forEach((newEntity, entityName) => {
       const currentEntity = schema.get(entityName);
@@ -210,12 +210,33 @@ const MermaidDiagram = ({
             addAttribute(entityName, attrName, newAttr.type);
           }
         });
+  
+        // Update methods
+        if (newEntity.methods) {
+          newEntity.methods.forEach((newMethod) => {
+            const existingMethod = currentEntity.methods?.find(
+              (method) => method.name === newMethod.name
+            );
+            if (!existingMethod) {
+              // Add new method to the schema
+              currentEntity.methods.push(newMethod);
+            }
+          });
+        }
       } else {
         // Add new entity
         addEntity(entityName);
         newEntity.attribute.forEach((newAttr, attrName) => {
           addAttribute(entityName, attrName, newAttr.type);
         });
+  
+        // Add methods for the new entity
+        if (newEntity.methods) {
+          newEntity.methods.forEach((method) => {
+            // Add method to the schema
+            currentEntity.methods.push(method);
+          });
+        }
       }
     });
   };
