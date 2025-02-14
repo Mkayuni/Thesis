@@ -15,7 +15,8 @@ import './mermaid.css';
 import { usePopup } from './utils/usePopup';
 import { useEntityManagement } from './entityManager/EntityManager';
 import theme from '../theme';
-
+import { parseCodeToSchema } from './utils/mermaidUtils'; 
+import { SYNTAX_TYPES } from './ui/ui';
 const UMLComponent = () => {
   const {
     schema,
@@ -50,7 +51,7 @@ const UMLComponent = () => {
 
   const umlRef = useRef(null);
   const controlsRef = useRef(null);
-  const questionContainerRef = useRef(null);  // Ensure this is initialized correctly
+  const questionContainerRef = useRef(null);  
   const feedbackButtonRef = useRef(null);
   const feedbackContentRef = useRef(null);
   const submitButtonRef = useRef(null);
@@ -61,15 +62,11 @@ const UMLComponent = () => {
   const [expandedPanel, setExpandedPanel] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
-  const [methods, setMethods] = useState([]);  // New state for methods
+  const [methods, setMethods] = useState([]);  
+  const [attributeType, setAttributeType] = useState('');
+  const [generatedJavaCode, ] = useState(''); 
 
-  const [visibility, setVisibility] = useState('public');
-  const [isStatic, setIsStatic] = useState(false);
-  const [returnType, setReturnType] = useState('void');
-
-  const methodInputRef = useRef();
-  const parametersRef = useRef();
-
+  
   useEffect(() => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
@@ -96,7 +93,7 @@ const UMLComponent = () => {
     fetch(`http://127.0.0.1:5000/api/question/${questionTitle}/methods`)
       .then((response) => response.json())
       .then((data) => {
-        setMethods(data.methods);  // Set the fetched methods in state
+        setMethods(data.methods);  
       })
       .catch((error) => console.error('Error fetching methods:', error));
   };
@@ -108,16 +105,45 @@ const UMLComponent = () => {
         setQuestionMarkdown(data);
         setSchema(new Map());
         setRelationships(new Map());
-        fetchMethodsForQuestion(questionTitle);  // Fetch methods when the question is selected
+        fetchMethodsForQuestion(questionTitle);  
       })
       .catch((error) => console.error('Error fetching the question HTML:', error));
   };
 
-  // Handle adding attributes to an entity
-  const handleAddAttributeClick = (entity, attribute, key = '') => {
-    addAttribute(entity, attribute, key);
+  const handleAddAttributeClick = (entity, attribute, type = '', key = '') => {
+    if (!type) {
+      console.warn(`Type is empty for Attribute: ${attribute} in Entity: ${entity}`); 
+    }
+    addAttribute(entity, attribute, type, key);
     hidePopup();
   };
+
+  const syncJavaCodeWithSchema = (javaCode) => {
+    const parsedSchema = parseCodeToSchema(javaCode, SYNTAX_TYPES.JAVA);
+
+    // Update the schema with the parsed data
+    parsedSchema.forEach((newEntity, entityName) => {
+      const currentEntity = schema.get(entityName);
+      if (currentEntity) {
+        // Update attributes
+        newEntity.attribute.forEach((newAttr, attrName) => {
+          const currentAttr = currentEntity.attribute.get(attrName);
+          if (!currentAttr || currentAttr.type !== newAttr.type) {
+            // Add or update the attribute with the correct type
+            addAttribute(entityName, attrName, newAttr.type);
+          }
+        });
+      } else {
+        // Add new entity
+        addEntity(entityName);
+        newEntity.attribute.forEach((newAttr, attrName) => {
+          addAttribute(entityName, attrName, newAttr.type);
+        });
+      }
+    });
+  };
+
+  
 
   const handleAddMethodClick = (entity, methodDetails) => {
     const parameters = methodDetails.parameters
@@ -139,17 +165,7 @@ const UMLComponent = () => {
     hidePopup();
   };
 
-  const handleVisibilityChange = (event) => {
-    setVisibility(event.target.value);
-  };
-
-  const handleStaticChange = (event) => {
-    setIsStatic(event.target.checked);
-  };
-
-  const handleReturnTypeChange = (event) => {
-    setReturnType(event.target.value);
-  };
+  
 
   const showSubPopup = (entityOrAttribute, type, position = 'right', spacing = 5) => {
     const popupElement = document.querySelector('.popup');
@@ -354,7 +370,12 @@ const UMLComponent = () => {
                   {popup.type === 'attribute' ? (
                     popup.entities.map((entity) => (
                       <div key={entity}>
-                        <button onClick={() => handleAddAttributeClick(entity, popup.entityOrAttribute)}>
+                        <input
+                          type="text"
+                          placeholder="Enter type (e.g., String)"
+                          onChange={(e) => setAttributeType(e.target.value)}
+                        />
+                        <button onClick={() => handleAddAttributeClick(entity, popup.entityOrAttribute, attributeType)}>
                           {entity}
                         </button>
                       </div>
@@ -368,8 +389,6 @@ const UMLComponent = () => {
                         <button onClick={() => showSubPopup(popup.entityOrAttribute, 'attribute', 'right', 5)}>
                           Add Attribute
                         </button>
-                      </div>
-                      <div>
                       </div>
                     </>
                   )}
