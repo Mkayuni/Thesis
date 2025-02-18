@@ -60,6 +60,7 @@ const MermaidDiagram = ({
   addEntity,
   addRelationship,
   removeRelationship,
+  addMethod,
 }) => {
   const diagramRef = useRef(null);
   const [showRelationshipManager, setShowRelationshipManager] = useState(false);
@@ -70,119 +71,140 @@ const MermaidDiagram = ({
   const [isCodeModified, setIsCodeModified] = useState(false);
 
   // Helper function to remove the last attribute of an entity
-  const removeLastAttribute = (entityName) => {
-    const normalizedEntityName = normalizeEntityName(entityName);
-    const entity = schema.get(normalizedEntityName);
-    if (entity && entity.attribute.size > 0) {
-      const lastAttribute = Array.from(entity.attribute.keys()).pop();
-      if (lastAttribute) {
-        removeAttribute(normalizedEntityName, lastAttribute);
-      }
-    } else {
-      console.error(`Entity "${normalizedEntityName}" does not exist or has no attributes.`);
+  // Helper function to remove the last attribute of an entity
+const removeLastAttribute = useCallback((entityName) => {
+  const normalizedEntityName = normalizeEntityName(entityName);
+  const entity = schema.get(normalizedEntityName);
+  if (entity && entity.attribute.size > 0) {
+    const lastAttribute = Array.from(entity.attribute.keys()).pop();
+    if (lastAttribute) {
+      removeAttribute(normalizedEntityName, lastAttribute);
     }
-  };
+  } else {
+    console.error(`Entity "${normalizedEntityName}" does not exist or has no attributes.`);
+  }
+}, [schema, removeAttribute]);
+
 
   // Render the Mermaid diagram
-  const renderDiagram = useCallback(() => {
+  const renderDiagram = useCallback(async () => {
+    // Ensure createElementNS compatibility
+    if (typeof document.createElementNS !== 'function') {
+      document.createElementNS = (ns, tagName) => document.createElement(tagName);
+    }
+  
     const source = `classDiagram\n${schemaToMermaidSource(schema, relationships)}`;
     console.log('Mermaid source:', source);
-    mermaid.mermaidAPI.initialize({ startOnLoad: false });
-    mermaid.mermaidAPI.render('umlDiagram', source, (svgGraph) => {
-      const diagramElement = diagramRef.current;
-      if (diagramElement) {
-        diagramElement.innerHTML = svgGraph;
-        const svg = diagramElement.querySelector('svg');
-        if (svg) {
-          svg.style.overflow = 'visible';
-          svg.setAttribute('viewBox', `-20 -20 ${svg.getBBox().width + 40} ${svg.getBBox().height + 40}`);
-          svg.style.padding = '20px';
-          const nodes = svg.querySelectorAll('g[class^="node"]');
-          nodes.forEach((node) => {
-            const nodeId = node.getAttribute('id');
-            if (nodeId) {
-              const entityName = extractEntityName(nodeId);
-              const bbox = node.getBBox();
-              const iconsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-              iconsGroup.classList.add('icons-group');
-
-              // Edit button
-              const editButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              editButton.setAttribute('x', bbox.x + bbox.width + 15);
-              editButton.setAttribute('y', bbox.y + 15);
-              editButton.setAttribute('fill', '#007bff');
-              editButton.style.cursor = 'pointer';
-              editButton.style.display = 'block';
-              editButton.textContent = '✏️';
-
-              // Delete button
-              const deleteButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              deleteButton.setAttribute('x', bbox.x + bbox.width + 15);
-              deleteButton.setAttribute('y', bbox.y + 35);
-              deleteButton.setAttribute('fill', '#ff4d4d');
-              deleteButton.style.cursor = 'pointer';
-              deleteButton.style.display = 'none';
-              deleteButton.textContent = '🗑️';
-              deleteButton.addEventListener('click', (e) => {
-                e.stopPropagation();
+  
+    // Initialize Mermaid using the modern API
+    mermaid.initialize({ startOnLoad: false });
+  
+    try {
+      // Ensure Mermaid has enough time to initialize
+      setTimeout(async () => {
+        if (diagramRef.current) {
+          const { svg } = await mermaid.render('umlDiagram', source);
+          console.log('Diagram element found:', diagramRef.current);
+          diagramRef.current.innerHTML = svg;
+  
+          // Access and customize the SVG
+          const svgElement = diagramRef.current.querySelector('svg');
+          if (svgElement) {
+            console.log('SVG element found:', svgElement);
+            svgElement.style.overflow = 'visible';
+            svgElement.setAttribute('viewBox', `-20 -20 ${svgElement.getBBox().width + 40} ${svgElement.getBBox().height + 40}`);
+            svgElement.style.padding = '20px';
+  
+            // Add custom icons to nodes
+            const nodes = svgElement.querySelectorAll('g[class^="node"]');
+            nodes.forEach((node) => {
+              const nodeId = node.getAttribute('id');
+              if (nodeId) {
+                console.log('Node found:', node);
                 const entityName = extractEntityName(nodeId);
-                if (schema.has(entityName)) {
-                  removeEntity(entityName);
-                }
-              });
-
-              // Minus button
-              const minusButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              minusButton.setAttribute('x', bbox.x + bbox.width + 15);
-              minusButton.setAttribute('y', bbox.y + 55);
-              minusButton.setAttribute('fill', '#4caf50');
-              minusButton.style.cursor = 'pointer';
-              minusButton.style.display = 'none';
-              minusButton.textContent = '➖';
-              minusButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const entityName = extractEntityName(nodeId);
-                removeLastAttribute(entityName);
-              });
-
-              // Relationship button
-              const relationshipButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              relationshipButton.setAttribute('x', bbox.x + bbox.width + 15);
-              relationshipButton.setAttribute('y', bbox.y + 75);
-              relationshipButton.setAttribute('fill', '#ff9800');
-              relationshipButton.style.cursor = 'pointer';
-              relationshipButton.style.display = 'none';
-              relationshipButton.textContent = '🔗';
-              relationshipButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                setShowRelationshipManager(true);
-              });
-
-              // Toggle visibility of buttons on edit button click
-              editButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                deleteButton.style.display = deleteButton.style.display === 'none' ? 'block' : 'none';
-                minusButton.style.display = minusButton.style.display === 'none' ? 'block' : 'none';
-                relationshipButton.style.display = relationshipButton.style.display === 'none' ? 'block' : 'none';
-              });
-
-              // Append buttons to the group
-              iconsGroup.appendChild(editButton);
-              iconsGroup.appendChild(deleteButton);
-              iconsGroup.appendChild(minusButton);
-              iconsGroup.appendChild(relationshipButton);
-              node.appendChild(iconsGroup);
-            }
-          });
+                const bbox = node.getBBox();
+                const iconsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                iconsGroup.classList.add('icons-group');
+  
+                // Edit button
+                const editButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                editButton.setAttribute('x', bbox.x + bbox.width + 15);
+                editButton.setAttribute('y', bbox.y + 15);
+                editButton.setAttribute('fill', '#007bff');
+                editButton.style.cursor = 'pointer';
+                editButton.textContent = '✏️';
+  
+                // Delete button
+                const deleteButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                deleteButton.setAttribute('x', bbox.x + bbox.width + 15);
+                deleteButton.setAttribute('y', bbox.y + 35);
+                deleteButton.setAttribute('fill', '#ff4d4d');
+                deleteButton.style.cursor = 'pointer';
+                deleteButton.style.display = 'none';
+                deleteButton.textContent = '🗑️';
+                deleteButton.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  if (schema.has(entityName)) {
+                    removeEntity(entityName);
+                  }
+                });
+  
+                // Minus button
+                const minusButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                minusButton.setAttribute('x', bbox.x + bbox.width + 15);
+                minusButton.setAttribute('y', bbox.y + 55);
+                minusButton.setAttribute('fill', '#4caf50');
+                minusButton.style.cursor = 'pointer';
+                minusButton.style.display = 'none';
+                minusButton.textContent = '➖';
+                minusButton.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  removeLastAttribute(entityName);
+                });
+  
+                // Relationship button
+                const relationshipButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                relationshipButton.setAttribute('x', bbox.x + bbox.width + 15);
+                relationshipButton.setAttribute('y', bbox.y + 75);
+                relationshipButton.setAttribute('fill', '#ff9800');
+                relationshipButton.style.cursor = 'pointer';
+                relationshipButton.style.display = 'none';
+                relationshipButton.textContent = '🔗';
+                relationshipButton.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  setShowRelationshipManager(true);
+                });
+  
+                // Toggle visibility of buttons on edit button click
+                editButton.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  deleteButton.style.display = deleteButton.style.display === 'none' ? 'block' : 'none';
+                  minusButton.style.display = minusButton.style.display === 'none' ? 'block' : 'none';
+                  relationshipButton.style.display = relationshipButton.style.display === 'none' ? 'block' : 'none';
+                });
+  
+                // Append buttons to the group
+                iconsGroup.appendChild(editButton);
+                iconsGroup.appendChild(deleteButton);
+                iconsGroup.appendChild(minusButton);
+                iconsGroup.appendChild(relationshipButton);
+                node.appendChild(iconsGroup);
+              }
+            });
+          }
         }
-      }
-    });
-  }, [schema, relationships, removeEntity, removeLastAttribute]);
-
+      }, 1); // Slight delay for Mermaid initialization
+    } catch (error) {
+      console.error('Error rendering Mermaid diagram:', error);
+    }
+  }, [schema, relationships, removeEntity]);
+  
   // Re-render the diagram when schema or relationships change
   useEffect(() => {
     if (schema.size !== 0) {
-      renderDiagram();
+      setTimeout(() => {
+        renderDiagram();
+      }, 0);
     }
   }, [schema, relationships, renderDiagram]);
 
@@ -195,51 +217,48 @@ const MermaidDiagram = ({
   };
 
   // Sync Java code with the schema
-  const syncJavaCodeWithSchema = (javaCode) => {
-    const parsedSchema = parseCodeToSchema(javaCode, SYNTAX_TYPES.JAVA);
-  
-    // Update the schema with the parsed data
-    parsedSchema.forEach((newEntity, entityName) => {
-      const currentEntity = schema.get(entityName);
-      if (currentEntity) {
-        // Update attributes
-        newEntity.attribute.forEach((newAttr, attrName) => {
-          const currentAttr = currentEntity.attribute.get(attrName);
-          if (!currentAttr || currentAttr.type !== newAttr.type) {
-            // Add or update the attribute with the correct type
-            addAttribute(entityName, attrName, newAttr.type);
+  // Update the schema based on the code in the editor
+const syncJavaCodeWithSchema = (javaCode) => {
+  const parsedSchema = parseCodeToSchema(javaCode, SYNTAX_TYPES.JAVA, addMethod); // Pass addMethod here
+
+  // Update the schema with the parsed data
+  parsedSchema.forEach((newEntity, entityName) => {
+    const currentEntity = schema.get(entityName);
+
+    if (currentEntity) {
+      // Update attributes
+      newEntity.attribute.forEach((newAttr, attrName) => {
+        const currentAttr = currentEntity.attribute.get(attrName);
+        if (!currentAttr || currentAttr.type !== newAttr.type) {
+          addAttribute(entityName, attrName, newAttr.type);
+        }
+      });
+
+      // Update methods
+      if (newEntity.methods) {
+        newEntity.methods.forEach((newMethod) => {
+          const existingMethods = currentEntity.methods || [];
+          if (!existingMethods.some((method) => method.name === newMethod.name)) {
+            addMethod(entityName, newMethod);
           }
         });
-  
-        // Update methods
-        if (newEntity.methods) {
-          newEntity.methods.forEach((newMethod) => {
-            const existingMethod = currentEntity.methods?.find(
-              (method) => method.name === newMethod.name
-            );
-            if (!existingMethod) {
-              // Add new method to the schema
-              currentEntity.methods.push(newMethod);
-            }
-          });
-        }
-      } else {
-        // Add new entity
-        addEntity(entityName);
-        newEntity.attribute.forEach((newAttr, attrName) => {
-          addAttribute(entityName, attrName, newAttr.type);
-        });
-  
-        // Add methods for the new entity
-        if (newEntity.methods) {
-          newEntity.methods.forEach((method) => {
-            // Add method to the schema
-            currentEntity.methods.push(method);
-          });
-        }
       }
-    });
-  };
+    } else {
+      // Add new entity
+      addEntity(entityName);
+      // Add attributes for the new entity
+      newEntity.attribute.forEach((newAttr, attrName) => {
+        addAttribute(entityName, attrName, newAttr.type);
+      });
+      // Add methods for the new entity
+      if (newEntity.methods) {
+        newEntity.methods.forEach((method) => {
+          addMethod(entityName, method);
+        });
+      }
+    }
+  });
+};
 
   // Update the schema based on the code in the editor
   const handleUpdate = () => {

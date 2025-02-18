@@ -31,11 +31,9 @@ const UMLComponent = () => {
     setRelationships,
     addRelationship,
     editRelationship,
-    addMethod,
-    removeMethod, 
+    addMethod, // Destructured from useEntityManagement
+    removeMethod,
   } = useEntityManagement();
-  
-  
 
   const {
     popup,
@@ -51,7 +49,7 @@ const UMLComponent = () => {
 
   const umlRef = useRef(null);
   const controlsRef = useRef(null);
-  const questionContainerRef = useRef(null);  
+  const questionContainerRef = useRef(null);
   const feedbackButtonRef = useRef(null);
   const feedbackContentRef = useRef(null);
   const submitButtonRef = useRef(null);
@@ -62,11 +60,10 @@ const UMLComponent = () => {
   const [expandedPanel, setExpandedPanel] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
-  const [methods, setMethods] = useState([]);  
+  const [methods, setMethods] = useState([]);
   const [attributeType, setAttributeType] = useState('');
-  const [generatedJavaCode, ] = useState(''); 
+  const [generatedJavaCode] = useState('');
 
-  
   useEffect(() => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
@@ -93,7 +90,7 @@ const UMLComponent = () => {
     fetch(`http://127.0.0.1:5000/api/question/${questionTitle}/methods`)
       .then((response) => response.json())
       .then((data) => {
-        setMethods(data.methods);  
+        setMethods(data.methods);
       })
       .catch((error) => console.error('Error fetching methods:', error));
   };
@@ -105,25 +102,27 @@ const UMLComponent = () => {
         setQuestionMarkdown(data);
         setSchema(new Map());
         setRelationships(new Map());
-        fetchMethodsForQuestion(questionTitle);  
+        fetchMethodsForQuestion(questionTitle);
       })
       .catch((error) => console.error('Error fetching the question HTML:', error));
   };
 
   const handleAddAttributeClick = (entity, attribute, type = '', key = '') => {
     if (!type) {
-      console.warn(`Type is empty for Attribute: ${attribute} in Entity: ${entity}`); 
+      console.warn(`Type is empty for Attribute: ${attribute} in Entity: ${entity}`);
     }
     addAttribute(entity, attribute, type, key);
     hidePopup();
   };
 
+  // Updated syncJavaCodeWithSchema function
   const syncJavaCodeWithSchema = (javaCode) => {
-    const parsedSchema = parseCodeToSchema(javaCode, SYNTAX_TYPES.JAVA);
+    const parsedSchema = parseCodeToSchema(javaCode, SYNTAX_TYPES.JAVA, addMethod); // Pass addMethod here
   
+    // Update the schema with the parsed data
     parsedSchema.forEach((newEntity, entityName) => {
       const currentEntity = schema.get(entityName);
-      
+  
       if (currentEntity) {
         // Update attributes
         newEntity.attribute.forEach((newAttr, attrName) => {
@@ -134,32 +133,31 @@ const UMLComponent = () => {
         });
   
         // Update methods
-        newEntity.methods.forEach((newMethod) => {
-          const existingMethods = currentEntity.methods || [];
-          const methodExists = existingMethods.some((m) => m.name === newMethod.name);
-  
-          if (!methodExists) {
-            addMethod(entityName, newMethod);
-          }
-        });
+        if (newEntity.methods) {
+          newEntity.methods.forEach((newMethod) => {
+            const existingMethods = currentEntity.methods || [];
+            if (!existingMethods.some((method) => method.name === newMethod.name)) {
+              addMethod(entityName, newMethod);
+            }
+          });
+        }
       } else {
         // Add new entity
         addEntity(entityName);
-  
-        // Add attributes
+        // Add attributes for the new entity
         newEntity.attribute.forEach((newAttr, attrName) => {
           addAttribute(entityName, attrName, newAttr.type);
         });
-  
-        // Add methods
-        newEntity.methods.forEach((newMethod) => {
-          addMethod(entityName, newMethod);
-        });
+        // Add methods for the new entity
+        if (newEntity.methods) {
+          newEntity.methods.forEach((method) => {
+            addMethod(entityName, method);
+          });
+        }
       }
     });
   };
   
-
   const handleAddMethodClick = (entity, methodDetails) => {
     const parameters = methodDetails.parameters
       .split(',')
@@ -179,8 +177,6 @@ const UMLComponent = () => {
     addMethod(entity, formattedMethodDetails);
     hidePopup();
   };
-
-  
 
   const showSubPopup = (entityOrAttribute, type, position = 'right', spacing = 5) => {
     const popupElement = document.querySelector('.popup');
@@ -359,7 +355,7 @@ const UMLComponent = () => {
             setRelationships={setRelationships}
             addMethod={addMethod}
             removeMethod={removeMethod}
-            methods={methods}  // Pass methods to ControlsComponent
+            methods={methods} // Pass methods to ControlsComponent
           />
           <Box sx={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 2, position: 'relative' }} ref={umlRef}>
             <QuestionContainer id="question-container" ref={questionContainerRef}>
@@ -441,9 +437,21 @@ const UMLComponent = () => {
               )}
             </QuestionContainer>
             <Box sx={{ flex: 1, overflow: 'auto', height: '500px', width: '100%' }} ref={umlRef}>
-              <MermaidDiagram schema={schema} relationships={relationships} 
-              removeEntity={removeEntity} removeAttribute={removeAttribute} addRelationship={addRelationship} removeRelationship={removeRelationship} addEntity={addEntity} addAttribute={addAttribute}  updateAttributeKey={updateAttributeKey} editRelationship={editRelationship} methods={methods} addMethod={addMethod}
-              removeMethod={removeMethod}/>
+              <MermaidDiagram
+                schema={schema}
+                relationships={relationships}
+                removeEntity={removeEntity}
+                removeAttribute={removeAttribute}
+                addRelationship={addRelationship}
+                removeRelationship={removeRelationship}
+                addEntity={addEntity}
+                addAttribute={addAttribute}
+                updateAttributeKey={updateAttributeKey}
+                editRelationship={editRelationship}
+                methods={methods}
+                addMethod={addMethod}
+                removeMethod={removeMethod}
+              />
             </Box>
             <FloatingButtonsContainer>
               {isFeedbackOpen && (
@@ -487,3 +495,4 @@ const UMLComponent = () => {
 };
 
 export default UMLComponent;
+

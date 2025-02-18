@@ -126,13 +126,21 @@ export const useEntityManagement = () => {
       const entityData = newSchema.get(entity);
       if (!entityData) {
         console.warn(`Entity "${entity}" does not exist.`);
-        return prevSchema; // Avoid adding methods to non-existent entities
+        return prevSchema;
       }
 
       const existingMethods = entityData.methods || [];
-      entityData.methods = [...existingMethods, methodDetails]; // Add method details
-      newSchema.set(entity, entityData);
-      console.log(`Added Method: ${methodDetails.name} to Entity: ${entity}`); // Log added method
+      // Check if method with same name already exists
+      const methodExists = existingMethods.some((method) => method.name === methodDetails.name);
+
+      if (!methodExists) {
+        entityData.methods = [...existingMethods, methodDetails];
+        newSchema.set(entity, entityData);
+        console.log(`Added Method: ${methodDetails.name} to Entity: ${entity}`);
+      } else {
+        console.warn(`Method "${methodDetails.name}" already exists in Entity "${entity}".`);
+      }
+
       return newSchema;
     });
   }, []);
