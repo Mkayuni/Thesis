@@ -1,18 +1,23 @@
 /* Style for the class diagram */
 .classDiagram .class rect {
-    fill: #f5f5f5 !important;
-    stroke: #000 !important; /* Black outer border */
+    fill: url(#nodeGradient) !important; /* Apply gradient */
+    stroke: #6B5B95 !important; /* Purple border */
     stroke-width: 2px !important;
+    rx: 8px !important; /* Rounded corners */
+    ry: 8px !important; /* Rounded corners */
+    filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.2)); /* Add shadow */
 }
 
 .classDiagram .class text.entity-name {
     font-weight: bold !important;
     font-size: 20px !important;
+    fill: #333 !important; /* Dark gray text */
 }
 
 .classDiagram .class text.attribute {
     font-size: 16px !important;
     font-style: italic !important;
+    fill: #555 !important; /* Medium gray text */
 }
 
 /* Ensure that the outermost border is black */
@@ -24,4 +29,47 @@
 /* Hide the placeholder text */
 .classDiagram .class text:contains('No attributes') {
     visibility: hidden;
+}
+
+/* Add hover effect for interactivity */
+.classDiagram .class rect:hover {
+    fill: #FF6F61 !important; /* Coral color on hover */
+    stroke: #88B04B !important; /* Green border on hover */
+    cursor: pointer;
+}
+
+/* Style for relationships */
+.classDiagram .relationship path {
+    stroke: #6B5B95 !important; /* Purple line */
+    stroke-width: 2px !important;
+}
+
+.classDiagram .relationship text {
+    fill: #6B5B95 !important; /* Purple text */
+    font-size: 14px !important;
+    font-weight: bold !important;
+}
+
+/* Add gradient definition for nodes */
+.classDiagram defs linearGradient#nodeGradient stop:first-child {
+    stop-color: #FF6F61; /* Coral color */
+    stop-opacity: 1;
+}
+
+.classDiagram defs linearGradient#nodeGradient stop:last-child {
+    stop-color: #88B04B; /* Green color */
+    stop-opacity: 1;
+}
+
+/* Add background and padding to the diagram */
+.classDiagram {
+    background-color: #f0f0f0; /* Light gray background */
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Add animation for smooth transitions */
+.classDiagram .class rect {
+    transition: fill 0.3s ease, stroke 0.3s ease;
 }

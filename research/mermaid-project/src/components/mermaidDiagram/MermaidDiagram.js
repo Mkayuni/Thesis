@@ -13,6 +13,9 @@ import {
   parseMermaidToCode,
 } from '../utils/mermaidUtils';
 
+// Removed the import for the non-existent CSS file:
+// import './mermaid.css';
+
 // Styled components for modern UI
 const DiagramBox = styled(Box)(({ theme }) => ({
   padding: theme.spacing(3),
@@ -71,20 +74,21 @@ const MermaidDiagram = ({
   const [isCodeModified, setIsCodeModified] = useState(false);
 
   // Helper function to remove the last attribute of an entity
-  // Helper function to remove the last attribute of an entity
-const removeLastAttribute = useCallback((entityName) => {
-  const normalizedEntityName = normalizeEntityName(entityName);
-  const entity = schema.get(normalizedEntityName);
-  if (entity && entity.attribute.size > 0) {
-    const lastAttribute = Array.from(entity.attribute.keys()).pop();
-    if (lastAttribute) {
-      removeAttribute(normalizedEntityName, lastAttribute);
-    }
-  } else {
-    console.error(`Entity "${normalizedEntityName}" does not exist or has no attributes.`);
-  }
-}, [schema, removeAttribute]);
-
+  const removeLastAttribute = useCallback(
+    (entityName) => {
+      const normalizedEntityName = normalizeEntityName(entityName);
+      const entity = schema.get(normalizedEntityName);
+      if (entity && entity.attribute.size > 0) {
+        const lastAttribute = Array.from(entity.attribute.keys()).pop();
+        if (lastAttribute) {
+          removeAttribute(normalizedEntityName, lastAttribute);
+        }
+      } else {
+        console.error(`Entity "${normalizedEntityName}" does not exist or has no attributes.`);
+      }
+    },
+    [schema, removeAttribute]
+  );
 
   // Render the Mermaid diagram
   const renderDiagram = useCallback(async () => {
@@ -92,12 +96,22 @@ const removeLastAttribute = useCallback((entityName) => {
     if (typeof document.createElementNS !== 'function') {
       document.createElementNS = (ns, tagName) => document.createElement(tagName);
     }
-  
+
     const source = `classDiagram\n${schemaToMermaidSource(schema, relationships)}`;
     console.log('Mermaid source:', source);
-  
-    // Initialize Mermaid using the modern API
-    mermaid.initialize({ startOnLoad: false });
+
+    // Initialize Mermaid (modern API)
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base', // Use the 'base' theme for maximum customization
+      themeVariables: {
+        primaryColor: '#FFFFFF',       // White fill for nodes
+        primaryBorderColor: '#800080', // Black border for nodes
+        lineColor: '#800080',          // Default line color (can be overridden)
+        fontFamily: 'Arial, sans-serif',
+        textColor: '#000000',          // Black text for labels
+      },
+    });
   
     try {
       // Ensure Mermaid has enough time to initialize

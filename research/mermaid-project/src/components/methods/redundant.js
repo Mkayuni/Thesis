@@ -1,426 +1,519 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
-import mermaid from 'mermaid';
-import { Box, Tooltip, IconButton, Typography, Button, Select, MenuItem } from '@mui/material';
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  Typography,
+  TextField,
+  Divider,
+  IconButton,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Button,
+  Box,
+  Menu,
+  MenuItem,
+  Paper,
+  FormControl,
+  InputLabel,
+  Select,
+  Checkbox,
+  FormControlLabel,
+} from '@mui/material';
 import { styled } from '@mui/material/styles';
-import RelationshipManager from '../relationshipManager/RelationshipManager';
-import { generateGettersAndSetters, SYNTAX_TYPES } from '../ui/ui';
-import Editor from '@monaco-editor/react';
+import DeleteIcon from '@mui/icons-material/Delete';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import KeyIcon from '@mui/icons-material/VpnKey';
+import CategoryIcon from '@mui/icons-material/Category';
+import RelationshipManager from './relationshipManager/RelationshipManager';
+import { usePopup } from './utils/usePopup';
+import Popup from './utils/Popup';
 
-// Styled components for modern UI
-const DiagramBox = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(3),
-  backgroundColor: '#f5f5f5',
-  borderRadius: '12px',
-  boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.1)',
-  overflow: 'auto',
-  width: '100%',
-  minHeight: '400px',
-  height: 'auto',
-  position: 'relative',
-  zIndex: 0,
-  border: '1px solid #e0e0e0',
-}));
-
-const Toolbar = styled(Box)(({ theme }) => ({
+const DrawerContainer = styled(Box)(({ theme }) => ({
+  padding: theme.spacing(2),
+  backgroundColor: '#ffffff',
+  borderRadius: theme.shape.borderRadius,
+  boxShadow: theme.shadows[3],
+  height: '100%',
   display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: theme.spacing(2),
-  backgroundColor: '#ffffff',
-  borderRadius: '8px',
-  boxShadow: '0px 2px 10px rgba(0, 0, 0, 0.05)',
-  marginBottom: theme.spacing(2),
+  flexDirection: 'column',
+  gap: theme.spacing(2),
+  flex: 1,
+  overflow: 'hidden',
+  borderLeft: '2px solid #ddd',
 }));
 
-const WorkbenchBox = styled(Box)(({ theme }) => ({
+const ContentContainer = styled(Box)(({ theme }) => ({
+  overflow: 'auto',
+  flex: 1,
+}));
+
+const AccordionSummaryStyled = styled(AccordionSummary)(({ theme }) => ({
+  backgroundColor: theme.palette.primary.light,
+  '&.Mui-expanded': {
+    backgroundColor: theme.palette.primary.main,
+    color: theme.palette.primary.contrastText,
+  },
+}));
+
+const PopupContainer = styled(Paper)(({ theme }) => ({
   position: 'absolute',
-  top: '60px',
-  right: '20px',
-  zIndex: 1000,
-  backgroundColor: '#ffffff',
-  borderRadius: '8px',
-  boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.1)',
   padding: theme.spacing(2),
-  width: '600px',
+  backgroundColor: '#bbbbbb',
+  color: '#000000',
+  border: '1px solid #ccc',
+  boxShadow: theme.shadows[5],
+  zIndex: 1000,
+  maxHeight: '80vh',
+  overflowY: 'auto',
+  width: 'fit-content',
 }));
 
-const capitalizeFirstLetter = (string) => string.charAt(0).toUpperCase() + string.slice(1);
+const ControlsComponent = ({
+  setQuestionMarkdown,
+  schema,
+  setSchema,
+  questions,
+  expandedPanel,
+  setExpandedPanel,
+  removeEntity,
+  removeAttribute,
+  relationships,
+  removeRelationship,
+  updateAttributeKey,
+  controlsRef,
+  addEntity,
+  addAttribute,
+  addRelationship,
+  editRelationship,
+  onQuestionClick,
+  hidePopup,
+  setRelationships,
+  addMethod,
+  removeMethod,
+}) => {
+  const [showTextBox, setShowTextBox] = useState(false);
+  const [tempQuestion, setTempQuestion] = useState('');
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [selectedEntity, setSelectedEntity] = useState(null);
+  const [selectedAttribute, setSelectedAttribute] = useState(null);
+  const [expandedQuestions, setExpandedQuestions] = useState(false);
 
-const normalizeEntityName = (name) => {
-  return name.replace(/\s+/g, '').toLowerCase();
-};
+  const [typeAnchorEl, setTypeAnchorEl] = useState(null);
+  const [selectedTypeEntity, setSelectedTypeEntity] = useState(null);
+  const [selectedTypeAttribute, setSelectedTypeAttribute] = useState(null);
 
-const extractEntityName = (nodeId) => {
-  const parts = nodeId.split('-');
-  return parts.length >= 2 ? normalizeEntityName(parts[1]) : normalizeEntityName(nodeId);
-};
+  const [methodToAssign, setMethodToAssign] = useState(null);
+  const [entitySelectPopupOpen, setEntitySelectPopupOpen] = useState(false);
 
-const MermaidDiagram = ({ schema, relationships, removeEntity, removeAttribute, addRelationship, removeRelationship }) => {
-  const diagramRef = useRef(null);
-  const [showRelationshipManager, setShowRelationshipManager] = useState(false);
-  const [showWorkbench, setShowWorkbench] = useState(false);
-  const [code, setCode] = useState('');
-  const [syntax, setSyntax] = useState(SYNTAX_TYPES.JAVA);
-  const [generatedCode, setGeneratedCode] = useState('');
+  const [visibility, setVisibility] = useState('public');
+  const [returnType, setReturnType] = useState('void');
+  const [isStatic, setIsStatic] = useState(false); // Add state for Static
 
-  const removeLastAttribute = (entityName) => {
-    const normalizedEntityName = normalizeEntityName(entityName);
-    const entity = schema.get(normalizedEntityName);
-    if (entity && entity.attribute.size > 0) {
-      const lastAttribute = Array.from(entity.attribute.keys()).pop();
-      if (lastAttribute) {
-        removeAttribute(normalizedEntityName, lastAttribute);
-      }
-    } else {
-      console.error(`Entity "${normalizedEntityName}" does not exist or has no attributes.`);
-    }
-  };
+  const [availableMethods, setAvailableMethods] = useState([]); // New state to hold fetched methods
 
-  const schemaToMermaidSource = useCallback(() => {
-    let schemaText = [];
-    schema.forEach((schemaItem) => {
-      const entityName = capitalizeFirstLetter(schemaItem.entity);
-      let item = `class ${entityName} {\n`;
+  const {
+    popup,
+    subPopup,
+    entityPopupRef,
+    subPopupRef,
+    handleClickOutside,
+    showPopup: showPopupMethod,
+    hidePopup: hidePopupMethod,
+    showSubPopup,
+  } = usePopup();
 
-      const attributes = Array.from(schemaItem.attribute.values()).sort((a, b) => {
-        if ((a.key === 'PK' || a.key === 'PPK') && (b.key !== 'PK' && b.key !== 'PPK')) return -1;
-        if ((b.key === 'PK' || b.key === 'PPK') && (a.key !== 'PK' && a.key !== 'PPK')) return 1;
-        return 0;
-      });
-
-      const attributeLines = attributes.map((attItem) => {
-        const visibility = attItem.visibility === 'private' ? '-' : attItem.visibility === 'protected' ? '#' : '+';
-        return `  ${visibility}${attItem.attribute}: ${attItem.type} ${attItem.key ? `(${attItem.key})` : ''}`;
-      });
-
-      const methodLines = schemaItem.methods?.map((method) => {
-        const visibilitySymbol = method.visibility === 'private' ? '-' : method.visibility === 'protected' ? '#' : '+';
-        const staticKeyword = method.static ? 'static ' : '';
-        const parameters = method.parameters ? method.parameters.join(', ') : '';
-        return `  ${visibilitySymbol}${staticKeyword}${method.name}(${parameters})`;
-      }) || [];
-
-      if (attributeLines.length > 0) {
-        item += attributeLines.join('\n');
-      } else {
-        item += '  No attributes\n';
-      }
-
-      if (methodLines.length > 0) {
-        item += '\n' + methodLines.join('\n');
-      }
-
-      item += '\n}\n';
-      schemaText.push(item);
-    });
-
-    relationships.forEach((rel) => {
-      schemaText.push(`${capitalizeFirstLetter(rel.relationA)}"${rel.cardinalityA}"--"${rel.cardinalityB}"${capitalizeFirstLetter(rel.relationB)}`);
-    });
-
-    return schemaText.join('\n');
-  }, [schema, relationships]);
-
-  const renderDiagram = useCallback(() => {
-    const source = `classDiagram\n${schemaToMermaidSource()}`;
-    console.log('Mermaid source:', source);
-
-    mermaid.mermaidAPI.initialize({ startOnLoad: false });
-    mermaid.mermaidAPI.render('umlDiagram', source, (svgGraph) => {
-      const diagramElement = diagramRef.current;
-      if (diagramElement) {
-        diagramElement.innerHTML = svgGraph;
-        const svg = diagramElement.querySelector('svg');
-
-        if (svg) {
-          svg.style.overflow = 'visible';
-          svg.setAttribute('viewBox', `-20 -20 ${svg.getBBox().width + 40} ${svg.getBBox().height + 40}`);
-          svg.style.padding = '20px';
-
-          const nodes = svg.querySelectorAll('g[class^="node"]');
-          nodes.forEach((node) => {
-            const nodeId = node.getAttribute('id');
-            if (nodeId) {
-              const entityName = extractEntityName(nodeId);
-              const bbox = node.getBBox();
-
-              const iconsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-              iconsGroup.classList.add('icons-group');
-
-              const editButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              editButton.setAttribute('x', bbox.x + bbox.width + 15);
-              editButton.setAttribute('y', bbox.y + 15);
-              editButton.setAttribute('fill', '#007bff');
-              editButton.style.cursor = 'pointer';
-              editButton.style.display = 'block';
-              editButton.textContent = '✏️';
-
-              const deleteButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              deleteButton.setAttribute('x', bbox.x + bbox.width + 15);
-              deleteButton.setAttribute('y', bbox.y + 35);
-              deleteButton.setAttribute('fill', '#ff4d4d');
-              deleteButton.style.cursor = 'pointer';
-              deleteButton.style.display = 'none';
-              deleteButton.textContent = '🗑️';
-              deleteButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const entityName = extractEntityName(nodeId);
-                if (schema.has(entityName)) {
-                  removeEntity(entityName);
-                }
-              });
-
-              const minusButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              minusButton.setAttribute('x', bbox.x + bbox.width + 15);
-              minusButton.setAttribute('y', bbox.y + 55);
-              minusButton.setAttribute('fill', '#4caf50');
-              minusButton.style.cursor = 'pointer';
-              minusButton.style.display = 'none';
-              minusButton.textContent = '➖';
-              minusButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const entityName = extractEntityName(nodeId);
-                removeLastAttribute(entityName);
-              });
-
-              const relationshipButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              relationshipButton.setAttribute('x', bbox.x + bbox.width + 15);
-              relationshipButton.setAttribute('y', bbox.y + 75);
-              relationshipButton.setAttribute('fill', '#ff9800');
-              relationshipButton.style.cursor = 'pointer';
-              relationshipButton.style.display = 'none';
-              relationshipButton.textContent = '🔗';
-              relationshipButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                setShowRelationshipManager(true);
-              });
-
-              editButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                deleteButton.style.display = deleteButton.style.display === 'none' ? 'block' : 'none';
-                minusButton.style.display = minusButton.style.display === 'none' ? 'block' : 'none';
-                relationshipButton.style.display = relationshipButton.style.display === 'none' ? 'block' : 'none';
-              });
-
-              iconsGroup.appendChild(editButton);
-              iconsGroup.appendChild(deleteButton);
-              iconsGroup.appendChild(minusButton);
-              iconsGroup.appendChild(relationshipButton);
-              node.appendChild(iconsGroup);
-            }
-          });
-        }
-      }
-    });
-  }, [schemaToMermaidSource, removeEntity, schema, removeLastAttribute]);
+  const questionContainerRef = useRef(null);
 
   useEffect(() => {
-    if (schema.size !== 0) {
-      renderDiagram();
-    }
-  }, [schema, relationships, renderDiagram]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [handleClickOutside]);
 
-  const handleGenerate = () => {
-    const mermaidSource = schemaToMermaidSource();
-    const generated = parseMermaidToCode(mermaidSource, syntax);
-    setGeneratedCode(generated);
-    setCode(generated); // Update Monaco Editor with generated code
+  useEffect(() => {
+    // Fetch available methods from the backend
+    fetch('http://127.0.0.1:5000/api/question/Fish%20Store/methods')
+      .then((response) => response.json())
+      .then((data) => setAvailableMethods(data.methods || []))
+      .catch((error) => console.error('Error fetching methods:', error));
+  }, []);
+
+  // Function to parse method strings into method name and parameters
+  const parseMethodSignature = (signature) => {
+    const methodNameMatch = signature.match(/^([a-zA-Z0-9_]+)\(/);
+    const paramsMatch = signature.match(/\(([^)]*)\)/);
+
+    const methodName = methodNameMatch ? methodNameMatch[1] : signature; // Extract method name
+    const parameters = paramsMatch ? paramsMatch[1].split(',').map(param => param.trim()) : []; // Extract parameters
+
+    return { methodName, parameters };
   };
 
+  const handleAccordionChange = (panel) => (event, isExpanded) => {
+    setExpandedPanel(isExpanded ? panel : false);
+  };
 
-//Parse MErmaid to Code
-const parseMermaidToCode = (mermaidSource, syntax) => {
-  const classRegex = /class\s+(\w+)\s*\{([^}]*)\}/g;
-  const relationshipRegex = /(\w+)"([^"]+)"--"([^"]+)"(\w+)/g;
+  const handleQuestionSubmit = () => {
+    setQuestionMarkdown(tempQuestion);
+    setShowTextBox(false);
+  };
 
-  let code = '';
-  let match;
+  const handleKeyMenuClick = (event, entity, attribute) => {
+    setAnchorEl(event.currentTarget);
+    setSelectedEntity(entity);
+    setSelectedAttribute(attribute);
+  };
 
-  while ((match = classRegex.exec(mermaidSource)) !== null) {
-      const [, className, classContent] = match;
-      code += generateClassCode(className, classContent, syntax) + '\n\n';
-  }
+  const handleKeyMenuClose = (key) => {
+    setAnchorEl(null);
+    if (selectedEntity && selectedAttribute) {
+      updateAttributeKey(selectedEntity, selectedAttribute, key);
+    }
+    setSelectedEntity(null);
+    setSelectedAttribute(null);
+  };
 
-  while ((match = relationshipRegex.exec(mermaidSource)) !== null) {
-    const [, classA, cardinalityA, cardinalityB, classB] = match;
-    const commentSymbol = syntax === SYNTAX_TYPES.PYTHON ? "#" : "//";
-    code += `${commentSymbol} Relationship: ${classA} "${cardinalityA}" -- "${cardinalityB}" ${classB}\n`;
-}
+  const handleTypeMenuClick = (event, entity, attribute) => {
+    setTypeAnchorEl(event.currentTarget);
+    setSelectedTypeEntity(entity);
+    setSelectedTypeAttribute(attribute);
+  };
 
-  return code.trim();
-};
+  const handleTypeMenuClose = (type) => {
+    setTypeAnchorEl(null);
+    if (selectedTypeEntity && selectedTypeAttribute) {
+      setSchema((prevSchema) => {
+        const newSchema = new Map(prevSchema);
+        const entityData = newSchema.get(selectedTypeEntity);
+        if (entityData) {
+          const updatedAttributes = new Map(entityData.attribute);
+          if (updatedAttributes.has(selectedTypeAttribute)) {
+            const attributeData = updatedAttributes.get(selectedTypeAttribute);
+            attributeData.type = type;
+            updatedAttributes.set(selectedTypeAttribute, attributeData);
+          }
+          entityData.attribute = updatedAttributes;
+          newSchema.set(selectedTypeEntity, entityData);
+        }
+        return newSchema;
+      });
+    }
+    setSelectedTypeEntity(null);
+    setSelectedTypeAttribute(null);
+  };
 
-const generateClassCode = (className, classContent, syntax) => {
-  // Updated regex: Handles missing types and ensures correct attribute extraction
-  const attributeRegex = /(?:\s*[-+#]?\s*)(\w+)\s*:\s*([\w<>]*)?/g;
-  let attributes = [];
-  let match;
+  const handleQuestionsAccordionChange = () => {
+    setExpandedQuestions(!expandedQuestions);
+  };
 
-  while ((match = attributeRegex.exec(classContent)) !== null) {
-      let [, attributeName, attributeType] = match;
+  const handleAddEntity = (entityName) => {
+    addEntity(entityName);
+    hidePopup();
+  };
 
-      // Assign default types if missing
-      if (!attributeType || attributeType.trim() === '') {
-          attributeType = syntax === SYNTAX_TYPES.JAVA ? 'Object' : 'Any';
-      }
+  const handleAddAttribute = (entityName, attribute, key = '') => {
+    addAttribute(entityName, attribute, key);
+    hidePopup();
+  };
 
-      attributes.push({ name: attributeName, type: attributeType });
-  }
+  const handleRemoveMethod = (entity, methodName) => {
+    removeMethod(entity, methodName);
+  };
 
-  return syntax === SYNTAX_TYPES.JAVA 
-      ? generateJavaClass(className, attributes) 
-      : generatePythonClass(className, attributes);
-};
+  const handleQuestionClick = (question) => {
+    onQuestionClick(question);
+    setSchema(new Map());
+    setRelationships(new Map());
+  };
 
-const generateJavaClass = (className, attributes) => {
-  let code = `public class ${className} {\n`;
+  const handleMethodLinkClick = () => {
+    setEntitySelectPopupOpen(true);
+  };
 
-  if (attributes.length === 0) {
-      code += "    // No attributes\n";
-  }
-
-  // Generate fields
-  attributes.forEach(({ name, type }) => {
-      code += `    private ${type} ${name};\n`;
-  });
-
-  // Generate getters and setters
-  attributes.forEach(({ name, type }) => {
-      const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
-      code += `
-  public ${type} get${capitalizedName}() {
-      return this.${name};
-  }
-
-  public void set${capitalizedName}(${type} ${name}) {
-      this.${name} = ${name};
-  }\n`;
-  });
-
-  code += '}';
-  return code;
-};
-
-const generatePythonClass = (className, attributes) => {
-  let code = `class ${className}:\n`;
-
-  if (attributes.length === 0) {
-      code += "    # No attributes\n";
-      return code;
-  }
-
-  // Generate __init__ method
-  code += "    def __init__(self):\n";
-  attributes.forEach(({ name }) => {
-      code += `        self._${name} = None\n`;
-  });
-
-  // Generate properties (getters and setters)
-  attributes.forEach(({ name }) => {
-      code += `
-
-  @property
-  def ${name}(self):
-      return self._${name}
-
-  @${name}.setter
-  def ${name}(self, value):
-      self._${name} = value\n`;
-  });
-
-  return code;
-};
+  const handleAddMethodToEntity = (entity) => {
+    if (methodToAssign) {
+      const methodDetails = {
+        name: methodToAssign,
+        returnType,
+        parameters: '',
+        visibility,
+        static: isStatic, // Include static value from checkbox
+      };
+      addMethod(entity, methodDetails);
+      setMethodToAssign(null);
+      setEntitySelectPopupOpen(false);
+    }
+  };
 
   return (
-    <Box>
-      <Toolbar>
-        <Typography variant="h6" color="primary">
-          WorkBench
+    <DrawerContainer ref={controlsRef}>
+      <Box sx={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+        <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+          Controls
         </Typography>
-        <Box>
-          <Tooltip title="Add Relationship">
-            <IconButton color="primary" onClick={() => setShowRelationshipManager(true)}>
-              🔗
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Open WorkBench">
-            <IconButton color="primary" onClick={() => setShowWorkbench(true)}>
-              🛠️
-            </IconButton>
-          </Tooltip>
-        </Box>
-      </Toolbar>
-      <DiagramBox ref={diagramRef} id="diagram" />
-      {showRelationshipManager && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: '60px',
-            right: '20px',
-            zIndex: 1000,
-          }}
+        <Button
+          variant="contained"
+          color="primary"
+          sx={{ marginLeft: 'auto' }}
+          onClick={() => setShowTextBox(!showTextBox)}
         >
-          <RelationshipManager
-            schema={schema}
-            relationships={relationships}
-            addRelationship={addRelationship}
-            removeRelationship={removeRelationship}
-            onClose={() => setShowRelationshipManager(false)}
-          />
-        </Box>
-      )}
-      {showWorkbench && (
-        <WorkbenchBox>
-          <Typography variant="h6" gutterBottom>
-            WorkBench
-          </Typography>
-          <Select
-            value={syntax}
-            onChange={(e) => setSyntax(e.target.value)}
+          {showTextBox ? 'Hide' : 'Add UML Question'}
+        </Button>
+      </Box>
+      {showTextBox && (
+        <Box sx={{ marginBottom: '24px' }}>
+          <TextField
+            placeholder="Enter UML question here"
+            value={tempQuestion}
+            onChange={(e) => setTempQuestion(e.target.value)}
+            multiline
+            rows={4}
             fullWidth
-            sx={{ mb: 2 }}
-          >
-            <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
-            <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
-          </Select>
-          <Editor
-            height="300px"
-            language={syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
-            theme="vs-light"
-            value={code}
-            onChange={(value) => setCode(value)}
-            options={{
-              automaticLayout: true,
-              padding: { top: 10, bottom: 10 },
-            }}
           />
           <Button
             variant="contained"
             color="primary"
-            onClick={handleGenerate}
-            sx={{ mr: 2, mt: 2 }}
+            sx={{ marginTop: '8px' }}
+            onClick={handleQuestionSubmit}
           >
-            Generate
+            Submit
           </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            onClick={() => setShowWorkbench(false)}
-            sx={{ mt: 2 }}
-          >
-            Close
-          </Button>
-          {generatedCode && (
-            <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-              <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
-                {generatedCode}
-              </Typography>
-            </Box>
-          )}
-        </WorkbenchBox>
+        </Box>
       )}
-    </Box>
+      <ContentContainer>
+        <Accordion expanded={expandedQuestions} onChange={handleQuestionsAccordionChange}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="h6" sx={{ marginBottom: '8px' }}>
+              Questions
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Box
+              sx={{
+                padding: '16px',
+                backgroundColor: '#f0f0f0',
+                borderRadius: '4px',
+                marginTop: '16px',
+              }}
+            >
+              {questions.map((question, index) => (
+                <Button
+                  key={index}
+                  onClick={() => handleQuestionClick(question)}
+                  fullWidth
+                  sx={{ justifyContent: 'flex-start', marginBottom: '8px' }}
+                >
+                  {question}
+                </Button>
+              ))}
+            </Box>
+          </AccordionDetails>
+        </Accordion>
+        <Divider />
+        <Accordion
+          expanded={expandedPanel === 'entities-panel'}
+          onChange={handleAccordionChange('entities-panel')}
+          disableGutters
+          TransitionProps={{ unmountOnExit: true }}
+        >
+          <AccordionSummaryStyled
+            expandIcon={<ExpandMoreIcon />}
+            aria-controls="entities-content"
+            id="entities-header"
+          >
+            <Typography>Manage Entities and Methods</Typography>
+          </AccordionSummaryStyled>
+          <AccordionDetails sx={{ backgroundColor: '#e0f7fa' }}>
+            {Array.from(schema.entries()).map(([entity, { attribute, methods }]) => (
+              <Box key={entity} sx={{ marginBottom: '16px' }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                    {entity}
+                  </Typography>
+                  <IconButton onClick={() => removeEntity(entity)} size="small" sx={{ color: 'red' }}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+                {Array.from(attribute.entries()).map(([attr, { key, type }]) => (
+                  <Box
+                    key={attr}
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    <Typography variant="body1" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {attr} {key && <span>({key})</span>} {type && <span>[{type}]</span>}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <IconButton
+                        onClick={(event) => handleKeyMenuClick(event, entity, attr)}
+                        size="small"
+                        sx={{ color: 'green' }}
+                      >
+                        <KeyIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        onClick={(event) => handleTypeMenuClick(event, entity, attr)}
+                        size="small"
+                        sx={{ color: 'purple' }}
+                      >
+                        <CategoryIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton onClick={() => removeAttribute(entity, attr)} size="small" sx={{ color: 'blue' }}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                ))}
+                {methods && methods.length > 0 && (
+                  <Box sx={{ marginTop: '16px' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                      Methods:
+                    </Typography>
+                    {methods.map((method) => (
+                      <Box
+                        key={method.name}
+                        sx={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '8px',
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {method.name}({(Array.isArray(method.parameters) ? method.parameters.join(', ') : 'No parameters')}) :{' '}
+                          {method.returnType}
+                        </Typography>
+                        <IconButton onClick={() => handleRemoveMethod(entity, method.name)} size="small" sx={{ color: 'blue' }}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            ))}
+          </AccordionDetails>
+        </Accordion>
+        <Accordion
+          expanded={expandedPanel === 'relationships-panel'}
+          onChange={handleAccordionChange('relationships-panel')}
+          disableGutters
+          TransitionProps={{ unmountOnExit: true }}
+        >
+          <AccordionSummaryStyled
+            expandIcon={<ExpandMoreIcon />}
+            aria-controls="relationships-content"
+            id="relationships-header"
+          >
+            <Typography>Manage Relationships</Typography>
+          </AccordionSummaryStyled>
+          <AccordionDetails sx={{ backgroundColor: '#f1f8e9' }}>
+            <RelationshipManager
+              schema={schema}
+              relationships={relationships}
+              addRelationship={addRelationship}
+              editRelationship={editRelationship}
+              removeRelationship={removeRelationship}
+            />
+          </AccordionDetails>
+        </Accordion>
+      </ContentContainer>
+
+      {/* Entity selection popup to assign a method */}
+      {entitySelectPopupOpen && (
+        <PopupContainer>
+          <Typography>Select an entity to assign the method</Typography>
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Available Methods</InputLabel>
+            <Select
+              value={methodToAssign}
+              onChange={(e) => setMethodToAssign(e.target.value)}
+            >
+              {availableMethods.map((method, index) => {
+                const { methodName, parameters } = parseMethodSignature(method); // Parse method signature here
+                return (
+                  <MenuItem key={index} value={methodName}>
+                    {methodName}({
+                      parameters.length > 0 ? parameters.join(', ') : 'No parameters'
+                    })
+                  </MenuItem>
+                );
+              })}
+            </Select>
+          </FormControl>
+          {Array.from(schema.keys()).map((entity) => (
+            <Button key={entity} onClick={() => handleAddMethodToEntity(entity)} sx={{ marginTop: 1 }}>
+              {entity}
+            </Button>
+          ))}
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Return Type</InputLabel>
+            <Select value={returnType} onChange={(e) => setReturnType(e.target.value)}>
+              <MenuItem value="void">void</MenuItem>
+              <MenuItem value="int">int</MenuItem>
+              <MenuItem value="float">float</MenuItem>
+              <MenuItem value="String">String</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Visibility</InputLabel>
+            <Select value={visibility} onChange={(e) => setVisibility(e.target.value)}>
+              <MenuItem value="public">public</MenuItem>
+              <MenuItem value="protected">protected</MenuItem>
+              <MenuItem value="private">private</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControlLabel
+            control={<Checkbox checked={isStatic} onChange={(e) => setIsStatic(e.target.checked)} />}
+            label="Static"
+          />
+        </PopupContainer>
+      )}
+
+      {/* Example clickable method link */}
+      <Typography>
+        Click a method to assign:{' '}
+        <span
+          onClick={handleMethodLinkClick}
+          style={{ cursor: 'pointer', color: '#1976d2', textDecoration: 'underline' }}
+        >
+          Assign Method
+        </span>
+      </Typography>
+
+      {/* Key Menu */}
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => handleKeyMenuClose('')}>
+        <MenuItem onClick={() => handleKeyMenuClose('')}>Not a key</MenuItem>
+        <MenuItem onClick={() => handleKeyMenuClose('PK')}>Primary Key</MenuItem>
+        <MenuItem onClick={() => handleKeyMenuClose('PPK')}>Partial Primary Key</MenuItem>
+      </Menu>
+      {/* Data Type Menu */}
+      <Menu anchorEl={typeAnchorEl} open={Boolean(typeAnchorEl)} onClose={() => handleTypeMenuClose('')}>
+        <MenuItem onClick={() => handleTypeMenuClose('String')}>String</MenuItem>
+        <MenuItem onClick={() => handleTypeMenuClose('int')}>Integer</MenuItem>
+        <MenuItem onClick={() => handleTypeMenuClose('boolean')}>Boolean</MenuItem>
+        <MenuItem onClick={() => handleTypeMenuClose('float')}>Float</MenuItem>
+      </Menu>
+      <Popup
+        popup={popup}
+        hidePopup={hidePopupMethod}
+        addEntity={handleAddEntity}
+        addAttribute={handleAddAttribute}
+        showSubPopup={showSubPopup}
+        entityPopupRef={entityPopupRef}
+      />
+    </DrawerContainer>
   );
 };
 
-export default MermaidDiagram;
+export default ControlsComponent;
