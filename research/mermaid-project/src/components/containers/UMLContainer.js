@@ -14,18 +14,18 @@ import theme from '../../theme';
 
 // Styled Components
 const MainContainer = styled(Box)(({ theme }) => ({
-    height: '100vh', // Full viewport height
-    width: '100vw', // Full viewport width
-    backgroundColor: '#f9f9f9', // Unified background
+    height: '100vh', 
+    width: '100vw', 
+    backgroundColor: '#f9f9f9', 
     display: 'flex',
-    overflow: 'hidden', // Prevent unnecessary scrolling
+    overflow: 'hidden', 
   }));
   
   const LeftPanel = styled(Box)(({ theme }) => ({
-    width: 300, // Fixed width for controls
-    minWidth: 250,
-    backgroundColor: theme.palette.background.paper,
-    borderRight: '2px solid #ddd', // Adds a separator line
+    width: 220, 
+    minWidth: 220,
+    backgroundColor: '#f5f7fa', 
+    borderRight: '1px solid #2c3e50', 
     display: 'flex',
     flexDirection: 'column',
     padding: theme.spacing(2),
@@ -140,7 +140,6 @@ const UMLContainer = ({
             }}
           >
             <Typography variant="h6" fontWeight="bold" sx={{ fontSize: '16px', color: '#333' }}>
-              Question Setup
             </Typography>
             <Box
               id="question-container"
