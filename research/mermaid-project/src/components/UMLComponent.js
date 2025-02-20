@@ -1,10 +1,6 @@
 // UMLComponent.js
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mermaid from 'mermaid';
-import { Box } from '@mui/material';
-import ControlsComponent from './ControlsComponent';
-import MermaidDiagram from './mermaidDiagram/MermaidDiagram';
-import QuestionSetup from './questionSetup/QuestionSetup';
 import './mermaid.css';
 import { usePopup } from './utils/usePopup';
 import { useEntityManagement } from './entityManager/EntityManager';
