@@ -26,6 +26,8 @@ const formatType = (type) => {
   // Convert schema and relationships into a Mermaid diagram source string
   export const schemaToMermaidSource = (schema, relationships) => {
     let schemaText = [];
+    console.log("Processing schema:", schema); // Log the schema being processed
+  
     schema.forEach((schemaItem) => {
       const entityName = capitalizeFirstLetter(schemaItem.entity);
       console.log(`Generating Mermaid for class: ${entityName}`); // Log class name
@@ -97,6 +99,7 @@ const formatType = (type) => {
       schemaText.push(`${relationA} "${cardinalityA}" -- "${cardinalityB}" ${relationB} : ${label}`);
     });
   
+    console.log("Final Mermaid Source:", schemaText.join('\n')); // Log the final Mermaid source
     return schemaText.join('\n');
   };
 
@@ -116,8 +119,8 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
   const schemaMap = new Map();
 
   if (syntaxType === SYNTAX_TYPES.JAVA) {
-    // Regex to capture the entire class definition, including its content
-    const classRegex = /public\s+class\s+(\w+)\s*\{([\s\S]*?)\}\s*(?=\n\s*public\s+class|\n\s*$)/g;
+    // Updated regex to capture class definitions more robustly
+    const classRegex = /(?:public|protected|private)?\s*class\s+(\w+)\s*\{([\s\S]*?)\}/g;
 
     let classMatch;
     while ((classMatch = classRegex.exec(sourceCode)) !== null) {
@@ -130,7 +133,7 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
       const methodNames = new Set();
 
       // Parse fields (attributes)
-      const fieldRegex = /private\s+(\w+)\s+(\w+);/g;
+      const fieldRegex = /(?:private|protected|public)?\s+(\w+)\s+(\w+);/g; // Generalized for visibility
       let fieldMatch;
       while ((fieldMatch = fieldRegex.exec(classContent)) !== null) {
         const type = fieldMatch[1];
@@ -169,10 +172,10 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
       }
 
       // Parse all methods (including inferred methods)
-      const methodRegex = /(public|private|protected)\s+(\w+)\s+(\w+)\(([^)]*)\)\s*\{/g;
+      const methodRegex = /(public|private|protected)?\s+(\w+)\s+(\w+)\(([^)]*)\)\s*\{/g;
       let methodMatch;
       while ((methodMatch = methodRegex.exec(classContent)) !== null) {
-        const visibility = methodMatch[1];
+        const visibility = methodMatch[1] || 'public'; // Default to public if no visibility
         const returnType = methodMatch[2];
         const methodName = methodMatch[3];
         const parameters = methodMatch[4]
@@ -185,6 +188,12 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
                 return `${name}: ${type}`; // Format parameter as "name: type"
               })
           : [];
+
+        // Skip constructors (methods with the same name as the class)
+        if (methodName.toLowerCase() === className.toLowerCase()) {
+          console.log(`Skipping constructor: ${methodName}`); // Log skipped constructor
+          continue;
+        }
 
         console.log(`Found method: ${methodName} (${visibility}, ${returnType})`); // Log method
         console.log(`Method parameters: ${parameters}`); // Log parameters
@@ -215,8 +224,8 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
 
       console.log("Parsed Class:", className, "Methods:", methods); // Log parsed class
     }
-  
   } else if (syntaxType === SYNTAX_TYPES.PYTHON) {
+    // Python parsing logic remains unchanged for now
     const classRegex = /class (\w+):\s*((?:.|\n)*?)(?=\n\S|$)/g;
     const attrRegex = /self\.(\w+)\s*:\s*(\w+)/g;
     const methodRegex = /def (\w+)\((self,?[^)]*)\):/g;
@@ -257,6 +266,7 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
       });
     }
   }
+
   // Log the final schema map for debugging
   console.log("Final schema map:", schemaMap);
   return schemaMap;
@@ -406,7 +416,3 @@ const generatePythonClass = (className, attributes) => {
   });
   return code;
 };
-
-
-
-
