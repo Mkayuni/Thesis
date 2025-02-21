@@ -2,7 +2,13 @@ import { SYNTAX_TYPES } from '../ui/ui'; // Import SYNTAX_TYPES
 
 
 // Helper function to capitalize the first letter of a string
-export const capitalizeFirstLetter = (string) => string.charAt(0).toUpperCase() + string.slice(1);
+export const capitalizeFirstLetter = (string) => {
+  if (typeof string !== 'string' || !string) {
+    console.error('Invalid input to capitalizeFirstLetter:', string);
+    return ''; // Return an empty string or handle the error as needed
+  }
+  return string.charAt(0).toUpperCase() + string.slice(1);
+};
 
 // Helper function to normalize entity names (remove spaces and convert to lowercase)
 export const normalizeEntityName = (name) => {
@@ -23,91 +29,76 @@ const formatType = (type) => {
   return formattedType;
 };
 
-  // Convert schema and relationships into a Mermaid diagram source string
-  export const schemaToMermaidSource = (schema, relationships) => {
-    let schemaText = [];
-    console.log("Processing schema:", schema); // Log the schema being processed
-  
-    schema.forEach((schemaItem) => {
-      const entityName = capitalizeFirstLetter(schemaItem.entity);
-      console.log(`Generating Mermaid for class: ${entityName}`); // Log class name
-  
-      let item = `class ${entityName} {\n`;
-  
-      // Sort attributes (primary keys first)
-      const attributes = Array.from(schemaItem.attribute.values()).sort((a, b) => {
-        if ((a.key === 'PK' || a.key === 'PPK') && (b.key !== 'PK' && b.key !== 'PPK')) return -1;
-        if ((b.key === 'PK' || b.key === 'PPK') && (a.key !== 'PK' && a.key !== 'PPK')) return 1;
-        return 0;
-      });
-  
-      // Generate attribute lines
-      const attributeLines = attributes.map((attItem) => {
-        const visibility = attItem.visibility === 'private' ? '-' : attItem.visibility === 'protected' ? '#' : '+';
-        const formattedType = formatType(attItem.type); // Apply the formatType function here
-        console.log(`Adding attribute: ${attItem.attribute} (${formattedType})`); // Log attribute
-        return `  ${visibility}${attItem.attribute}: ${formattedType}`; // Always display the type
-      });
-  
-      // Generate method lines (use optional chaining to safeguard access)
-      const methodLines = schemaItem.methods?.map((method) => {
-        const visibilitySymbol = method.visibility === 'private' ? '-' : method.visibility === 'protected' ? '#' : '+';
-        const staticKeyword = method.static ? 'static ' : '';
-  
-        // Format parameters as "name: type"
-        const parameters = method.parameters
-          ? method.parameters
-              .map((param) => {
-                // Split parameter into name and type
-                const [name, type] = param.split(':').map((s) => s.trim());
-                return `${name}: ${type}`;
-              })
-              .join(', ')
-          : '';
-  
-        const returnType = method.returnType ? `: ${method.returnType}` : ': void';
-        console.log(`Adding method: ${method.name}(${parameters})${returnType}`); // Log method
-        return `  ${visibilitySymbol}${staticKeyword}${method.name}(${parameters})${returnType}`;
-      }) || []; // Fallback to an empty array if methods is undefined
-  
-      // Add attributes to the class
-      if (attributeLines.length > 0) {
-        item += attributeLines.join('\n');
-      } else {
-        item += '  No attributes\n';
-      }
-  
-      // Add methods to the class
-      if (methodLines.length > 0) {
-        item += '\n' + methodLines.join('\n');
-      }
-  
-      item += '\n}\n';
-      schemaText.push(item);
-  
-      console.log("Generated Class:", entityName, "Methods:", methodLines); // Log generated class
-    });
-  
-    // Add relationships to the diagram
-    relationships.forEach((rel) => {
-      const relationA = capitalizeFirstLetter(rel.relationA);
-      const relationB = capitalizeFirstLetter(rel.relationB);
-      const cardinalityA = rel.cardinalityA || '1';
-      const cardinalityB = rel.cardinalityB || '1';
-      const label = rel.cardinalityText || '';
-  
-      schemaText.push(`${relationA} "${cardinalityA}" -- "${cardinalityB}" ${relationB} : ${label}`);
-    });
-  
-    console.log("Final Mermaid Source:", schemaText.join('\n')); // Log the final Mermaid source
-    return schemaText.join('\n');
-  };
+export const schemaToMermaidSource = (schema, relationships) => {
+  let schemaText = [];
 
-// Normalize type by removing unwanted characters like brackets or parentheses
-const normalizeType = (type) => {
-  if (!type) return ''; // Return an empty string if type is undefined
-  return type.replace(/[\[\]]/g, '').trim(); // Only remove brackets, not parentheses
+  schema.forEach((schemaItem, entityName) => {
+      const className = capitalizeFirstLetter(entityName);
+
+      let classDefinition = `class ${className} {\n`;
+
+      // Attributes
+      const attributeLines = [];
+      if (schemaItem.attribute && schemaItem.attribute.size > 0) {
+          schemaItem.attribute.forEach((attr) => {
+              const visibility = attr.visibility === 'private' ? '-' : attr.visibility === 'protected' ? '#' : '+';
+              attributeLines.push(`  ${visibility}${attr.attribute}: ${attr.type}`);
+          });
+      } else {
+          // Add a placeholder if there are no attributes
+          attributeLines.push('  No attributes');
+      }
+
+      // Methods
+      const methodLines = [];
+      if (schemaItem.methods && schemaItem.methods.length > 0) {
+          schemaItem.methods.forEach((method) => {
+              const visibilitySymbol = method.visibility === 'private' ? '-' : method.visibility === 'protected' ? '#' : '+';
+              const paramList = method.parameters.map((param) => `${param}`).join(', ');
+              const returnType = method.returnType ? `: ${method.returnType}` : ': void';
+              methodLines.push(`  ${visibilitySymbol}${method.name}(${paramList})${returnType}`);
+          });
+      } else {
+          // Add a placeholder if there are no methods
+          methodLines.push('  No methods');
+      }
+
+      // Combine attributes and methods into the class definition
+      classDefinition += attributeLines.join('\n') + '\n';
+      if (methodLines.length > 0) {
+          classDefinition += '\n' + methodLines.join('\n') + '\n';
+      }
+      classDefinition += `}\n`;
+      schemaText.push(classDefinition);
+
+      // **Handle Inheritance Relationships Properly**
+      if (schemaItem.parent) {
+          const parentName = capitalizeFirstLetter(schemaItem.parent);
+          schemaText.push(`${parentName} <|-- ${className}`); // Correct Mermaid Inheritance Syntax
+      }
+  });
+
+  // **Handle Regular Relationships Separately**
+  relationships.forEach((rel) => {
+      if (rel.type === 'inheritance') {
+          schemaText.push(`${capitalizeFirstLetter(rel.relationB)} <|-- ${capitalizeFirstLetter(rel.relationA)}`);
+      } else {
+          const relationA = capitalizeFirstLetter(rel.relationA);
+          const relationB = capitalizeFirstLetter(rel.relationB);
+          const label = rel.cardinalityText || '';
+          schemaText.push(`${relationA} "${rel.cardinalityA}" -- "${rel.cardinalityB}" ${relationB} : ${label}`);
+      }
+  });
+
+  console.log("Final Mermaid Source:\n", schemaText.join('\n'));
+  return schemaText.join('\n');
 };
+
+  // Normalize type by removing unwanted characters like brackets or parentheses
+  const normalizeType = (type) => {
+    if (!type) return ''; // Return an empty string if type is undefined
+    return type.replace(/[\[\]]/g, '').trim(); // Only remove brackets, not parentheses
+  };
 
 
 // Parse source code into a schema format
@@ -119,14 +110,15 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
   const schemaMap = new Map();
 
   if (syntaxType === SYNTAX_TYPES.JAVA) {
-    // Updated regex to capture class definitions more robustly
-    const classRegex = /(?:public|protected|private)?\s*class\s+(\w+)\s*\{([\s\S]*?)\}/g;
+    // Updated regex to capture class definitions with inheritance
+    const classRegex = /(?:public|protected|private)?\s*class\s+(\w+)(?:\s+extends\s+(\w+))?\s*\{([\s\S]*?)\}/g;
 
     let classMatch;
     while ((classMatch = classRegex.exec(sourceCode)) !== null) {
       const className = classMatch[1].toLowerCase();
-      const classContent = classMatch[2];
-      console.log(`Processing class: ${className}`); // Log class name
+      const parentClass = classMatch[2]?.toLowerCase(); // Capture the parent class
+      const classContent = classMatch[3];
+      console.log(`Processing class: ${className}, Parent: ${parentClass || 'None'}`); // Log class name and parent
 
       const attributes = new Map();
       const methods = [];
@@ -215,6 +207,7 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
         entity: className,
         attribute: attributes,
         methods: methods,
+        parent: parentClass, // Add parent class to the schema
       });
 
       // Call addMethod for each method
@@ -222,7 +215,7 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
         addMethod(className, method);
       });
 
-      console.log("Parsed Class:", className, "Methods:", methods); // Log parsed class
+      console.log("Parsed Class:", className, "Methods:", methods, "Parent:", parentClass); // Log parsed class
     }
   } else if (syntaxType === SYNTAX_TYPES.PYTHON) {
     // Python parsing logic remains unchanged for now

@@ -2,7 +2,10 @@
     <uml-question>
         Construct a UML class diagram for a **university management system**, where:
         
-        Each [student](student) has a [name](name), [major](major), and [email](email).
+        Each [person](person) has a [name](name).
+        A [student](student) is a type of [person](person) and has a [major](major) and [email](email).
+        A [teacher](teacher) is a type of [person](person) and has a [salary](salary).
+        
         Each [course](course) has a [name](name), [credit hours](creditHours), and an [instructor](instructor).
         A [student](student) can enroll in multiple [courses](course), and each [course](course) can have multiple [students](student) enrolled.
         An [enrollment](enrollment) record tracks the [student](student), [course](course), [enrollment date](enrollmentDate), and [grade](grade).
@@ -16,14 +19,20 @@
         <method>removeStudent(Student student)</method>, 
         <method>getStudentList()</method>, 
         <method>updateGrade(float newGrade)</method>, 
-        <method>getEnrollmentInfo()</method>`
+        <method>getEnrollmentInfo()</method>` 
     </uml-question>
 
     <uml-answer>
-        [Student|name;major;email|
+        [Person|name;|
+        ]
+
+        [Student|major;email|
         +void enroll(Course course); 
         +void dropCourse(Course course);
         +List&lt;Course&gt; getEnrolledCourses();
+        ]
+
+        [Teacher|salary;|
         ]
 
         [Course|name;creditHours;instructor|
@@ -36,6 +45,9 @@
         +void updateGrade(float newGrade); 
         +String getEnrollmentInfo();
         ]
+
+        [Person] <|-- [Student]
+        [Person] <|-- [Teacher]
 
         [Student] 1..* -- *..1 [Enrollment]
         [Course] 1..* -- *..1 [Enrollment]
