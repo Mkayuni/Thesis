@@ -163,59 +163,97 @@ export const useEntityManagement = () => {
   }, []);
 
   // Function to add a new relationship
+  // Function to add a new relationship
   const addRelationship = useCallback((relationship) => {
     setRelationships((prevRelationships) => {
-        // Ensure relationship doesn't already exist
-        const existingRelation = Array.from(prevRelationships.values()).find(
-            (rel) => rel.relationA === relationship.relationA && rel.relationB === relationship.relationB
+      // Ensure relationship doesn't already exist
+      const existingRelation = Array.from(prevRelationships.values()).find(
+        (rel) =>
+          rel.relationA === relationship.relationA &&
+          rel.relationB === relationship.relationB &&
+          rel.type === relationship.type // Consider relationship type
+      );
+      if (existingRelation) {
+        console.warn(
+          `Relationship between "${relationship.relationA}" and "${relationship.relationB}" of type "${relationship.type}" already exists.`
         );
-        if (existingRelation) {
-            console.warn(`Relationship between "${relationship.relationA}" and "${relationship.relationB}" already exists.`);
-            return prevRelationships;
-        }
+        return prevRelationships;
+      }
 
-        const newRelationships = new Map(prevRelationships);
-        const id = Date.now(); // Unique ID
+      const newRelationships = new Map(prevRelationships);
+      const id = Date.now(); // Unique ID
 
-        if (relationship.type === 'inheritance') {
-            //  Correctly store inheritance
-            newRelationships.set(id, { 
-                id, 
-                type: 'inheritance',  // Now it's correctly marked
-                relationA: relationship.relationA,  // Child
-                relationB: relationship.relationB   // Parent
-            });
-        } else {
-            // Store cardinality relationships as before
-            newRelationships.set(id, { 
-                id, 
-                type: 'cardinality',
-                relationA: relationship.relationA, 
-                relationB: relationship.relationB, 
-                cardinalityA: relationship.cardinalityA, 
-                cardinalityB: relationship.cardinalityB, 
-                cardinalityText: relationship.cardinalityText 
-            });
-        }
+      if (relationship.type === 'inheritance') {
+        // Store inheritance relationship
+        newRelationships.set(id, {
+          id,
+          type: 'inheritance',
+          relationA: relationship.relationA, // Child
+          relationB: relationship.relationB, // Parent
+        });
+        console.log(`Added Inheritance Relationship: ${relationship.relationA} ▷ ${relationship.relationB}`);
+      } else if (relationship.type === 'composition') {
+        // Store composition relationship
+        newRelationships.set(id, {
+          id,
+          type: 'composition',
+          relationA: relationship.relationA, // Owner
+          relationB: relationship.relationB, // Owned
+          cardinalityA: relationship.cardinalityA || '1', // Default cardinality
+          cardinalityB: relationship.cardinalityB || '1', // Default cardinality
+        });
+        console.log(
+          `Added Composition Relationship: ${relationship.relationA} ◆ ${relationship.relationB} (${relationship.cardinalityA}-${relationship.cardinalityB})`
+        );
+      } else if (relationship.type === 'aggregation') {
+        // Store aggregation relationship
+        newRelationships.set(id, {
+          id,
+          type: 'aggregation',
+          relationA: relationship.relationA, // Whole
+          relationB: relationship.relationB, // Part
+          cardinalityA: relationship.cardinalityA || '1', // Default cardinality
+          cardinalityB: relationship.cardinalityB || 'many', // Default cardinality
+        });
+        console.log(
+          `Added Aggregation Relationship: ${relationship.relationA} ◇ ${relationship.relationB} (${relationship.cardinalityA}-${relationship.cardinalityB})`
+        );
+      } else {
+        // Store cardinality relationship
+        newRelationships.set(id, {
+          id,
+          type: 'cardinality',
+          relationA: relationship.relationA,
+          relationB: relationship.relationB,
+          cardinalityA: relationship.cardinalityA,
+          cardinalityB: relationship.cardinalityB,
+        });
+        console.log(
+          `Added Cardinality Relationship: ${relationship.relationA} ${relationship.cardinalityA} -- ${relationship.cardinalityB} ${relationship.relationB}`
+        );
+      }
 
-        console.log(`Added Relationship: ${relationship.relationA} -- ${relationship.relationB}, ID: ${id}`);
-        return newRelationships;
+      return newRelationships;
     });
-}, []);
-
+  }, []);
 
   // Function to edit an existing relationship
-  const editRelationship = useCallback((id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
+  const editRelationship = useCallback((id, updatedRelationship) => {
     setRelationships((prevRelationships) => {
       const newRelationships = new Map(prevRelationships);
-
       if (!newRelationships.has(id)) {
         console.warn(`Warning: Relationship with ID "${id}" does not exist.`);
         return prevRelationships; // Avoid modifying a non-existent relationship
       }
 
-      newRelationships.set(id, { id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText });
-      console.log(`Edited Relationship ID "${id}": ${relationA} -- ${relationB}`); // Log edited relationship
+      const existingRelationship = newRelationships.get(id);
+      const updatedRel = {
+        ...existingRelationship,
+        ...updatedRelationship,
+      };
+
+      newRelationships.set(id, updatedRel);
+      console.log(`Edited Relationship ID "${id}": ${updatedRel.relationA} -- ${updatedRel.relationB}`);
       return newRelationships;
     });
   }, []);
@@ -228,7 +266,6 @@ export const useEntityManagement = () => {
         console.warn(`Relationship with ID "${id}" does not exist.`);
         return prevRelationships; // Avoid removing non-existent relationships
       }
-
       newRelationships.delete(id);
       console.log(`Removed Relationship with ID: ${id}`); // Log removed relationship
       return newRelationships;
@@ -252,3 +289,4 @@ export const useEntityManagement = () => {
     setRelationships,
   };
 };
+

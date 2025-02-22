@@ -29,70 +29,89 @@ const formatType = (type) => {
   return formattedType;
 };
 
-export const schemaToMermaidSource = (schema, relationships) => {
-  let schemaText = [];
+//Schema to MermaidSource
+  export const schemaToMermaidSource = (schema, relationships) => {
+    let schemaText = [];
 
-  schema.forEach((schemaItem, entityName) => {
+    schema.forEach((schemaItem, entityName) => {
       const className = capitalizeFirstLetter(entityName);
+
+      // Skip empty classes (no attributes and no methods)
+      if (
+        (!schemaItem.attribute || schemaItem.attribute.size === 0) &&
+        (!schemaItem.methods || schemaItem.methods.length === 0)
+      ) {
+        return; // Skip this class
+      }
 
       let classDefinition = `class ${className} {\n`;
 
       // Attributes
       const attributeLines = [];
       if (schemaItem.attribute && schemaItem.attribute.size > 0) {
-          schemaItem.attribute.forEach((attr) => {
-              const visibility = attr.visibility === 'private' ? '-' : attr.visibility === 'protected' ? '#' : '+';
-              attributeLines.push(`  ${visibility}${attr.attribute}: ${attr.type}`);
-          });
-      } else {
-          // Add a placeholder if there are no attributes
-          attributeLines.push('  No attributes');
+        schemaItem.attribute.forEach((attr) => {
+          const visibility = attr.visibility === 'private' ? '-' : attr.visibility === 'protected' ? '#' : '+';
+          attributeLines.push(`  ${visibility}${attr.attribute}: ${attr.type}`);
+        });
       }
 
       // Methods
       const methodLines = [];
       if (schemaItem.methods && schemaItem.methods.length > 0) {
-          schemaItem.methods.forEach((method) => {
-              const visibilitySymbol = method.visibility === 'private' ? '-' : method.visibility === 'protected' ? '#' : '+';
-              const paramList = method.parameters.map((param) => `${param}`).join(', ');
-              const returnType = method.returnType ? `: ${method.returnType}` : ': void';
-              methodLines.push(`  ${visibilitySymbol}${method.name}(${paramList})${returnType}`);
-          });
-      } else {
-          // Add a placeholder if there are no methods
-          methodLines.push('  No methods');
+        schemaItem.methods.forEach((method) => {
+          const visibilitySymbol = method.visibility === 'private' ? '-' : method.visibility === 'protected' ? '#' : '+';
+          const paramList = method.parameters.map((param) => `${param}`).join(', ');
+          const returnType = method.returnType ? `: ${method.returnType}` : ': void';
+          methodLines.push(`  ${visibilitySymbol}${method.name}(${paramList})${returnType}`);
+        });
       }
 
       // Combine attributes and methods into the class definition
-      classDefinition += attributeLines.join('\n') + '\n';
-      if (methodLines.length > 0) {
-          classDefinition += '\n' + methodLines.join('\n') + '\n';
+      if (attributeLines.length > 0) {
+        classDefinition += attributeLines.join('\n') + '\n';
       }
+      if (methodLines.length > 0) {
+        if (attributeLines.length > 0) {
+          classDefinition += '\n'; // Add a newline between attributes and methods if both exist
+        }
+        classDefinition += methodLines.join('\n') + '\n';
+      }
+
       classDefinition += `}\n`;
       schemaText.push(classDefinition);
 
-      // **Handle Inheritance Relationships Properly**
+      // Handle Inheritance Relationships Properly
       if (schemaItem.parent) {
-          const parentName = capitalizeFirstLetter(schemaItem.parent);
-          schemaText.push(`${parentName} <|-- ${className}`); // Correct Mermaid Inheritance Syntax
+        const parentName = capitalizeFirstLetter(schemaItem.parent);
+        schemaText.push(`${parentName} <|-- ${className}`); // Correct Mermaid Inheritance Syntax
       }
-  });
+    });
 
-  // **Handle Regular Relationships Separately**
-  relationships.forEach((rel) => {
+    // Handle Regular Relationships Separately
+    relationships.forEach((rel) => {
+      const relationA = capitalizeFirstLetter(rel.relationA);
+      const relationB = capitalizeFirstLetter(rel.relationB);
+
       if (rel.type === 'inheritance') {
-          schemaText.push(`${capitalizeFirstLetter(rel.relationB)} <|-- ${capitalizeFirstLetter(rel.relationA)}`);
+        schemaText.push(`${relationB} <|-- ${relationA}`);
+      } else if (rel.type === 'composition') {
+        schemaText.push(
+          `${relationA} *-- "${rel.cardinalityA}" ${relationB} : "◆ ${rel.label || 'Composition'}"`
+        );
+      } else if (rel.type === 'aggregation') {
+        schemaText.push(
+          `${relationA} o-- "${rel.cardinalityA}" ${relationB} : "◇ ${rel.label || 'Aggregation'}"`
+        );
       } else {
-          const relationA = capitalizeFirstLetter(rel.relationA);
-          const relationB = capitalizeFirstLetter(rel.relationB);
-          const label = rel.cardinalityText || '';
-          schemaText.push(`${relationA} "${rel.cardinalityA}" -- "${rel.cardinalityB}" ${relationB} : ${label}`);
+        schemaText.push(
+          `${relationA} "${rel.cardinalityA}" -- "${rel.cardinalityB}" ${relationB} : ${rel.label || ''}`
+        );
       }
-  });
+    });
 
-  console.log("Final Mermaid Source:\n", schemaText.join('\n'));
-  return schemaText.join('\n');
-};
+    console.log("Final Mermaid Source:\n", schemaText.join('\n'));
+    return schemaText.join('\n');
+  };
 
   // Normalize type by removing unwanted characters like brackets or parentheses
   const normalizeType = (type) => {
@@ -108,15 +127,16 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
   }
 
   const schemaMap = new Map();
+  const relationships = new Map(); // Stores relationships
 
   if (syntaxType === SYNTAX_TYPES.JAVA) {
-    // Updated regex to capture class definitions with inheritance
+    // Regex to capture class definitions with inheritance
     const classRegex = /(?:public|protected|private)?\s*class\s+(\w+)(?:\s+extends\s+(\w+))?\s*\{([\s\S]*?)\}/g;
 
     let classMatch;
     while ((classMatch = classRegex.exec(sourceCode)) !== null) {
-      const className = classMatch[1].toLowerCase();
-      const parentClass = classMatch[2]?.toLowerCase(); // Capture the parent class
+      const className = classMatch[1];
+      const parentClass = classMatch[2] || null; // Capture the parent class if exists
       const classContent = classMatch[3];
       console.log(`Processing class: ${className}, Parent: ${parentClass || 'None'}`); // Log class name and parent
 
@@ -125,13 +145,43 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
       const methodNames = new Set();
 
       // Parse fields (attributes)
-      const fieldRegex = /(?:private|protected|public)?\s+(\w+)\s+(\w+);/g; // Generalized for visibility
+      const fieldRegex = /(?:private|protected|public)?\s+(\w+)\s+(\w+);/g;
       let fieldMatch;
       while ((fieldMatch = fieldRegex.exec(classContent)) !== null) {
         const type = fieldMatch[1];
         const name = fieldMatch[2];
-        console.log(`Found attribute: ${name} (${type})`); // Log attribute
+        console.log(`Found attribute: ${name} (${type})`);
         attributes.set(name, { type });
+
+
+        // Detect composition (e.g., private Engine engine;)
+        if (type !== 'List' && type !== 'Set' && type !== 'Map') {
+          relationships.set(`${className}-${type}`, {
+            type: 'composition',
+            relationA: className,
+            relationB: type,
+            cardinalityA: '1', // Set cardinality for composition
+            cardinalityB: '1', // Set cardinality for composition
+            label: 'Composition',
+          });
+          console.log(`Detected Composition: ${className} *-- ${type}`);
+        }
+
+        // Detect aggregation (e.g., private List courses;)
+        const aggregationRegex = /(?:private|protected|public)?\s+(List|Set|Map)\s+(\w+);/g;
+        let aggregationMatch;
+        while ((aggregationMatch = aggregationRegex.exec(classContent)) !== null) {
+          const itemType = aggregationMatch[2];
+          relationships.set(`${className}-${itemType}`, {
+            type: 'aggregation',
+            relationA: className,
+            relationB: itemType,
+            cardinalityA: '1', // Set cardinality for aggregation
+            cardinalityB: 'many', // Set cardinality for aggregation
+            label: 'Aggregation',
+          });
+          console.log(`Detected Aggregation: ${className} o-- ${itemType}`);
+        }
 
         // Generate getters and setters automatically
         const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
@@ -341,24 +391,24 @@ export const parseMermaidToCode = (mermaidSource, syntax) => {
 };
 
 // Generate class code based on syntax (Java or Python)
-  export const generateClassCode = (className, classContent, syntax) => {
-    const attributeRegex = /(?:\s*[-+#]?\s*)(\w+)\s*:\s*([\w<>()]*)?/g; // Allow parentheses and brackets in type
-    let attributes = [];
-    let match;
+export const generateClassCode = (className, classContent, syntax) => {
+  const attributeRegex = /(?:\s*[-+#]?\s*)(\w+)\s*:\s*([\w<>()]*)?/g; // Allow parentheses and brackets in type
+  let attributes = [];
+  let match;
 
-    // Extract attributes from class content
-    while ((match = attributeRegex.exec(classContent)) !== null) {
-      let [, attributeName, attributeType] = match;
-      // Normalize the type (no default type)
-      attributeType = normalizeType(attributeType);
-      attributes.push({ name: attributeName, type: attributeType });
-    }
+  // Extract attributes from class content
+  while ((match = attributeRegex.exec(classContent)) !== null) {
+    let [, attributeName, attributeType] = match;
+    // Normalize the type (no default type)
+    attributeType = normalizeType(attributeType);
+    attributes.push({ name: attributeName, type: attributeType });
+  }
 
-    // Generate Java or Python class code
-    return syntax === SYNTAX_TYPES.JAVA
-      ? generateJavaClass(className, attributes)
-      : generatePythonClass(className, attributes);
-  };
+  // Generate Java or Python class code
+  return syntax === SYNTAX_TYPES.JAVA
+    ? generateJavaClass(className, attributes)
+    : generatePythonClass(className, attributes);
+};
 
 // Generate Java class code
 const generateJavaClass = (className, attributes) => {
