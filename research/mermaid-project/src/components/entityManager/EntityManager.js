@@ -121,21 +121,48 @@ export const useEntityManagement = () => {
 
   // Function to add a method to an entity
   const addMethod = useCallback((entity, methodDetails) => {
+    
     setSchema((prevSchema) => {
-      const newSchema = new Map(prevSchema);
-      const entityData = newSchema.get(entity);
-      if (!entityData) {
-        console.warn(`Entity "${entity}" does not exist.`);
-        return prevSchema; // Avoid adding methods to non-existent entities
-      }
+        const newSchema = new Map(prevSchema);
+        const entityData = newSchema.get(entity);
+        if (!entityData) {
+            return prevSchema;
+        }
 
-      const existingMethods = entityData.methods || [];
-      entityData.methods = [...existingMethods, methodDetails]; // Add method details
-      newSchema.set(entity, entityData);
-      console.log(`Added Method: ${methodDetails.name} to Entity: ${entity}`); // Log added method
-      return newSchema;
+        // Initialize methods array if it doesn't exist
+        const existingMethods = entityData.methods || [];
+        
+        // Check if method with same name already exists
+        const methodExists = existingMethods.some((method) => method.name === methodDetails.name);
+
+        if (!methodExists) {
+            // Ensure all needed properties are present
+            const processedMethod = {
+                visibility: methodDetails.visibility || 'public',
+                returnType: methodDetails.returnType || 'void',
+                name: methodDetails.name,
+                parameters: methodDetails.parameters || [],
+                methodType: methodDetails.methodType || 'regular',
+                propertyName: methodDetails.propertyName
+            };
+            
+            // Add the method to the entity
+            entityData.methods = [...existingMethods, processedMethod];
+            newSchema.set(entity, entityData);
+        }
+
+        return newSchema;
     });
-  }, []);
+}, []);
+
+  // Function to handle methods from parsed code
+  const addMethodsFromParsedCode = useCallback((className, methodsList) => {
+    if (Array.isArray(methodsList)) {
+      methodsList.forEach(method => {
+        addMethod(className, method);
+      });
+    }
+  }, [addMethod]);
 
   // Function to remove a method from an entity
   const removeMethod = useCallback((entity, methodName) => {
@@ -155,36 +182,96 @@ export const useEntityManagement = () => {
   }, []);
 
   // Function to add a new relationship
-  const addRelationship = useCallback((relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
+  const addRelationship = useCallback((relationship) => {
     setRelationships((prevRelationships) => {
       // Ensure relationship doesn't already exist
       const existingRelation = Array.from(prevRelationships.values()).find(
-        (rel) => rel.relationA === relationA && rel.relationB === relationB
+        (rel) =>
+          rel.relationA === relationship.relationA &&
+          rel.relationB === relationship.relationB &&
+          rel.type === relationship.type // Consider relationship type
       );
       if (existingRelation) {
-        console.warn(`Relationship between "${relationA}" and "${relationB}" already exists.`);
+        console.warn(
+          `Relationship between "${relationship.relationA}" and "${relationship.relationB}" of type "${relationship.type}" already exists.`
+        );
         return prevRelationships;
       }
 
       const newRelationships = new Map(prevRelationships);
-      const id = newRelationships.size + 1;
-      newRelationships.set(id, { id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText });
-      console.log(`Added Relationship: ${relationA} -- ${relationB}`); // Log added relationship
+      const id = Date.now(); // Unique ID
+
+      if (relationship.type === 'inheritance') {
+        // Store inheritance relationship
+        newRelationships.set(id, {
+          id,
+          type: 'inheritance',
+          relationA: relationship.relationA, // Child
+          relationB: relationship.relationB, // Parent
+        });
+        console.log(`Added Inheritance Relationship: ${relationship.relationA} ▷ ${relationship.relationB}`);
+      } else if (relationship.type === 'composition') {
+        // Store composition relationship
+        newRelationships.set(id, {
+          id,
+          type: 'composition',
+          relationA: relationship.relationA, // Owner
+          relationB: relationship.relationB, // Owned
+          cardinalityA: relationship.cardinalityA || '1', // Default cardinality
+          cardinalityB: relationship.cardinalityB || '1', // Default cardinality
+        });
+        console.log(
+          `Added Composition Relationship: ${relationship.relationA} ◆ ${relationship.relationB} (${relationship.cardinalityA}-${relationship.cardinalityB})`
+        );
+      } else if (relationship.type === 'aggregation') {
+        // Store aggregation relationship
+        newRelationships.set(id, {
+          id,
+          type: 'aggregation',
+          relationA: relationship.relationA, // Whole
+          relationB: relationship.relationB, // Part
+          cardinalityA: relationship.cardinalityA || '1', // Default cardinality
+          cardinalityB: relationship.cardinalityB || 'many', // Default cardinality
+        });
+        console.log(
+          `Added Aggregation Relationship: ${relationship.relationA} ◇ ${relationship.relationB} (${relationship.cardinalityA}-${relationship.cardinalityB})`
+        );
+      } else {
+        // Store cardinality relationship
+        newRelationships.set(id, {
+          id,
+          type: 'cardinality',
+          relationA: relationship.relationA,
+          relationB: relationship.relationB,
+          cardinalityA: relationship.cardinalityA,
+          cardinalityB: relationship.cardinalityB,
+        });
+        console.log(
+          `Added Cardinality Relationship: ${relationship.relationA} ${relationship.cardinalityA} -- ${relationship.cardinalityB} ${relationship.relationB}`
+        );
+      }
+
       return newRelationships;
     });
   }, []);
 
   // Function to edit an existing relationship
-  const editRelationship = useCallback((id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText) => {
+  const editRelationship = useCallback((id, updatedRelationship) => {
     setRelationships((prevRelationships) => {
       const newRelationships = new Map(prevRelationships);
       if (!newRelationships.has(id)) {
-        console.warn(`Relationship with ID "${id}" does not exist.`);
-        return prevRelationships; // Avoid editing non-existent relationships
+        console.warn(`Warning: Relationship with ID "${id}" does not exist.`);
+        return prevRelationships; // Avoid modifying a non-existent relationship
       }
 
-      newRelationships.set(id, { id, relationA, relationB, cardinalityA, cardinalityB, cardinalityText });
-      console.log(`Edited Relationship: ${relationA} -- ${relationB}`); // Log edited relationship
+      const existingRelationship = newRelationships.get(id);
+      const updatedRel = {
+        ...existingRelationship,
+        ...updatedRelationship,
+      };
+
+      newRelationships.set(id, updatedRel);
+      console.log(`Edited Relationship ID "${id}": ${updatedRel.relationA} -- ${updatedRel.relationB}`);
       return newRelationships;
     });
   }, []);
@@ -197,7 +284,6 @@ export const useEntityManagement = () => {
         console.warn(`Relationship with ID "${id}" does not exist.`);
         return prevRelationships; // Avoid removing non-existent relationships
       }
-
       newRelationships.delete(id);
       console.log(`Removed Relationship with ID: ${id}`); // Log removed relationship
       return newRelationships;
@@ -213,6 +299,7 @@ export const useEntityManagement = () => {
     updateAttributeKey,
     removeAttribute,
     addMethod,
+    addMethodsFromParsedCode, // Export the new function
     removeMethod, 
     addRelationship,
     editRelationship,

@@ -1,0 +1,66 @@
+<pl-uml-element random="False" max-grade="10">
+    <uml-question>
+        Construct a UML class diagram for a **university management system**, where:
+        
+        Each [person](person) has a [name](name).
+        A [student](student) is a type of [person](person) and has a [major](major) and [email](email).
+        A [teacher](teacher) is a type of [person](person) and has a [salary](salary).
+        
+        Each [course](course) has a [name](name), [credit hours](creditHours), and an [instructor](instructor).
+        A [student](student) can enroll in multiple [courses](course), and each [course](course) can have multiple [students](student) enrolled.
+        An [enrollment](enrollment) record tracks the [student](student), [course](course), [enrollment date](enrollmentDate), and [grade](grade).
+        
+        Each class should include attributes and appropriate methods to support common operations.
+        
+        `<method>enroll(Course course)</method>, 
+        <method>dropCourse(Course course)</method>, 
+        <method>getEnrolledCourses()</method>, 
+        <method>addStudent(Student student)</method>, 
+        <method>removeStudent(Student student)</method>, 
+        <method>getStudentList()</method>, 
+        <method>updateGrade(float newGrade)</method>, 
+        <method>getEnrollmentInfo()</method>` 
+    </uml-question>
+
+    <uml-answer>
+        [Person|name;|
+        ]
+
+        [Student|major;email|
+        +void enroll(Course course); 
+        +void dropCourse(Course course);
+        +List&lt;Course&gt; getEnrolledCourses();
+        ]
+
+        [Teacher|salary;|
+        ]
+
+        [Course|name;creditHours;instructor|
+        +void addStudent(Student student); 
+        +void removeStudent(Student student);
+        +List&lt;Student&gt; getStudentList();
+        ]
+
+        [Enrollment|enrollmentDate;grade|
+        +void updateGrade(float newGrade); 
+        +String getEnrollmentInfo();
+        ]
+
+        [Person] <|-- [Student]
+        [Person] <|-- [Teacher]
+
+        [Student] 1..* -- *..1 [Enrollment]
+        [Course] 1..* -- *..1 [Enrollment]
+    </uml-answer>
+
+    <uml-marking 
+        entity-name="0.2" 
+        entity-attributes="0.1" 
+        entity-key="0.2" 
+        extra-entity-penalty="0.25" 
+        weak_entity="0.5" 
+        relationship="0.5" 
+        cardinality="0.25" 
+        extra-relationship-penalty="0.25">
+    </uml-marking>
+</pl-uml-element>
