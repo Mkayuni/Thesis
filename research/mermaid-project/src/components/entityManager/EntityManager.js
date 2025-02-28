@@ -121,13 +121,11 @@ export const useEntityManagement = () => {
 
   // Function to add a method to an entity
   const addMethod = useCallback((entity, methodDetails) => {
-    console.log(`Attempting to add method to ${entity}:`, methodDetails);
     
     setSchema((prevSchema) => {
         const newSchema = new Map(prevSchema);
         const entityData = newSchema.get(entity);
         if (!entityData) {
-            console.warn(`Entity "${entity}" does not exist.`);
             return prevSchema;
         }
 
@@ -151,9 +149,6 @@ export const useEntityManagement = () => {
             // Add the method to the entity
             entityData.methods = [...existingMethods, processedMethod];
             newSchema.set(entity, entityData);
-            console.log(`✅ Added Method: ${methodDetails.name} to Entity: ${entity}`);
-        } else {
-            console.warn(`⚠️ Method "${methodDetails.name}" already exists in Entity "${entity}".`);
         }
 
         return newSchema;

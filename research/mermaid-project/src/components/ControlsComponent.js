@@ -38,7 +38,6 @@ const ControlsComponent = ({ setQuestionMarkdown, questions, setQuestions, onQue
   const inputRef = useRef(null);
 
   useEffect(() => {
-    console.log("Questions updated:", questions);
   }, [questions]);
 
   const handleQuestionSubmit = () => {
