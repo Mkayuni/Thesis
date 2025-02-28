@@ -79,6 +79,8 @@ const UMLContainer = ({
   setRelationships,
   addMethod,
   removeMethod,
+  addMethodsFromParsedCode, // Add this new prop
+  syncCodeWithSchema, // Optionally add this if needed
   methods,
   popup,
   entityPopupRef,
@@ -124,6 +126,7 @@ const UMLContainer = ({
             setRelationships={setRelationships}
             addMethod={addMethod}
             removeMethod={removeMethod}
+            addMethodsFromParsedCode={addMethodsFromParsedCode} // Pass this down if needed
             methods={methods}
           />
         </LeftPanel>
@@ -182,6 +185,8 @@ const UMLContainer = ({
               methods={methods}
               addMethod={addMethod}
               removeMethod={removeMethod}
+              addMethodsFromParsedCode={addMethodsFromParsedCode} // Pass the new function
+              syncCodeWithSchema={syncCodeWithSchema} // Optionally pass this if needed
             />
           </Box>
 

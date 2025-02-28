@@ -4,8 +4,6 @@ import mermaid from 'mermaid';
 import './mermaid.css';
 import { usePopup } from './utils/usePopup';
 import { useEntityManagement } from './entityManager/EntityManager';
-import { parseCodeToSchema } from './utils/mermaidUtils'; 
-import { SYNTAX_TYPES } from './ui/ui';
 import UMLContainer from './containers/UMLContainer';
 
 const UMLComponent = () => {
@@ -24,6 +22,7 @@ const UMLComponent = () => {
     editRelationship,
     addMethod,
     removeMethod,
+    addMethodsFromParsedCode, // Import the new function
   } = useEntityManagement();
 
   const {
@@ -82,6 +81,11 @@ const UMLComponent = () => {
       .then((response) => response.json())
       .then((data) => {
         setMethods(data.methods);
+        // If you need to add these methods to schema entities, you can do it here
+        // For example, if you know which entity these methods belong to:
+        // if (data.methods && data.methods.length > 0 && someEntity) {
+        //   addMethodsFromParsedCode(someEntity, data.methods);
+        // }
       })
       .catch((error) => console.error('Error fetching methods:', error));
   };
@@ -107,46 +111,11 @@ const UMLComponent = () => {
   };
 
   // Updated syncJavaCodeWithSchema function
-  const syncJavaCodeWithSchema = (javaCode) => {
-    const parsedSchema = parseCodeToSchema(javaCode, SYNTAX_TYPES.JAVA, addMethod); // Pass addMethod here
-  
-    // Update the schema with the parsed data
-    parsedSchema.forEach((newEntity, entityName) => {
-      const currentEntity = schema.get(entityName);
-  
-      if (currentEntity) {
-        // Update attributes
-        newEntity.attribute.forEach((newAttr, attrName) => {
-          const currentAttr = currentEntity.attribute.get(attrName);
-          if (!currentAttr || currentAttr.type !== newAttr.type) {
-            addAttribute(entityName, attrName, newAttr.type);
-          }
-        });
-  
-        // Update methods
-        if (newEntity.methods) {
-          newEntity.methods.forEach((newMethod) => {
-            const existingMethods = currentEntity.methods || [];
-            if (!existingMethods.some((method) => method.name === newMethod.name)) {
-              addMethod(entityName, newMethod);
-            }
-          });
-        }
-      } else {
-        // Add new entity
-        addEntity(entityName);
-        // Add attributes for the new entity
-        newEntity.attribute.forEach((newAttr, attrName) => {
-          addAttribute(entityName, attrName, newAttr.type);
-        });
-        // Add methods for the new entity
-        if (newEntity.methods) {
-          newEntity.methods.forEach((method) => {
-            addMethod(entityName, method);
-          });
-        }
-      }
-    });
+  const syncCodeWithSchema = (codeString, className, methodsList) => {
+    // If you need to process code and extract methods to add to schema
+    if (methodsList && Array.isArray(methodsList) && className) {
+      addMethodsFromParsedCode(className, methodsList);
+    }
   };
   
   const handleAddMethodClick = (entity, methodDetails) => {
@@ -266,6 +235,7 @@ const UMLComponent = () => {
       setRelationships={setRelationships}
       addMethod={addMethod}
       removeMethod={removeMethod}
+      addMethodsFromParsedCode={addMethodsFromParsedCode} // Pass the new function to the container
       methods={methods}
       popup={popup}
       entityPopupRef={entityPopupRef}
@@ -276,6 +246,7 @@ const UMLComponent = () => {
       setAttributeType={setAttributeType}
       questionContainerRef={questionContainerRef}
       showSubPopup={showSubPopup}
+      syncCodeWithSchema={syncCodeWithSchema} // Make the new helper available
     />
   );
 };

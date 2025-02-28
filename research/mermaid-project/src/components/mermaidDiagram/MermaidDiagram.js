@@ -10,11 +10,8 @@ import {
   extractEntityName,
   schemaToMermaidSource,
   parseCodeToSchema,
-  parseMermaidToCode,
+ // parseMermaidToCode,
 } from '../utils/mermaidUtils';
-
-// Removed the import for the non-existent CSS file:
-// import './mermaid.css';
 
 // Styled components for modern UI
 const DiagramBox = styled(Box)(({ theme }) => ({
@@ -64,6 +61,8 @@ const MermaidDiagram = ({
   addRelationship,
   removeRelationship,
   addMethod,
+  addMethodsFromParsedCode, // Add this new prop
+  removeMethod, // Optionally add this if you have it
 }) => {
   const diagramRef = useRef(null);
   const [showRelationshipManager, setShowRelationshipManager] = useState(false);
@@ -222,63 +221,39 @@ const MermaidDiagram = ({
     }
   }, [schema, relationships, renderDiagram]);
 
-  // Generate code from the current schema and relationships
-  const handleGenerate = () => {
-    const mermaidSource = schemaToMermaidSource(schema, relationships);
-    const generated = parseMermaidToCode(mermaidSource, syntax);
-    setGeneratedCode(generated);
-    setCode(generated); // Update Monaco Editor with generated code
-  };
-
-  // Sync Java code with the schema
-  // Update the schema based on the code in the editor
+  
+  // In MermaidDiagram.js, update the syncJavaCodeWithSchema function:
 const syncJavaCodeWithSchema = (javaCode) => {
-  const parsedSchema = parseCodeToSchema(javaCode, SYNTAX_TYPES.JAVA, addMethod); // Pass addMethod here
+  // First, parse the schema
+  const parsedSchema = parseCodeToSchema(javaCode, SYNTAX_TYPES.JAVA, addMethod, addMethodsFromParsedCode);
+  console.log("Parsed Schema:", parsedSchema);
 
-  // Update the schema with the parsed data
+  // First pass: Create all entities and add attributes
   parsedSchema.forEach((newEntity, entityName) => {
-    const currentEntity = schema.get(entityName);
-
-    if (currentEntity) {
-      // Update attributes
-      newEntity.attribute.forEach((newAttr, attrName) => {
-        const currentAttr = currentEntity.attribute.get(attrName);
-        if (!currentAttr || currentAttr.type !== newAttr.type) {
-          addAttribute(entityName, attrName, newAttr.type);
-        }
-      });
-
-      // Update methods
-      if (newEntity.methods) {
-        newEntity.methods.forEach((newMethod) => {
-          const existingMethods = currentEntity.methods || [];
-          if (!existingMethods.some((method) => method.name === newMethod.name)) {
-            addMethod(entityName, newMethod);
-          }
-        });
-      }
-    } else {
-      // Add new entity
-      addEntity(entityName);
-      // Add attributes for the new entity
-      newEntity.attribute.forEach((newAttr, attrName) => {
-        addAttribute(entityName, attrName, newAttr.type);
-      });
-      // Add methods for the new entity
-      if (newEntity.methods) {
-        newEntity.methods.forEach((method) => {
-          addMethod(entityName, method);
-        });
-      }
+    addEntity(entityName);
+    console.log(`First pass - Created entity: ${entityName}`);
+    
+    // Add attributes
+    newEntity.attribute.forEach((attr, attrName) => {
+      addAttribute(entityName, attrName, attr.type);
+      console.log(`Added attribute: ${attrName} to ${entityName}`);
+    });
+  });
+  
+  // Second pass: Now that all entities exist, add methods
+  parsedSchema.forEach((newEntity, entityName) => {
+    if (newEntity.methods && newEntity.methods.length > 0) {
+      console.log(`Second pass - Adding ${newEntity.methods.length} methods to ${entityName}`);
+      addMethodsFromParsedCode(entityName, newEntity.methods);
     }
   });
 };
 
-  // Update the schema based on the code in the editor
+  // Update the schema and re-render diagram
   const handleUpdate = () => {
-    syncJavaCodeWithSchema(code); // Sync Java code with schema
-    setIsCodeModified(false); // Reset modification flag
-    renderDiagram(); // Re-render the diagram
+      syncJavaCodeWithSchema(code); // Sync Java code with schema
+      setIsCodeModified(false); // Reset modification flag
+      renderDiagram(); // Re-render the diagram
   };
 
   return (
@@ -350,7 +325,7 @@ const syncJavaCodeWithSchema = (javaCode) => {
           <Button
             variant="contained"
             color="primary"
-            onClick={handleGenerate}
+           // onClick={handleGenerate}
             sx={{ mr: 2, mt: 2 }}
           >
             Generate

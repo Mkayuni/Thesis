@@ -517,3 +517,618 @@ const ControlsComponent = ({
 };
 
 export default ControlsComponent;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { SYNTAX_TYPES } from '../ui/ui'; // Import SYNTAX_TYPES
+
+
+// Helper function to capitalize the first letter of a string
+export const capitalizeFirstLetter = (string) => {
+  if (typeof string !== 'string' || !string) {
+    console.error('Invalid input to capitalizeFirstLetter:', string);
+    return ''; // Return an empty string or handle the error as needed
+  }
+  return string.charAt(0).toUpperCase() + string.slice(1);
+};
+
+// Helper function to normalize entity names (remove spaces and convert to lowercase)
+export const normalizeEntityName = (name) => {
+  return name.replace(/\s+/g, '').toLowerCase();
+};
+
+// Helper function to extract entity names from node IDs
+export const extractEntityName = (nodeId) => {
+  const parts = nodeId.split('-');
+  return parts.length >= 2 ? normalizeEntityName(parts[1]) : normalizeEntityName(nodeId);
+};
+
+// Helper function to clean up type formatting
+const formatType = (type) => {
+  if (!type) return ''; // Return an empty string if type is undefined
+  let formattedType = type.replace(/\[.*\]/g, '[]'); // Replace any array notation (e.g. [string]) with []
+  formattedType = formattedType.replace(/[()]+/g, ''); // Remove unnecessary parentheses
+  return formattedType;
+};
+
+//Schema to MermaidSource
+export const schemaToMermaidSource = (schema, relationships) => {
+  let schemaText = [];
+  console.log("Processing schema for Mermaid diagram...");
+
+  // Process each entity in the schema
+  schema.forEach((schemaItem, entityName) => {
+    if (!schemaItem) return; // Ensure schemaItem is defined
+
+    const className = capitalizeFirstLetter(entityName);
+    let classDefinition = `class ${className} {\n`;
+
+    // Track processed attributes to avoid duplicates
+    const attributeSet = new Set();
+    const attributeLines = [];
+
+    if (schemaItem.attribute && schemaItem.attribute.size > 0) {
+      schemaItem.attribute.forEach((attr) => {
+        const attrLine = `  -${attr.attribute}: ${attr.type}`;
+        if (!attributeSet.has(attrLine)) {
+          attributeSet.add(attrLine);
+          attributeLines.push(attrLine);
+        }
+      });
+    } else {
+      attributeLines.push("  // No attributes");
+    }
+
+    // Track processed methods to avoid duplicates
+    const methodSet = new Set();
+    const methodLines = [];
+
+    // Include Constructor If Defined
+    if (schemaItem.constructor && Array.isArray(schemaItem.constructor.parameters)) {
+      const paramList = schemaItem.constructor.parameters.map((param) => `${param}`).join(", ");
+      const constructorSignature = `  +${className}(${paramList})`;
+
+      if (!methodSet.has(constructorSignature)) {
+        methodSet.add(constructorSignature);
+        methodLines.push(constructorSignature);
+      }
+
+      console.log(`Including Constructor: ${className}(${paramList})`);
+    }
+
+    // Include Getters and Setters
+    if (schemaItem.methods && Array.isArray(schemaItem.methods)) {
+      console.log(`📌 Methods included for Mermaid (${className}):`, schemaItem.methods); // Debug log
+      schemaItem.methods.forEach((method) => {
+        const visibilitySymbol =
+          method.visibility === "private" ? "-" : method.visibility === "protected" ? "#" : "+";
+        const paramList = method.parameters.map((param) => `${param}`).join(", ");
+        const returnType = method.returnType ? `: ${method.returnType}` : ": void";
+        const methodSignature = `  ${visibilitySymbol}${method.name}(${paramList})${returnType}`;
+    
+        if (!methodSet.has(methodSignature)) {
+          methodSet.add(methodSignature);
+          methodLines.push(methodSignature);
+        }
+      });
+    }
+    
+  
+    // Combine attributes and methods into the class definition
+    classDefinition += attributeLines.join("\n") + "\n";
+
+    if (methodLines.length > 0) {
+      if (attributeLines.length > 0) {
+        classDefinition += "\n"; // Add a newline between attributes and methods if both exist
+      }
+      classDefinition += methodLines.join("\n") + "\n";
+    }
+
+    classDefinition += `}\n`;
+    schemaText.push(classDefinition);
+
+    // Debug: Log attributes and methods
+    console.log(`Attributes for ${className}:`, schemaItem.attribute);
+    console.log(`Methods for ${className}:`, schemaItem.methods);
+
+    // Handle Inheritance Relationships Properly
+    if (schemaItem.parent) {
+      const parentName = capitalizeFirstLetter(schemaItem.parent);
+      console.log(`Adding inheritance: ${parentName} <|-- ${className}`);
+      schemaText.push(`${parentName} <|-- ${className}`);
+
+      // Merge methods properly without overwriting child methods
+      const parentSchema = schema.get(schemaItem.parent);
+      if (parentSchema && parentSchema.methods) {
+        console.log(`Merging methods from parent ${parentName} to child ${className}`);
+
+        const existingChildMethods = schemaItem.methods || [];
+        const uniqueParentMethods = parentSchema.methods.filter(
+          (parentMethod) => !existingChildMethods.some((childMethod) => childMethod.name === parentMethod.name)
+        );
+
+        schemaItem.methods = [...existingChildMethods, ...uniqueParentMethods];
+      }
+    }
+  });
+
+  // Handle Regular Relationships Separately
+  relationships.forEach((rel) => {
+    if (!rel.relationA || !rel.relationB) return; // Prevent undefined errors
+
+    const relationA = capitalizeFirstLetter(rel.relationA);
+    const relationB = capitalizeFirstLetter(rel.relationB);
+    console.log(`Adding Relationship: ${relationA} -- ${relationB} (${rel.type})`);
+
+    if (rel.type === "inheritance") {
+      schemaText.push(`${relationB} <|-- ${relationA}`);
+    } else if (rel.type === "composition") {
+      schemaText.push(`${relationA} *-- "${rel.cardinalityA}" ${relationB} : "◆ ${rel.label || "Composition"}"`);
+    } else if (rel.type === "aggregation") {
+      schemaText.push(`${relationA} o-- "${rel.cardinalityA}" ${relationB} : "◇ ${rel.label || "Aggregation"}"`);
+    } else {
+      schemaText.push(`${relationA} "${rel.cardinalityA}" -- "${rel.cardinalityB}" ${relationB} : ${rel.label || ""}`);
+    }
+  });
+
+  console.log("Final Mermaid Source:\n", schemaText.join("\n"));
+  return schemaText.join("\n");
+};
+
+  // Normalize type by removing unwanted characters like brackets or parentheses
+  const normalizeType = (type) => {
+    if (!type) return ''; // Return an empty string if type is undefined
+    return type.replace(/[\[\]]/g, '').trim(); // Only remove brackets, not parentheses
+  };
+
+
+// Parse source code into a schema format
+export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
+  if (typeof addMethod !== 'function') {
+    throw new Error("addMethod must be a function");
+  }
+  const schemaMap = new Map();
+  const relationships = new Map(); // Stores relationships
+  const detectedClasses = new Set(); // Track classes that are defined in the source code
+
+  // List of primitive and built-in types to exclude
+  const PRIMITIVE_TYPES = new Set([
+    "String", "int", "double", "float", "boolean", "char", "long", "short", "byte", "void"
+  ]);
+
+  if (syntaxType === SYNTAX_TYPES.JAVA) {
+    const classRegex = /(?:public|protected|private)?\s*class\s+(\w+)(?:\s+extends\s+(\w+))?\s*\{([\s\S]*?)\}/g;
+    let classMatch;
+
+    while ((classMatch = classRegex.exec(sourceCode)) !== null) {
+      const className = classMatch[1];
+      detectedClasses.add(className); // Track defined classes
+      const parentClass = classMatch[2] || null;
+      const classContent = classMatch[3];
+      const attributes = new Map();
+      const methods = [];
+      const methodNames = new Set();
+
+      // Parse fields (attributes)
+      const fieldRegex = /(?:private|protected|public)?\s+(\w+)\s+(\w+);/g;
+      let fieldMatch;
+
+      while ((fieldMatch = fieldRegex.exec(classContent)) !== null) {
+        const type = fieldMatch[1];
+        const name = fieldMatch[2];
+        attributes.set(name, { type });
+
+        // Detect composition and aggregation
+        if (!PRIMITIVE_TYPES.has(type)) {
+          if (type.match(/^(List|Set|Map)<(\w+)>$/)) {
+            const match = type.match(/^(List|Set|Map)<(\w+)>$/);
+            const collectionType = match[1];
+            const itemType = match[2];
+            relationships.set(`${className}-${itemType}`, {
+              type: 'aggregation',
+              relationA: className,
+              relationB: itemType,
+              cardinalityA: '1',
+              cardinalityB: 'many',
+              label: 'Aggregation',
+            });
+          } else if (/^[A-Z]/.test(type)) {
+            relationships.set(`${className}-${type}`, {
+              type: 'composition',
+              relationA: className,
+              relationB: type,
+              cardinalityA: '1',
+              cardinalityB: '1',
+              label: 'Composition',
+            });
+          }
+        }
+      }
+
+      // Detect aggregation (e.g., private List<Car> cars;)
+      const aggregationRegex = /(?:private|protected|public)?\s+(List|Set|Map)\s*<\s*(\w+)\s*>\s+(\w+)(?:\s*=.*)?;/g;
+      let aggregationMatch;
+
+      console.log(`\nProcessing Class: ${className}`); // Log the class being processed
+      console.log("Class Content:\n", classContent);  // Log the raw class content
+
+      while ((aggregationMatch = aggregationRegex.exec(classContent)) !== null) {
+        const collectionType = aggregationMatch[1]; // e.g., "List"
+        const itemType = aggregationMatch[2];      // e.g., "Car"
+        const fieldName = aggregationMatch[3];     // e.g., "cars"
+
+        console.log(`\nDetected Aggregation in ${className}:`);
+        console.log(` - Collection Type: ${collectionType}`);
+        console.log(` - Item Type: ${itemType}`);
+        console.log(` - Field Name: ${fieldName}`);
+
+        // Store the aggregation relationship
+        relationships.set(`${className}-${itemType}`, {
+          type: 'aggregation',
+          relationA: className,
+          relationB: itemType,
+          cardinalityA: '1',       // Garage has 1 collection
+          cardinalityB: 'many',    // Collection contains many items
+          label: 'Aggregation',
+        });
+
+        // Add the field to attributes
+        attributes.set(fieldName, { type: `${collectionType}<${itemType}>` });
+      }
+
+      console.log("Final Relationships Map:", relationships); // Log the relationships detected
+
+      // Detect instantiations inside constructors
+      const instantiationRegex = /this\.(\w+)\s*=\s*new\s+(\w+)\(/g;
+      let instantiationMatch;
+
+      while ((instantiationMatch = instantiationRegex.exec(classContent)) !== null) {
+        const fieldName = instantiationMatch[1];
+        const instantiatedType = instantiationMatch[2];
+
+        console.log(`Detected instantiation: ${className} → ${instantiatedType}`);
+        attributes.set(fieldName, { type: instantiatedType });
+
+        // Store composition relationship dynamically
+        relationships.set(`${className}-${instantiatedType}`, {
+          type: 'composition',
+          relationA: className,
+          relationB: instantiatedType,
+          cardinalityA: '1',
+          cardinalityB: '1',
+          label: 'Composition',
+        });
+      }
+
+
+     // Parse all methods (including inferred methods)
+      const methodRegex = /(public|private|protected)?\s+(\w+)\s+(\w+)\s*\(([^)]*)\)\s*\{/g;
+      const getterSetterRegex = /(public|protected|private)?\s+(\w+)\s+(get|set)([A-Z]\w*)\s*\(([^)]*)\)\s*\{/g;
+
+      let methodMatch;
+
+      while ((methodMatch = methodRegex.exec(classContent)) !== null) {
+          const visibility = methodMatch[1] || "public";
+          let returnType = methodMatch[2] || "void";
+          const methodName = methodMatch[3];
+          const parameters = methodMatch[4] ? methodMatch[4].trim().split(",").map(param => param.trim()) : [];
+
+          // Add all methods to the schema
+          methods.push({
+              visibility,
+              returnType,
+              name: methodName,
+              parameters
+          });
+      }
+
+      // Detect explicit getters and setters using separate regex
+      let getterSetterMatch;
+      while ((getterSetterMatch = getterSetterRegex.exec(classContent)) !== null) {
+          const visibility = getterSetterMatch[1] || "public";
+          const returnType = getterSetterMatch[2] || "void";
+          const methodType = getterSetterMatch[3]; // "get" or "set"
+          const methodNameSuffix = getterSetterMatch[4]; // Capitalized part of the method name
+          const parameters = getterSetterMatch[5] ? getterSetterMatch[5].trim().split(",").map(param => param.trim()) : [];
+
+          // Add getters and setters directly to the schema without checking for attributes
+          if (methodType === "get") {
+              methods.push({
+                  visibility,
+                  returnType,
+                  name: `get${methodNameSuffix}`, // Preserve capitalization
+                  parameters: []
+              });
+          } else if (methodType === "set") {
+              methods.push({
+                  visibility,
+                  returnType: "void", // Setters always return void
+                  name: `set${methodNameSuffix}`, // Preserve capitalization
+                  parameters
+              });
+          }
+      }
+      
+      // Handle inheritance
+      if (parentClass) {
+        const parentSchema = schemaMap.get(parentClass);
+        if (parentSchema) {
+          const inheritedMethods = parentSchema.methods.filter(
+            (parentMethod) => !methods.some((childMethod) => childMethod.name === parentMethod.name)
+          );
+
+          console.log(`Inheriting ${inheritedMethods.length} methods from ${parentClass} to ${className}`);
+
+          // Preserve existing child methods and only add missing parent methods
+          methods.push(...inheritedMethods);
+        }
+      }
+
+      // Infer methods for aggregation fields
+      attributes.forEach((attr, attrName) => {
+        const match = attr.type.match(/^(List|Set|Map)<(\w+)>$/);
+        if (!match) return; // Skip non-collection fields
+        const collectionType = match[1]; // e.g., "List"
+        const itemType = match[2];       // e.g., "Car"
+
+        // Infer "add" method (e.g., addCar(Car car))
+        const addMethodName = `add${capitalizeFirstLetter(itemType)}`;
+        if (!methodNames.has(addMethodName)) {
+          console.log(`Inferred add method: ${addMethodName}`);
+          methods.push({
+            visibility: 'public',
+            returnType: 'void',
+            name: addMethodName,
+            parameters: [`${itemType.toLowerCase()}: ${itemType}`], // Format parameter as "car: Car"
+          });
+          methodNames.add(addMethodName);
+        }
+
+        // Infer "get" method (e.g., getCars(): List<Car>)
+        const getMethodName = `get${capitalizeFirstLetter(attrName)}`;
+        if (!methodNames.has(getMethodName)) {
+          console.log(`Inferred get method: ${getMethodName}`);
+          methods.push({
+            visibility: 'public',
+            returnType: `${collectionType}<${itemType}>`,
+            name: getMethodName,
+            parameters: [],
+          });
+          methodNames.add(getMethodName);
+        }
+      });
+
+      // Add the entity to the schema
+      schemaMap.set(className, {
+        entity: className,
+        attribute: attributes,
+        methods: methods,
+        parent: parentClass, // Add parent class to the schema
+      });
+
+      // Call addMethod for each method
+      methods.forEach((method) => {
+        addMethod(className, method);
+      });
+
+      console.log("Parsed Class:", className, "Methods:", methods, "Parent:", parentClass); // Log parsed class
+    }
+
+    // **Ensure all instantiated classes exist in schema**
+    relationships.forEach((rel) => {
+      if (rel.type === "composition" && !schemaMap.has(rel.relationB) && !detectedClasses.has(rel.relationB)) {
+        // Exclude primitive and built-in types
+        if (!PRIMITIVE_TYPES.has(rel.relationB)) {
+          console.log(` Adding missing class definition for: ${rel.relationB}`);
+          schemaMap.set(rel.relationB, {
+            entity: rel.relationB,
+            attribute: new Map(), // No attributes detected for undefined class
+            methods: [],
+          });
+        }
+      }
+    });
+  } else if (syntaxType === SYNTAX_TYPES.PYTHON) {
+    // Python parsing logic remains unchanged for now
+    const classRegex = /class (\w+):\s*((?:.|\n)*?)(?=\n\S|$)/g;
+    const attrRegex = /self\.(\w+)\s*:\s*(\w+)/g;
+    const methodRegex = /def (\w+)\((self,?[^)]*)\):/g;
+    let classMatch;
+
+    while ((classMatch = classRegex.exec(sourceCode)) !== null) {
+      const className = classMatch[1].toLowerCase();
+      const classContent = classMatch[2];
+      const attributes = new Map();
+      const methods = []; // Initialize methods array
+
+      // Parse attributes
+      let attrMatch;
+      while ((attrMatch = attrRegex.exec(classContent)) !== null) {
+        const name = attrMatch[1];
+        const type = attrMatch[2];
+        attributes.set(name, { type });
+      }
+
+      // Parse methods
+      let methodMatch;
+      while ((methodMatch = methodRegex.exec(classContent)) !== null) {
+        const methodName = methodMatch[1];
+        const parameters = methodMatch[2].split(',').map(param => param.trim()).slice(1); // Remove 'self'
+        methods.push({ visibility: "public", returnType: "", name: methodName, parameters });
+      }
+
+      // Add the entity to the schema
+      schemaMap.set(className, {
+        entity: className,
+        attribute: attributes,
+        methods: methods, // Ensure methods is always defined
+      });
+
+      // Call addMethod for each method
+      methods.forEach((method) => {
+        addMethod(className, method);
+      });
+    }
+  }
+
+  // Log the final schema map for debugging
+  console.log("Final schema map:", schemaMap);
+  console.log("Detected Relationships:", relationships);
+  return schemaMap;
+};
+
+// Apply updates to the schema based on changes
+export const applySchemaUpdates = (
+  updatedSchema,
+  schema,
+  removeEntity,
+  removeAttribute,
+  addAttribute,
+  addEntity
+) => {
+  // Remove entities not present in updated schema
+  schema.forEach((_, entityName) => {
+    if (!updatedSchema.has(entityName)) {
+      removeEntity(entityName);
+    }
+  });
+
+  // Update existing or add new entities
+  updatedSchema.forEach((newEntity, entityName) => {
+    const currentEntity = schema.get(entityName);
+    if (currentEntity) {
+      // Update attributes
+      currentEntity.attribute.forEach((_, attrName) => {
+        if (!newEntity.attribute.has(attrName)) {
+          removeAttribute(entityName, attrName);
+        }
+      });
+
+      newEntity.attribute.forEach((newAttr, attrName) => {
+        const currentAttr = currentEntity.attribute.get(attrName);
+
+        // Only update the attribute if the type has changed and is not empty
+        if (newAttr.type && (!currentAttr || currentAttr.type !== newAttr.type)) {
+          if (currentAttr) {
+            removeAttribute(entityName, attrName);
+          }
+          console.log(`Updating Attribute: ${attrName} in Entity: ${entityName}, New Type: ${newAttr.type}`);
+          addAttribute(entityName, attrName, currentAttr?.key || '', newAttr.type);
+        } else if (!newAttr.type && currentAttr) {
+          console.warn(`Type is empty for Attribute: ${attrName} in Entity: ${entityName}`);
+        }
+      });
+    } else {
+      // Add new entity
+      addEntity(entityName);
+      newEntity.attribute.forEach((newAttr, attrName) => {
+        console.log(`Adding Attribute: ${attrName} to Entity: ${entityName}, Type: ${newAttr.type}`);
+        addAttribute(entityName, attrName, '', newAttr.type);
+      });
+    }
+  });
+};
+
+// Parse Mermaid diagram source into code
+export const parseMermaidToCode = (mermaidSource, syntax) => {
+  const classRegex = /class\s+(\w+)\s*\{([^}]*)\}/g;
+  const relationshipRegex = /(\w+)"([^"]+)"--"([^"]+)"(\w+)/g;
+  let code = '';
+  let match;
+
+  // Generate code for each class
+  while ((match = classRegex.exec(mermaidSource)) !== null) {
+    const [, className, classContent] = match;
+    code += generateClassCode(className, classContent, syntax) + '\n\n';
+  }
+
+  // Add relationship comments
+  while ((match = relationshipRegex.exec(mermaidSource)) !== null) {
+    const [, classA, cardinalityA, cardinalityB, classB] = match;
+    const commentSymbol = syntax === SYNTAX_TYPES.PYTHON ? "#" : "//";
+    code += `${commentSymbol} Relationship: ${classA} "${cardinalityA}" -- "${cardinalityB}" ${classB}\n`;
+  }
+
+  return code.trim();
+};
+
+// Generate class code based on syntax (Java or Python)
+export const generateClassCode = (className, classContent, syntax) => {
+  const attributeRegex = /(?:\s*[-+#]?\s*)(\w+)\s*:\s*([\w<>()]*)?/g; // Allow parentheses and brackets in type
+  let attributes = [];
+  let match;
+
+  // Extract attributes from class content
+  while ((match = attributeRegex.exec(classContent)) !== null) {
+    let [, attributeName, attributeType] = match;
+    // Normalize the type (no default type)
+    attributeType = normalizeType(attributeType);
+    attributes.push({ name: attributeName, type: attributeType });
+  }
+
+  // Generate Java or Python class code
+  return syntax === SYNTAX_TYPES.JAVA
+    ? generateJavaClass(className, attributes)
+    : generatePythonClass(className, attributes);
+};
+
+// Generate Java class code
+const generateJavaClass = (className, attributes) => {
+  let code = `public class ${className} {\n`;
+  if (attributes.length === 0) {
+    code += "    // No attributes\n";
+  }
+  // Generate fields
+  attributes.forEach(({ name, type }) => {
+    code += `    private ${type} ${name};\n`;
+  });
+  // Generate getters and setters
+  attributes.forEach(({ name, type }) => {
+    const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+    code += `
+    public ${type} get${capitalizedName}() {
+        return this.${name};
+    }
+    public void set${capitalizedName}(${type} ${name}) {
+        this.${name} = ${name};
+    }\n`;
+  });
+  code += '}';
+  return code;
+};
+
+// Generate Python class code
+const generatePythonClass = (className, attributes) => {
+  let code = `class ${className}:\n`;
+  if (attributes.length === 0) {
+    code += "    # No attributes\n";
+    return code;
+  }
+  // Generate __init__ method
+  code += "    def __init__(self):\n";
+  attributes.forEach(({ name }) => {
+    code += `        self._${name} = None\n`;
+  });
+  // Generate properties (getters and setters)
+  attributes.forEach(({ name }) => {
+    code += `
+    @property
+    def ${name}(self):
+        return self._${name}
+    @${name}.setter
+    def ${name}(self, value):
+        self._${name} = value\n`;
+  });
+  return code;
+};

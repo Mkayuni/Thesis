@@ -121,29 +121,53 @@ export const useEntityManagement = () => {
 
   // Function to add a method to an entity
   const addMethod = useCallback((entity, methodDetails) => {
+    console.log(`Attempting to add method to ${entity}:`, methodDetails);
+    
     setSchema((prevSchema) => {
-      const newSchema = new Map(prevSchema);
-      const entityData = newSchema.get(entity);
-      if (!entityData) {
-        console.warn(`Entity "${entity}" does not exist.`);
-        return prevSchema;
-      }
+        const newSchema = new Map(prevSchema);
+        const entityData = newSchema.get(entity);
+        if (!entityData) {
+            console.warn(`Entity "${entity}" does not exist.`);
+            return prevSchema;
+        }
 
-      const existingMethods = entityData.methods || [];
-      // Check if method with same name already exists
-      const methodExists = existingMethods.some((method) => method.name === methodDetails.name);
+        // Initialize methods array if it doesn't exist
+        const existingMethods = entityData.methods || [];
+        
+        // Check if method with same name already exists
+        const methodExists = existingMethods.some((method) => method.name === methodDetails.name);
 
-      if (!methodExists) {
-        entityData.methods = [...existingMethods, methodDetails];
-        newSchema.set(entity, entityData);
-        console.log(`Added Method: ${methodDetails.name} to Entity: ${entity}`);
-      } else {
-        console.warn(`Method "${methodDetails.name}" already exists in Entity "${entity}".`);
-      }
+        if (!methodExists) {
+            // Ensure all needed properties are present
+            const processedMethod = {
+                visibility: methodDetails.visibility || 'public',
+                returnType: methodDetails.returnType || 'void',
+                name: methodDetails.name,
+                parameters: methodDetails.parameters || [],
+                methodType: methodDetails.methodType || 'regular',
+                propertyName: methodDetails.propertyName
+            };
+            
+            // Add the method to the entity
+            entityData.methods = [...existingMethods, processedMethod];
+            newSchema.set(entity, entityData);
+            console.log(`✅ Added Method: ${methodDetails.name} to Entity: ${entity}`);
+        } else {
+            console.warn(`⚠️ Method "${methodDetails.name}" already exists in Entity "${entity}".`);
+        }
 
-      return newSchema;
+        return newSchema;
     });
-  }, []);
+}, []);
+
+  // Function to handle methods from parsed code
+  const addMethodsFromParsedCode = useCallback((className, methodsList) => {
+    if (Array.isArray(methodsList)) {
+      methodsList.forEach(method => {
+        addMethod(className, method);
+      });
+    }
+  }, [addMethod]);
 
   // Function to remove a method from an entity
   const removeMethod = useCallback((entity, methodName) => {
@@ -162,7 +186,6 @@ export const useEntityManagement = () => {
     });
   }, []);
 
-  // Function to add a new relationship
   // Function to add a new relationship
   const addRelationship = useCallback((relationship) => {
     setRelationships((prevRelationships) => {
@@ -281,6 +304,7 @@ export const useEntityManagement = () => {
     updateAttributeKey,
     removeAttribute,
     addMethod,
+    addMethodsFromParsedCode, // Export the new function
     removeMethod, 
     addRelationship,
     editRelationship,
@@ -289,4 +313,3 @@ export const useEntityManagement = () => {
     setRelationships,
   };
 };
-

@@ -159,18 +159,6 @@ const generateJavaClass = (className, attributes) => {
         code += `    private ${type} ${name};\n`;
     });
 
-    attributes.forEach(({ name, type }) => {
-        const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
-        code += `
-    public ${type} get${capitalizedName}() {
-        return this.${name};
-    }
-
-    public void set${capitalizedName}(${type} ${name}) {
-        this.${name} = ${name};
-    }\n`;
-    });
-
     code += '}';
     return code;
 };
@@ -181,10 +169,6 @@ const generatePythonClass = (className, attributes) => {
 
     attributes.forEach(({ name }) => {
         code += `        self._${name} = None\n`;
-    });
-
-    attributes.forEach(({ name }) => {
-        code += `\n    @property\n    def ${name}(self):\n        return self._${name}\n\n    @${name}.setter\n    def ${name}(self, value):\n        self._${name} = value\n`;
     });
 
     return code;

@@ -14,7 +14,7 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
 
   const handleAddRelationship = () => {
     // Validate inputs
-    if (!relationA || !relationB) {
+    if (!relationB || !relationA) {
       console.error('Both entities must be selected.');
       return;
     }
@@ -24,8 +24,8 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
       // Store inheritance relationship
       newRelationship = {
         type: 'inheritance',
-        relationA: relationA, // Child
-        relationB: relationB, // Parent
+        relationA: relationB, // Child
+        relationB: relationA, // Parent
       };
     } else if (relationshipType === 'composition') {
       // Store composition relationship with default cardinalities
@@ -125,7 +125,7 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
               {...params}
               label={
                 relationshipType === 'inheritance'
-                  ? 'Child'
+                  ? 'Parent'
                   : relationshipType === 'composition'
                   ? 'Owner'
                   : relationshipType === 'aggregation'
@@ -163,7 +163,7 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
               {...params}
               label={
                 relationshipType === 'inheritance'
-                  ? 'Parent'
+                  ? 'Child'
                   : relationshipType === 'composition'
                   ? 'Owned'
                   : relationshipType === 'aggregation'
@@ -226,7 +226,7 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
           >
             <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
               {rel.type === 'inheritance' ? (
-                `${rel.relationA} ▷ ${rel.relationB}` // Use a symbol for inheritance
+                `${rel.relationB} ▷ ${rel.relationA}` // Use a symbol for inheritance
               ) : rel.type === 'composition' ? (
                 `${rel.relationA} ◆ ${rel.relationB} (${rel.cardinalityA} - ${rel.cardinalityB})` // Use a filled diamond for composition
               ) : rel.type === 'aggregation' ? (
