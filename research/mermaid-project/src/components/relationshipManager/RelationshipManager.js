@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Typography, Autocomplete, TextField, Chip, IconButton, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { Box, Typography, Autocomplete, TextField, Chip, IconButton, ToggleButton, ToggleButtonGroup, Checkbox, FormControlLabel } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CloseIcon from '@mui/icons-material/Close';
 
@@ -9,6 +9,7 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
   const [cardinalityA, setCardinalityA] = useState('1');
   const [cardinalityB, setCardinalityB] = useState('1');
   const [relationshipType, setRelationshipType] = useState('cardinality'); // 'cardinality', 'inheritance', 'composition', or 'aggregation'
+  const [isInterface, setIsInterface] = useState(false);
   const entities = Array.from(schema.keys());
   const cardinalityOptions = ['1', '0..1', '1..*', '0..*'];
 
@@ -19,31 +20,41 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
       return;
     }
 
+    // Generate a unique ID for this relationship
+    const relationshipId = `${relationB}-${isInterface ? 'implements' : 'extends'}-${relationA}`;
+
     let newRelationship;
     if (relationshipType === 'inheritance') {
-      // Store inheritance relationship
+      // For inheritance, we only change the type if isInterface is checked
+      // The relationB is the parent, relationA is the child
       newRelationship = {
-        type: 'inheritance',
+        id: relationshipId,
+        type: isInterface ? 'implementation' : 'inheritance',
         relationA: relationB, // Child
         relationB: relationA, // Parent
+        label: isInterface ? 'implements' : 'extends'
       };
     } else if (relationshipType === 'composition') {
       // Store composition relationship with default cardinalities
       newRelationship = {
+        id: relationshipId,
         type: 'composition',
         relationA: relationA, // Owner
         relationB: relationB, // Owned
         cardinalityA: cardinalityA || '1',
         cardinalityB: cardinalityB || '1',
+        label: 'Composition'
       };
     } else if (relationshipType === 'aggregation') {
       // Store aggregation relationship with default cardinalities
       newRelationship = {
+        id: relationshipId,
         type: 'aggregation',
         relationA: relationA, // Whole
         relationB: relationB, // Part
         cardinalityA: cardinalityA || '1',
         cardinalityB: cardinalityB || 'many',
+        label: 'Aggregation'
       };
     } else {
       // Store cardinality relationship
@@ -52,11 +63,13 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
         return;
       }
       newRelationship = {
+        id: relationshipId,
         type: 'cardinality',
         relationA: relationA,
         relationB: relationB,
         cardinalityA: cardinalityA,
         cardinalityB: cardinalityB,
+        label: ''
       };
     }
 
@@ -68,6 +81,7 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
     setRelationB('');
     setCardinalityA('1');
     setCardinalityB('1');
+    setIsInterface(false);
   };
 
   return (
@@ -92,7 +106,14 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
         <ToggleButtonGroup
           value={relationshipType}
           exclusive
-          onChange={(_, newType) => setRelationshipType(newType)}
+          onChange={(_, newType) => {
+            if (newType) {
+              setRelationshipType(newType);
+              if (newType !== 'inheritance') {
+                setIsInterface(false);
+              }
+            }
+          }}
           size="small"
           sx={{ width: '100%' }}
         >
@@ -104,7 +125,14 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
         <ToggleButtonGroup
           value={relationshipType}
           exclusive
-          onChange={(_, newType) => setRelationshipType(newType)}
+          onChange={(_, newType) => {
+            if (newType) {
+              setRelationshipType(newType);
+              if (newType !== 'inheritance') {
+                setIsInterface(false);
+              }
+            }
+          }}
           size="small"
           sx={{ width: '100%' }}
         >
@@ -136,6 +164,24 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
             />
           )}
         />
+
+        {relationshipType === 'inheritance' && (
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={isInterface}
+                onChange={(e) => setIsInterface(e.target.checked)}
+                size="small"
+              />
+            }
+            label={
+              <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                Parent is Interface
+              </Typography>
+            }
+            sx={{ m: 0 }}
+          />
+        )}
 
         {['cardinality', 'composition', 'aggregation'].includes(relationshipType) && (
           <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -194,7 +240,9 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
         <Chip
           label={
             relationshipType === 'inheritance'
-              ? 'Add Inheritance'
+              ? isInterface 
+                ? 'Add Implementation'
+                : 'Add Inheritance'
               : relationshipType === 'composition'
               ? 'Add Composition'
               : relationshipType === 'aggregation'
@@ -227,6 +275,8 @@ const RelationshipManager = ({ schema, relationships, addRelationship, removeRel
             <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
               {rel.type === 'inheritance' ? (
                 `${rel.relationB} ▷ ${rel.relationA}` // Use a symbol for inheritance
+              ) : rel.type === 'implementation' ? (
+                `${rel.relationB} ⊳⊳ ${rel.relationA}` // Use a different symbol for interface implementation
               ) : rel.type === 'composition' ? (
                 `${rel.relationA} ◆ ${rel.relationB} (${rel.cardinalityA} - ${rel.cardinalityB})` // Use a filled diamond for composition
               ) : rel.type === 'aggregation' ? (

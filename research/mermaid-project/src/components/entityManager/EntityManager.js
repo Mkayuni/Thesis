@@ -182,78 +182,95 @@ export const useEntityManagement = () => {
   }, []);
 
   // Function to add a new relationship
-  const addRelationship = useCallback((relationship) => {
-    setRelationships((prevRelationships) => {
-      // Ensure relationship doesn't already exist
-      const existingRelation = Array.from(prevRelationships.values()).find(
-        (rel) =>
-          rel.relationA === relationship.relationA &&
-          rel.relationB === relationship.relationB &&
-          rel.type === relationship.type // Consider relationship type
+const addRelationship = useCallback((relationship) => {
+  setRelationships((prevRelationships) => {
+    // Ensure relationship doesn't already exist
+    const existingRelation = Array.from(prevRelationships.values()).find(
+      (rel) =>
+        rel.relationA === relationship.relationA &&
+        rel.relationB === relationship.relationB &&
+        rel.type === relationship.type // Consider relationship type
+    );
+    
+    if (existingRelation) {
+      console.warn(
+        `Relationship between "${relationship.relationA}" and "${relationship.relationB}" of type "${relationship.type}" already exists.`
       );
-      if (existingRelation) {
-        console.warn(
-          `Relationship between "${relationship.relationA}" and "${relationship.relationB}" of type "${relationship.type}" already exists.`
-        );
-        return prevRelationships;
-      }
+      return prevRelationships;
+    }
 
-      const newRelationships = new Map(prevRelationships);
-      const id = Date.now(); // Unique ID
+    const newRelationships = new Map(prevRelationships);
+    
+    // Use provided ID if available, otherwise generate one
+    const id = relationship.id || Date.now().toString();
 
-      if (relationship.type === 'inheritance') {
-        // Store inheritance relationship
-        newRelationships.set(id, {
-          id,
-          type: 'inheritance',
-          relationA: relationship.relationA, // Child
-          relationB: relationship.relationB, // Parent
-        });
-        console.log(`Added Inheritance Relationship: ${relationship.relationA} ▷ ${relationship.relationB}`);
-      } else if (relationship.type === 'composition') {
-        // Store composition relationship
-        newRelationships.set(id, {
-          id,
-          type: 'composition',
-          relationA: relationship.relationA, // Owner
-          relationB: relationship.relationB, // Owned
-          cardinalityA: relationship.cardinalityA || '1', // Default cardinality
-          cardinalityB: relationship.cardinalityB || '1', // Default cardinality
-        });
-        console.log(
-          `Added Composition Relationship: ${relationship.relationA} ◆ ${relationship.relationB} (${relationship.cardinalityA}-${relationship.cardinalityB})`
-        );
-      } else if (relationship.type === 'aggregation') {
-        // Store aggregation relationship
-        newRelationships.set(id, {
-          id,
-          type: 'aggregation',
-          relationA: relationship.relationA, // Whole
-          relationB: relationship.relationB, // Part
-          cardinalityA: relationship.cardinalityA || '1', // Default cardinality
-          cardinalityB: relationship.cardinalityB || 'many', // Default cardinality
-        });
-        console.log(
-          `Added Aggregation Relationship: ${relationship.relationA} ◇ ${relationship.relationB} (${relationship.cardinalityA}-${relationship.cardinalityB})`
-        );
-      } else {
-        // Store cardinality relationship
-        newRelationships.set(id, {
-          id,
-          type: 'cardinality',
-          relationA: relationship.relationA,
-          relationB: relationship.relationB,
-          cardinalityA: relationship.cardinalityA,
-          cardinalityB: relationship.cardinalityB,
-        });
-        console.log(
-          `Added Cardinality Relationship: ${relationship.relationA} ${relationship.cardinalityA} -- ${relationship.cardinalityB} ${relationship.relationB}`
-        );
-      }
+    if (relationship.type === 'inheritance') {
+      // Store inheritance relationship
+      newRelationships.set(id, {
+        id,
+        type: 'inheritance',
+        relationA: relationship.relationA, // Child
+        relationB: relationship.relationB, // Parent
+        label: relationship.label || 'extends'
+      });
+      console.log(`Added Inheritance Relationship: ${relationship.relationB} ▷ ${relationship.relationA}`);
+    } else if (relationship.type === 'implementation') {
+      // Store implementation relationship
+      newRelationships.set(id, {
+        id,
+        type: 'implementation',
+        relationA: relationship.relationA, // Child
+        relationB: relationship.relationB, // Parent (Interface)
+        label: relationship.label || 'implements'
+      });
+      console.log(`Added Implementation Relationship: ${relationship.relationB} ⊳⊳ ${relationship.relationA}`);
+    } else if (relationship.type === 'composition') {
+      // Store composition relationship
+      newRelationships.set(id, {
+        id,
+        type: 'composition',
+        relationA: relationship.relationA, // Owner
+        relationB: relationship.relationB, // Owned
+        cardinalityA: relationship.cardinalityA || '1', // Default cardinality
+        cardinalityB: relationship.cardinalityB || '1', // Default cardinality
+        label: relationship.label || 'Composition'
+      });
+      console.log(
+        `Added Composition Relationship: ${relationship.relationA} ◆ ${relationship.relationB} (${relationship.cardinalityA}-${relationship.cardinalityB})`
+      );
+    } else if (relationship.type === 'aggregation') {
+      // Store aggregation relationship
+      newRelationships.set(id, {
+        id,
+        type: 'aggregation',
+        relationA: relationship.relationA, // Whole
+        relationB: relationship.relationB, // Part
+        cardinalityA: relationship.cardinalityA || '1', // Default cardinality
+        cardinalityB: relationship.cardinalityB || 'many', // Default cardinality
+        label: relationship.label || 'Aggregation'
+      });
+      console.log(
+        `Added Aggregation Relationship: ${relationship.relationA} ◇ ${relationship.relationB} (${relationship.cardinalityA}-${relationship.cardinalityB})`
+      );
+    } else {
+      // Store cardinality relationship
+      newRelationships.set(id, {
+        id,
+        type: 'cardinality',
+        relationA: relationship.relationA,
+        relationB: relationship.relationB,
+        cardinalityA: relationship.cardinalityA,
+        cardinalityB: relationship.cardinalityB,
+        label: relationship.label || ''
+      });
+      console.log(
+        `Added Cardinality Relationship: ${relationship.relationA} ${relationship.cardinalityA} -- ${relationship.cardinalityB} ${relationship.relationB}`
+      );
+    }
 
-      return newRelationships;
-    });
-  }, []);
+    return newRelationships;
+  });
+}, []);
 
   // Function to edit an existing relationship
   const editRelationship = useCallback((id, updatedRelationship) => {

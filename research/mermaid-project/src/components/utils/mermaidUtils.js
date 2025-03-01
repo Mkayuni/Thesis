@@ -26,8 +26,6 @@ export const formatType = (type) => {
   formattedType = formattedType.replace(/[()]+/g, '');
   
   // Standardize type capitalization for UML conventions
-  // This follows Java conventions where primitives are lowercase
-  // and reference types are capitalized
   const typeMapping = {
     // Primitives (lowercase in Java)
     'int': 'int',
@@ -99,18 +97,25 @@ export const formatType = (type) => {
   return formattedType;
 };
 
+
 // Schema to Mermaid Source
 export const schemaToMermaidSource = (schema, relationships) => {
   const schemaText = [];
   console.log("Processing schema for Mermaid diagram...");
+  console.log("Schema entries:", Array.from(schema.keys()));
 
+  // First pass: Create all class/interface definitions
   schema.forEach((schemaItem, entityName) => {
+    console.log(`Processing entity: ${entityName}`);
     if (!schemaItem) {
       console.warn(`Schema item for ${entityName} is null or undefined`);
       return;
     }
 
     const className = capitalizeFirstLetter(entityName);
+
+    // Generate console output to debug the schema processing
+  console.log(`Processing entity for diagram: ${entityName} -> ${className}`);
     
     // Check if this is an interface and use proper notation
     const isInterface = schemaItem.isInterface === true;
@@ -148,68 +153,64 @@ export const schemaToMermaidSource = (schema, relationships) => {
       // Regular class definition
       let classDefinition = `class ${className} {\n`;
 
-    // Attributes
-    const attributes = new Set();
-    const attributeLines = [];
-    if (schemaItem.attribute && schemaItem.attribute.size > 0) {
-      schemaItem.attribute.forEach((attr) => {
-                  // Apply consistent type formatting for attributes
+      // Attributes
+      const attributes = new Set();
+      const attributeLines = [];
+      if (schemaItem.attribute && schemaItem.attribute.size > 0) {
+        schemaItem.attribute.forEach((attr) => {
+          // Apply consistent type formatting for attributes
           const attrLine = `  -${attr.attribute}: ${formatType(attr.type)}`;
-        if (!attributes.has(attrLine)) {
-          attributes.add(attrLine);
-          attributeLines.push(attrLine);
-        }
-      });
-    } else {
-      attributeLines.push("  // No attributes");
-    }
+          if (!attributes.has(attrLine)) {
+            attributes.add(attrLine);
+            attributeLines.push(attrLine);
+          }
+        });
+      } else {
+        attributeLines.push(" ");
+      }
 
-    // Methods
-    const methods = new Set();
-    const methodLines = [];
-    const getterSetterProps = new Map(); // Track getter/setter pairs
-    
-    if (schemaItem.constructor && Array.isArray(schemaItem.constructor.parameters)) {
+      // Methods
+      const methods = new Set();
+      const methodLines = [];
+      const getterSetterProps = new Map(); // Track getter/setter pairs
+      
+      if (schemaItem.constructor && Array.isArray(schemaItem.constructor.parameters)) {
         const paramList = schemaItem.constructor.parameters.join(", ");
         const constructorSignature = `  +${className}(${paramList})`;
         if (!methods.has(constructorSignature)) {
-            methods.add(constructorSignature);
-            methodLines.push(constructorSignature);
+          methods.add(constructorSignature);
+          methodLines.push(constructorSignature);
         }
-    }
+      }
 
-    // First pass to identify getter/setter pairs
-    if (schemaItem.methods && Array.isArray(schemaItem.methods)) {
+      // First pass to identify getter/setter pairs
+      if (schemaItem.methods && Array.isArray(schemaItem.methods)) {
         schemaItem.methods.forEach((method) => {
-            if (method.methodType === "getter" || method.methodType === "setter") {
-                if (!method.propertyName) {
-                    console.warn(`Method ${method.name} has type ${method.methodType} but no propertyName`);
-                    return;
-                }
-                
-                if (!getterSetterProps.has(method.propertyName)) {
-                    getterSetterProps.set(method.propertyName, { getter: null, setter: null });
-                }
-                
-                const propInfo = getterSetterProps.get(method.propertyName);
-                if (method.methodType === "getter") {
-                    propInfo.getter = method;
-                } else {
-                    propInfo.setter = method;
-                }
+          if (method.methodType === "getter" || method.methodType === "setter") {
+            if (!method.propertyName) {
+              console.warn(`Method ${method.name} has type ${method.methodType} but no propertyName`);
+              return;
             }
+            
+            if (!getterSetterProps.has(method.propertyName)) {
+              getterSetterProps.set(method.propertyName, { getter: null, setter: null });
+            }
+            
+            const propInfo = getterSetterProps.get(method.propertyName);
+            if (method.methodType === "getter") {
+              propInfo.getter = method;
+            } else {
+              propInfo.setter = method;
+            }
+          }
         });
-    } else {
+      } else {
         console.warn(`No methods array found for ${className}`);
-    }
+      }
 
-    // We're removing the special property notation for getter/setter pairs
-    // as requested, we'll only keep the actual methods in the methods section
-
-    // Process regular methods first
-    if (schemaItem.methods && Array.isArray(schemaItem.methods)) {
-      schemaItem.methods.forEach((method) => {
-          // For ALL methods, including getters and setters, create a method line
+      // Process regular methods
+      if (schemaItem.methods && Array.isArray(schemaItem.methods)) {
+        schemaItem.methods.forEach((method) => {
           // Set default visibility if not specified
           const visibility = method.visibility || "public";
           const visibilitySymbol = visibility === "private" ? "-" : visibility === "protected" ? "#" : "+";
@@ -217,68 +218,110 @@ export const schemaToMermaidSource = (schema, relationships) => {
           // Format parameters properly
           const parameters = method.parameters || [];
           const paramList = Array.isArray(parameters) 
-              ? parameters.map((param) => {
-                  // For better display, try to format parameters with name: type if possible
-                  if (param.includes(":")) return param;
-                  // For setters, use propertyName: returnType for the parameter
-                  if (method.methodType === "setter" && method.propertyName) {
-                      return `${method.propertyName}: ${method.returnType}`;
-                  }
-                  return param;
-              }).join(", ")
-              : '';
+            ? parameters.map((param) => {
+              if (param.includes(":")) return param;
+              if (method.methodType === "setter" && method.propertyName) {
+                return `${method.propertyName}: ${method.returnType}`;
+              }
+              return param;
+            }).join(", ")
+            : '';
           
           // Add return type
-          // Apply consistent formatting to return types
           const returnType = method.returnType ? `: ${formatType(method.returnType)}` : ": void";
           
           const methodSignature = `  ${visibilitySymbol}${method.name}(${paramList})${returnType}`;
 
           if (!methods.has(methodSignature)) {
-              methods.add(methodSignature);
-              methodLines.push(methodSignature);
+            methods.add(methodSignature);
+            methodLines.push(methodSignature);
           }
-      });
-    }
+        });
+      }
 
-    // Combine attributes and methods
-    classDefinition += attributeLines.join("\n") + "\n";
-    if (methodLines.length > 0) {
-      classDefinition += "\n" + methodLines.join("\n") + "\n";
+      // Combine attributes and methods
+      classDefinition += attributeLines.join("\n") + "\n";
+      if (methodLines.length > 0) {
+        classDefinition += "\n" + methodLines.join("\n") + "\n";
+      }
+      classDefinition += `}\n`;
+      schemaText.push(classDefinition);
     }
-    classDefinition += `}\n`;
-    schemaText.push(classDefinition);
-
-    // Handle Inheritance
-    if (schemaItem.parent) {
-      const parentName = capitalizeFirstLetter(schemaItem.parent);
-      schemaText.push(`${parentName} <|-- ${className}`);
-      console.log(`Adding Inheritance: ${parentName} <|-- ${className}`);
-    }
-  }
   });
 
-  // Handle Regular Relationships Separately
+  // Track processed relationships to avoid duplicates
+  const processedRelationships = new Set();
+
+  // Process schema inheritance and interface implementations
+  schema.forEach((schemaItem, entityName) => {
+    if (schemaItem.parent) {
+      const childClass = capitalizeFirstLetter(entityName);
+      const parentClass = capitalizeFirstLetter(schemaItem.parent);
+      
+      // Check if parent is an interface
+      const parentItem = schema.get(schemaItem.parent);
+      const isParentInterface = parentItem && parentItem.isInterface === true;
+      
+      if (isParentInterface) {
+        // For interface implementation, use dotted line with triangle
+        schemaText.push(`${parentClass} <|.. ${childClass}`);
+        console.log(`Adding Interface Implementation: ${parentClass} <|.. ${childClass}`);
+      } else {
+        // For regular inheritance, use solid line with triangle
+        schemaText.push(`${parentClass} <|-- ${childClass}`);
+        console.log(`Adding Inheritance: ${parentClass} <|-- ${childClass}`);
+      }
+      
+      // Mark as processed to avoid duplication
+      processedRelationships.add(`${entityName.toLowerCase()}-${schemaItem.parent.toLowerCase()}`);
+    }
+  });
+
+  // Process manual relationships
   relationships.forEach((rel) => {
     if (!rel.relationA || !rel.relationB) {
       console.warn("Skipping relationship with missing relationA or relationB:", rel);
       return;
     }
 
+    // Skip if this relationship was already processed from schema
+    const relKey = `${rel.relationA.toLowerCase()}-${rel.relationB.toLowerCase()}`;
+    const revRelKey = `${rel.relationB.toLowerCase()}-${rel.relationA.toLowerCase()}`;
+    if (processedRelationships.has(relKey) || processedRelationships.has(revRelKey)) {
+      console.log(`Skipping already processed relationship: ${relKey}`);
+      return;
+    }
+
     const relationA = capitalizeFirstLetter(rel.relationA);
     const relationB = capitalizeFirstLetter(rel.relationB);
 
+    // Check if this is an interface relationship
+    let isInterfaceRelationship = false;
+    if (rel.type === "inheritance" || rel.type === "implementation") {
+      const parentEntity = schema.get(rel.relationB.toLowerCase());
+      isInterfaceRelationship = parentEntity && parentEntity.isInterface === true;
+    }
+
     if (rel.type === "inheritance") {
-      schemaText.push(`${relationB} <|-- ${relationA}`);
+      if (!isInterfaceRelationship) {
+        // Standard inheritance (solid line with triangle)
+        schemaText.push(`${relationB} <|-- ${relationA}`);
+        console.log(`Adding Manual Inheritance: ${relationB} <|-- ${relationA}`);
+      } else {
+        // Interface implementation (dotted line with triangle)
+        schemaText.push(`${relationB} <|.. ${relationA}`);
+        console.log(`Adding Manual Interface Implementation: ${relationB} <|.. ${relationA}`);
+      }
     } else if (rel.type === "implementation") {
-      // Implementation uses a dashed line with a triangle arrowhead
+      // Always use dotted line for implementation
       schemaText.push(`${relationB} <|.. ${relationA}`);
+      console.log(`Adding Manual Implementation: ${relationB} <|.. ${relationA}`);
     } else if (rel.type === "composition") {
-      schemaText.push(`${relationA} *-- "${rel.cardinalityA}" ${relationB} : "${rel.label || 'Composition'}"`);
+      schemaText.push(`${relationA} *-- "${rel.cardinalityA || '1'}" ${relationB} : "${rel.label || 'Composition'}"`);
     } else if (rel.type === "aggregation") {
-      schemaText.push(`${relationA} o-- "${rel.cardinalityA}" ${relationB} : "${rel.label || 'Aggregation'}"`);
+      schemaText.push(`${relationA} o-- "${rel.cardinalityA || '1'}" ${relationB} : "${rel.label || 'Aggregation'}"`);
     } else {
-      schemaText.push(`${relationA} "${rel.cardinalityA}" -- "${rel.cardinalityB}" ${relationB} : ${rel.label || ""}`);
+      schemaText.push(`${relationA} "${rel.cardinalityA || ''}" -- "${rel.cardinalityB || ''}" ${relationB} : ${rel.label || ""}`);
     }
   });
 
@@ -525,7 +568,7 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod, addMethodsF
         });
       }
       
-      // Parse Methods - Complete pattern that should match most Java method declarations
+      // Parse Methods 
       const methodRegex = /(?:public|private|protected)\s+(?:static\s+)?(?:final\s+)?(?:<[^>]*>\s+)?(\w+(?:<.*?>)?)\s+(\w+)\s*\(([^)]*)\)[^{]*\{/g;
       let methodMatch;
       let methodCount = 0;
