@@ -81,11 +81,7 @@ const UMLComponent = () => {
       .then((response) => response.json())
       .then((data) => {
         setMethods(data.methods);
-        // If you need to add these methods to schema entities, you can do it here
-        // For example, if you know which entity these methods belong to:
-        // if (data.methods && data.methods.length > 0 && someEntity) {
-        //   addMethodsFromParsedCode(someEntity, data.methods);
-        // }
+         
       })
       .catch((error) => console.error('Error fetching methods:', error));
   };

@@ -1,54 +1,72 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
-import mermaid from 'mermaid';
 import { Box, Tooltip, IconButton, Typography, Button, Select, MenuItem } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import RelationshipManager from '../relationshipManager/RelationshipManager';
 import { SYNTAX_TYPES } from '../ui/ui';
 import Editor from '@monaco-editor/react';
-import {
-  normalizeEntityName,
-  extractEntityName,
-  schemaToMermaidSource,
-  parseCodeToSchema,
- // parseMermaidToCode,
-} from '../utils/mermaidUtils';
 
-// Styled components for modern UI
+import { 
+  renderMermaidDiagram, 
+  clearMermaidDiagram, 
+  handleDiagramInteractions,
+  syncJavaCodeWithSchema 
+} from '../utils/MermaidDiagramUtils';
+
+// Styled components
 const DiagramBox = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(3),
-  backgroundColor: '#f5f5f5',
-  borderRadius: '12px',
-  boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.1)',
-  overflow: 'auto',
+  padding: theme.spacing(2),
+  backgroundColor: '#ffffff',
+  borderRadius: '0',        // Remove border radius
+  overflow: 'hidden',
   width: '100%',
-  minHeight: '400px',
-  height: 'auto',
-  position: 'relative',
+  height: '100%',
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
   zIndex: 0,
-  border: '1px solid #e0e0e0',
+  border: 'none',           // Remove border
+  boxShadow: 'none',        // Remove box shadow
+  display: 'flex',
+  flexDirection: 'column',
 }));
 
 const Toolbar = styled(Box)(({ theme }) => ({
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  padding: theme.spacing(2),
+  padding: theme.spacing(1),
   backgroundColor: '#ffffff',
-  borderRadius: '8px',
-  boxShadow: '0px 2px 10px rgba(0, 0, 0, 0.05)',
-  marginBottom: theme.spacing(2),
+  borderRadius: '4px',
+  marginBottom: theme.spacing(1),
+  border: '1px solid #e0e0e0',
 }));
 
-const WorkbenchBox = styled(Box)(({ theme }) => ({
+// Compact floating action buttons
+const ActionBar = styled(Box)(({ theme }) => ({
   position: 'absolute',
-  top: '60px',
-  right: '20px',
-  zIndex: 1000,
-  backgroundColor: '#ffffff',
-  borderRadius: '8px',
-  boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.1)',
-  padding: theme.spacing(2),
-  width: '600px',
+  display: 'flex',
+  gap: '4px',
+  backgroundColor: 'white',
+  padding: theme.spacing(0.5),
+  borderRadius: '4px',
+  border: '1px solid #e0e0e0',
+  zIndex: 1100,
+}));
+
+// Compact zoom control panel
+const ZoomControls = styled(Box)(({ theme }) => ({
+  position: 'absolute',
+  bottom: '10px',
+  right: '10px',
+  zIndex: 1050,
+  display: 'flex',
+  gap: '4px',
+  backgroundColor: 'white',
+  padding: theme.spacing(0.5),
+  borderRadius: '4px',
+  border: '1px solid #e0e0e0',
 }));
 
 const MermaidDiagram = ({
@@ -65,6 +83,7 @@ const MermaidDiagram = ({
   removeMethod,
 }) => {
   const diagramRef = useRef(null);
+  const containerRef = useRef(null);
   const [showRelationshipManager, setShowRelationshipManager] = useState(false);
   const [showWorkbench, setShowWorkbench] = useState(false);
   const [code, setCode] = useState('');
@@ -72,197 +91,45 @@ const MermaidDiagram = ({
   const [generatedCode, setGeneratedCode] = useState('');
   const [isCodeModified, setIsCodeModified] = useState(false);
   const [needsRender, setNeedsRender] = useState(false);
+  
+  // States for zoom and pan functionality
+  const [scale, setScale] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [startPanPos, setStartPanPos] = useState({ x: 0, y: 0 });
+  const [selectedEntity, setSelectedEntity] = useState(null);
+  
+  // State for tracking the active element and action bar
+  const [activeElement, setActiveElement] = useState(null);
+  const [actionBarPosition, setActionBarPosition] = useState({ x: 0, y: 0 });
 
-  // Add this helper function to fully clear the diagram
+  // Clear diagram function - imported from utils but with local state ref
   const clearDiagram = useCallback(() => {
-    if (diagramRef.current) {
-      // Completely remove all content from the diagram container
-      diagramRef.current.innerHTML = '';
-      
-      // Add a placeholder message when the diagram is empty
-      if (schema.size === 0) {
-        diagramRef.current.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No diagram to display</div>';
-      }
-    }
+    clearMermaidDiagram(diagramRef, schema.size);
   }, [schema.size]);
 
-  // Define renderDiagram function FIRST to avoid circular dependencies
+  // Render diagram function - imported but with local refs and state
   const renderDiagram = useCallback(async () => {
-    // Clear the diagram container completely before rendering
-    clearDiagram();
-
-    // If schema is empty, don't try to render anything
-    if (schema.size === 0) {
-      return;
-    }
-
-    // Ensure createElementNS compatibility
-    if (typeof document.createElementNS !== 'function') {
-      document.createElementNS = (ns, tagName) => document.createElement(tagName);
-    }
-
-    // Log the schema keys being rendered
-    console.log("Rendering diagram with schema keys:", Array.from(schema.keys()));
-
-    const source = `classDiagram\n${schemaToMermaidSource(schema, relationships)}`;
-    console.log('Mermaid source:', source);
-
-    // Initialize Mermaid with more conservative settings
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'base',
-      themeVariables: {
-        primaryColor: '#FFFFFF',
-        primaryBorderColor: '#800080',
-        lineColor: '#800080',
-        fontFamily: 'Arial, sans-serif',
-        textColor: '#000000',
-      },
-      securityLevel: 'loose' // Allow more flexibility
+    await renderMermaidDiagram({
+      diagramRef,
+      containerRef,
+      schema,
+      relationships,
+      clearDiagram,
+      removeEntity,
+      removeAttribute,
+      isPanning,
+      scale,
+      setSelectedEntity,
+      setShowRelationshipManager,
+      setActiveElement,
+      setActionBarPosition,
+      setNeedsRender
     });
-
-    try {
-      // Ensure Mermaid has enough time to initialize
-      setTimeout(async () => {
-        // Check if the diagram container still exists and schema is not empty
-        if (diagramRef.current && schema.size > 0) {
-          try {
-            const { svg } = await mermaid.render('umlDiagram', source);
-            
-            // Clear old content before inserting new SVG
-            diagramRef.current.innerHTML = '';
-            diagramRef.current.innerHTML = svg;
-
-            // Access and customize the SVG
-            const svgElement = diagramRef.current.querySelector('svg');
-            if (svgElement) {
-              console.log('SVG element found:', svgElement);
-              svgElement.style.overflow = 'visible';
-              svgElement.setAttribute('viewBox', `-20 -20 ${svgElement.getBBox().width + 40} ${svgElement.getBBox().height + 40}`);
-              svgElement.style.padding = '20px';
-
-              // Add custom icons to nodes
-              const nodes = svgElement.querySelectorAll('g[class^="node"]');
-              nodes.forEach((node) => {
-                const nodeId = node.getAttribute('id');
-                if (nodeId) {
-                  console.log('Node found:', node);
-                  const entityName = extractEntityName(nodeId);
-                  const bbox = node.getBBox();
-                  const iconsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                  iconsGroup.classList.add('icons-group');
-
-                  // Edit button
-                  const editButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                  editButton.setAttribute('x', bbox.x + bbox.width + 15);
-                  editButton.setAttribute('y', bbox.y + 15);
-                  editButton.setAttribute('fill', '#007bff');
-                  editButton.style.cursor = 'pointer';
-                  editButton.textContent = '✏️';
-
-                  // Delete button
-                  const deleteButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                  deleteButton.setAttribute('x', bbox.x + bbox.width + 15);
-                  deleteButton.setAttribute('y', bbox.y + 35);
-                  deleteButton.setAttribute('fill', '#ff4d4d');
-                  deleteButton.style.cursor = 'pointer';
-                  deleteButton.style.display = 'none';
-                  deleteButton.textContent = '🗑️';
-                  deleteButton.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    // Instead of directly calling handleEntityRemoval, set entity to remove
-                    if (schema.has(entityName)) {
-                      // Directly remove without callbacks to avoid circular dependencies
-                      console.log(`Removing entity via button: ${entityName}`);
-                      removeEntity(entityName);
-                      
-                      // Force immediate diagram cleanup
-                      setTimeout(() => {
-                        clearDiagram();
-                        
-                        // Set flag to trigger render in useEffect
-                        setNeedsRender(true);
-                      }, 10);
-                    }
-                  });
-
-                  // Minus button
-                  const minusButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                  minusButton.setAttribute('x', bbox.x + bbox.width + 15);
-                  minusButton.setAttribute('y', bbox.y + 55);
-                  minusButton.setAttribute('fill', '#4caf50');
-                  minusButton.style.cursor = 'pointer';
-                  minusButton.style.display = 'none';
-                  minusButton.textContent = '➖';
-                  minusButton.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    // Handle attribute removal directly
-                    const normalizedEntityName = normalizeEntityName(entityName);
-                    const entity = schema.get(normalizedEntityName);
-                    if (entity && entity.attribute.size > 0) {
-                      const lastAttribute = Array.from(entity.attribute.keys()).pop();
-                      if (lastAttribute) {
-                        removeAttribute(normalizedEntityName, lastAttribute);
-                        
-                        // Force immediate diagram cleanup after attribute removal
-                        setTimeout(() => {
-                          clearDiagram();
-                          setNeedsRender(true);
-                        }, 10);
-                      }
-                    }
-                  });
-
-                  // Relationship button
-                  const relationshipButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                  relationshipButton.setAttribute('x', bbox.x + bbox.width + 15);
-                  relationshipButton.setAttribute('y', bbox.y + 75);
-                  relationshipButton.setAttribute('fill', '#ff9800');
-                  relationshipButton.style.cursor = 'pointer';
-                  relationshipButton.style.display = 'none';
-                  relationshipButton.textContent = '🔗';
-                  relationshipButton.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    setShowRelationshipManager(true);
-                  });
-
-                  // Toggle visibility of buttons on edit button click
-                  editButton.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    deleteButton.style.display = deleteButton.style.display === 'none' ? 'block' : 'none';
-                    minusButton.style.display = minusButton.style.display === 'none' ? 'block' : 'none';
-                    relationshipButton.style.display = relationshipButton.style.display === 'none' ? 'block' : 'none';
-                  });
-
-                  // Append buttons to the group
-                  iconsGroup.appendChild(editButton);
-                  iconsGroup.appendChild(deleteButton);
-                  iconsGroup.appendChild(minusButton);
-                  iconsGroup.appendChild(relationshipButton);
-                  node.appendChild(iconsGroup);
-                }
-              });
-            }
-          } catch (err) {
-            console.error('Mermaid render error:', err);
-            clearDiagram(); // Ensure diagram is cleared on error
-          }
-        }
-      }, 10); // Slightly longer delay for more reliable initialization
-    } catch (error) {
-      console.error('Error rendering Mermaid diagram:', error);
-      clearDiagram(); // Ensure diagram is cleared on error
-    }
-  }, [schema, relationships, clearDiagram, removeEntity, removeAttribute]);
-
-  // Add a schema version state to force re-renders
-  const [schemaVersion, setSchemaVersion] = useState(0);
+  }, [schema, relationships, clearDiagram, removeEntity, removeAttribute, isPanning, scale]);
 
   // Update the effect to thoroughly clean up and re-render on schema changes
   useEffect(() => {
-    // Increment schema version when schema changes
-    setSchemaVersion(prev => prev + 1);
-    
     // Clear diagram immediately on schema change
     clearDiagram();
     
@@ -270,7 +137,7 @@ const MermaidDiagram = ({
     if (schema.size > 0) {
       const timerId = setTimeout(() => {
         renderDiagram();
-      }, 20); // Slightly longer delay for reliability
+      }, 50); // Slightly longer delay for reliability
       
       return () => {
         clearTimeout(timerId);
@@ -292,140 +159,446 @@ const MermaidDiagram = ({
     }
   }, [needsRender, schema.size, renderDiagram]);
 
-  // In MermaidDiagram.js, syncJavaCodeWithSchema function
-  const syncJavaCodeWithSchema = (javaCode) => {
-    // First, parse the schema
-    const parsedSchema = parseCodeToSchema(javaCode, SYNTAX_TYPES.JAVA, addMethod, addMethodsFromParsedCode);
-    console.log("Parsed Schema:", parsedSchema);
-
-    // First pass: Create all entities and add attributes
-    parsedSchema.forEach((newEntity, entityName) => {
-      addEntity(entityName);
-      console.log(`First pass - Created entity: ${entityName}`);
-      
-      // Add attributes
-      newEntity.attribute.forEach((attr, attrName) => {
-        addAttribute(entityName, attrName, attr.type);
-        console.log(`Added attribute: ${attrName} to ${entityName}`);
-      });
-    });
-    
-    // Second pass: Now that all entities exist, add methods
-    parsedSchema.forEach((newEntity, entityName) => {
-      if (newEntity.methods && newEntity.methods.length > 0) {
-        console.log(`Second pass - Adding ${newEntity.methods.length} methods to ${entityName}`);
-        addMethodsFromParsedCode(entityName, newEntity.methods);
+  // Add an effect to hide action bar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        activeElement && 
+        containerRef.current && 
+        !event.target.closest('.action-button') &&
+        !event.target.closest('.classGroup')
+      ) {
+        setActiveElement(null);
       }
-    });
-  };
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeElement]);
+
+  // Get touch and mouse handlers from utils
+  const { 
+    handleTouchStart, 
+    handleTouchMove, 
+    handleTouchEnd, 
+    handleWheel,
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp
+  } = handleDiagramInteractions({
+    schema,
+    scale,
+    setScale,
+    isPanning,
+    setIsPanning,
+    startPanPos,
+    setStartPanPos,
+    panOffset,
+    setPanOffset,
+    containerRef
+  });
 
   // Update the schema and re-render diagram
   const handleUpdate = () => {
-    syncJavaCodeWithSchema(code); // Sync Java code with schema
-    setIsCodeModified(false); // Reset modification flag
-    renderDiagram(); // Re-render the diagram
+    syncJavaCodeWithSchema(code, SYNTAX_TYPES.JAVA, addEntity, addAttribute, addMethod, addMethodsFromParsedCode);
+    setIsCodeModified(false);
+    renderDiagram();
+  };
+  
+  // Handler functions for action buttons
+  const handleDeleteEntity = () => {
+    if (activeElement) {
+      removeEntity(activeElement);
+      setActiveElement(null);
+      setNeedsRender(true);
+    }
+  };
+  
+  const handleAddAttribute = () => {
+    if (activeElement) {
+      const attrName = prompt('Enter attribute name:');
+      const attrType = prompt('Enter attribute type (optional):');
+      
+      if (attrName) {
+        addAttribute(activeElement, attrName, '', attrType || '');
+        setNeedsRender(true);
+      }
+    }
+  };
+  
+  const handleAddMethod = () => {
+    if (activeElement) {
+      const methodName = prompt('Enter method name:');
+      const returnType = prompt('Enter return type (optional):');
+      const params = prompt('Enter parameters (optional, comma separated):');
+      
+      if (methodName) {
+        const method = {
+          name: methodName,
+          returnType: returnType || 'void',
+          parameters: params ? params.split(',').map(p => p.trim()) : [],
+          visibility: 'public'
+        };
+        
+        addMethod(activeElement, method);
+        setNeedsRender(true);
+      }
+    }
+  };
+  
+  // Function to handle removing an attribute more safely
+  const handleRemoveAttribute = () => {
+    if (activeElement) {
+      const entity = schema.get(activeElement);
+      if (entity && entity.attribute && entity.attribute.size > 0) {
+        // Get all attributes and let user select which one to remove
+        const attributes = Array.from(entity.attribute.keys());
+        if (attributes.length === 1) {
+          // If only one attribute, remove it directly
+          removeAttribute(activeElement, attributes[0]);
+        } else {
+          // Otherwise, let user choose
+          const attrToRemove = prompt(
+            `Enter the name of the attribute to remove:\n${attributes.join(', ')}`,
+            attributes[attributes.length - 1]
+          );
+          if (attrToRemove && attributes.includes(attrToRemove)) {
+            removeAttribute(activeElement, attrToRemove);
+          }
+        }
+        setNeedsRender(true);
+      } else {
+        alert('This entity has no attributes to remove.');
+      }
+    }
+  };
+
+  // Function to handle zooming to fit the diagram content
+  const handleZoomToFit = () => {
+    if (schema.size === 0) return; // Don't zoom if no entities
+    
+    const svgElement = diagramRef.current?.querySelector('svg');
+    if (svgElement) {
+      const containerWidth = containerRef.current.clientWidth;
+      const containerHeight = containerRef.current.clientHeight;
+      const svgWidth = svgElement.getBBox().width;
+      const svgHeight = svgElement.getBBox().height;
+      
+      // Calculate the scale that would perfectly fit the SVG in the container
+      const scaleX = containerWidth / (svgWidth + 40);
+      const scaleY = containerHeight / (svgHeight + 40);
+      const newScale = Math.min(scaleX, scaleY, 1); // Don't scale beyond 100%
+      
+      setScale(newScale);
+      setPanOffset({ x: 0, y: 0 }); // Reset panning when fitting to view
+    }
+  };
+
+  // Reset zoom and pan
+  const handleResetView = () => {
+    setScale(1);
+    setPanOffset({ x: 0, y: 0 });
   };
 
   return (
-    <Box>
+    <Box sx={{ 
+      height: '100%', 
+      display: 'flex',
+      flexDirection: 'column',
+      position: 'relative',
+      flex: 1,
+      minHeight: 0
+    }}>
       <Toolbar>
-        <Typography variant="h6" color="primary">
-          WorkBench
+        <Typography variant="h6" color="primary" sx={{ fontSize: '1rem' }}>
+          UML Diagram
         </Typography>
         <Box>
           <Tooltip title="Add Relationship">
-            <IconButton color="primary" onClick={() => setShowRelationshipManager(true)}>
+            <IconButton color="primary" size="small" onClick={() => setShowRelationshipManager(true)}>
               🔗
             </IconButton>
           </Tooltip>
           <Tooltip title="Open WorkBench">
-            <IconButton color="primary" onClick={() => setShowWorkbench(true)}>
+            <IconButton color="primary" size="small" onClick={() => setShowWorkbench(true)}>
               🛠️
             </IconButton>
           </Tooltip>
+          {schema.size > 0 && (
+            <>
+              <Tooltip title="Fit to View">
+                <IconButton color="primary" size="small" onClick={handleZoomToFit}>
+                🔍
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Reset View">
+                <IconButton color="primary" size="small" onClick={handleResetView}>
+                🔄
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
         </Box>
       </Toolbar>
-      <DiagramBox ref={diagramRef} id="diagram" />
-      {showRelationshipManager && (
-        <Box
-          sx={{
+      
+      <DiagramBox
+        ref={containerRef}
+        sx={{
+          cursor: isPanning ? 'grabbing' : (schema.size > 0 ? 'grab' : 'default'),
+          flex: 1,
+          position: 'relative',
+          minHeight: 0,
+          height: 'auto',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+        onWheel={schema.size > 0 ? handleWheel : null}
+        onMouseDown={schema.size > 0 ? handleMouseDown : null}
+        onMouseMove={schema.size > 0 ? handleMouseMove : null}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
+      >
+        {/* Action bar for the selected element */}
+        {activeElement && (
+          <ActionBar
+            sx={{
+              top: `${actionBarPosition.y}px`,
+              left: `${actionBarPosition.x}px`,
+            }}
+          >
+            <Button 
+              variant="contained" 
+              size="small" 
+              color="error"
+              className="action-button"
+              onClick={handleDeleteEntity}
+              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+            >
+              Delete
+            </Button>
+            <Button 
+              variant="contained" 
+              size="small" 
+              color="primary"
+              className="action-button"
+              onClick={handleAddAttribute}
+              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+            >
+              Add Attr
+            </Button>
+            <Button 
+              variant="contained" 
+              size="small" 
+              color="secondary"
+              className="action-button"
+              onClick={handleRemoveAttribute}
+              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+            >
+              Del Attr
+            </Button>
+            <Button 
+              variant="contained" 
+              size="small" 
+              color="info"
+              className="action-button"
+              onClick={handleAddMethod}
+              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+            >
+              Add Mthd
+            </Button>
+            <Button 
+              variant="contained" 
+              size="small" 
+              color="warning"
+              className="action-button"
+              onClick={() => {
+                setSelectedEntity(activeElement);
+                setShowRelationshipManager(true);
+              }}
+              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+            >
+              Add Rel
+            </Button>
+          </ActionBar>
+        )}
+        
+        {/* Zoom controls - only show if we have entities */}
+        {schema.size > 0 && (
+          <ZoomControls>
+            <Button 
+              variant="contained" 
+              size="small" 
+              onClick={() => setScale(Math.min(scale * 1.2, 3))}
+              sx={{ minWidth: '30px', py: 0 }}
+            >
+              +
+            </Button>
+            <Button 
+              variant="contained" 
+              size="small"
+              onClick={() => setScale(Math.max(scale * 0.8, 0.3))}
+              sx={{ minWidth: '30px', py: 0 }}
+            >
+              -
+            </Button>
+            <Typography variant="body2" sx={{ mx: 1, alignSelf: 'center', fontSize: '0.75rem' }}>
+              {Math.round(scale * 100)}%
+            </Typography>
+          </ZoomControls>
+        )}
+        
+        {/* Diagram container with zoom and pan */}
+        <div 
+          style={{
+            transform: schema.size > 0 ? `scale(${scale}) translate(${panOffset.x}px, ${panOffset.y}px)` : 'none',
+            transformOrigin: 'center center',
+            transition: isPanning ? 'none' : 'transform 0.1s',
+            height: '100%',
+            width: '100%',
             position: 'absolute',
-            top: '60px',
-            right: '20px',
-            zIndex: 1000,
+            top: 0,
+            left: 0,
+            right: 0, 
+            bottom: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
           }}
         >
-          <RelationshipManager
-            schema={schema}
-            relationships={relationships}
-            addRelationship={addRelationship}
-            removeRelationship={removeRelationship}
-            onClose={() => setShowRelationshipManager(false)}
-          />
-        </Box>
-      )}
-      {showWorkbench && (
-        <WorkbenchBox>
-          <Typography variant="h6" gutterBottom>
-            WorkBench
-          </Typography>
-          <Select
-            value={syntax}
-            onChange={(e) => setSyntax(e.target.value)}
-            fullWidth
-            sx={{ mb: 2 }}
-          >
-            <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
-            <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
-          </Select>
-          <Editor
-            height="300px"
-            language={syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
-            theme="vs-light"
-            value={code}
-            onChange={(value) => {
-              setCode(value);
-              setIsCodeModified(true); // Enable the Update button when code is modified
+          <div 
+          ref={diagramRef} 
+          id="diagram" 
+          style={{ 
+            height: '100%', 
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: 'white', // Add this
+            boxShadow: 'none'         // Add this
+          }} 
+        />
+        </div>
+        
+        {/* Relationship Manager - UPDATED POSITION */}
+        {showRelationshipManager && (
+          <Box
+            sx={{
+              position: 'fixed',
+              top: '80px',
+              right: '30px',
+              zIndex: 1200,
+              maxHeight: '80vh',
+              overflow: 'auto',
+              backgroundColor: 'white',
+              padding: '10px',
+              border: '1px solid #e0e0e0',
+              borderRadius: '4px'
             }}
-            options={{
-              automaticLayout: true,
-              padding: { top: 10, bottom: 10 },
+          >
+            <RelationshipManager
+              schema={schema}
+              relationships={relationships}
+              addRelationship={addRelationship}
+              removeRelationship={removeRelationship}
+              onClose={() => {
+                setShowRelationshipManager(false);
+                setSelectedEntity(null);
+              }}
+              selectedEntity={selectedEntity}
+            />
+          </Box>
+        )}
+  
+        {/* Workbench - UPDATED POSITION */}
+        {showWorkbench && (
+          <Box
+            sx={{
+              position: 'fixed',
+              top: '80px',
+              right: '30px',
+              zIndex: 1200,
+              backgroundColor: '#ffffff',
+              borderRadius: '4px',
+              border: '1px solid #e0e0e0',
+              padding: '16px',
+              width: '500px',
+              maxHeight: '80vh',
+              overflow: 'auto'
             }}
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            // onClick={handleGenerate}
-            sx={{ mr: 2, mt: 2 }}
           >
-            Generate
-          </Button>
-          <Button
-            variant="contained"
-            color="secondary"
-            onClick={handleUpdate}
-            disabled={!isCodeModified}
-            sx={{ mt: 2, mr: 2 }}
-          >
-            Update
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            onClick={() => setShowWorkbench(false)}
-            sx={{ mt: 2 }}
-          >
-            Close
-          </Button>
-          {generatedCode && (
-            <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-              <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
-                {generatedCode}
-              </Typography>
+            <Typography variant="h6" gutterBottom sx={{ fontSize: '1rem' }}>
+              Code WorkBench
+            </Typography>
+            <Select
+              value={syntax}
+              onChange={(e) => setSyntax(e.target.value)}
+              fullWidth
+              sx={{ mb: 2 }}
+              size="small"
+            >
+              <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
+              <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
+            </Select>
+            <Editor
+              height="300px"
+              language={syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
+              theme="vs-light"
+              value={code}
+              onChange={(value) => {
+                setCode(value);
+                setIsCodeModified(true);
+              }}
+              options={{
+                automaticLayout: true,
+                padding: { top: 10, bottom: 10 },
+              }}
+            />
+            <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                sx={{ fontSize: '0.8rem' }}
+              >
+                Generate
+              </Button>
+              <Button
+                variant="contained"
+                color="secondary"
+                size="small"
+                onClick={handleUpdate}
+                disabled={!isCodeModified}
+                sx={{ fontSize: '0.8rem' }}
+              >
+                Update
+              </Button>
+              <Button
+                variant="outlined"
+                color="secondary"
+                size="small"
+                onClick={() => setShowWorkbench(false)}
+                sx={{ fontSize: '0.8rem' }}
+              >
+                Close
+              </Button>
             </Box>
-          )}
-        </WorkbenchBox>
-      )}
+            {generatedCode && (
+              <Box sx={{ mt: 1, p: 1, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+                <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
+                  {generatedCode}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        )}
+      </DiagramBox>
     </Box>
   );
 };

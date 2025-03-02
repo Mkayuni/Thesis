@@ -14,32 +14,36 @@ import theme from '../../theme';
 
 // Styled Components
 const MainContainer = styled(Box)(({ theme }) => ({
-    height: '100vh', 
-    width: '100vw', 
-    backgroundColor: '#f9f9f9', 
-    display: 'flex',
-    overflow: 'hidden', 
-  }));
-  
-  const LeftPanel = styled(Box)(({ theme }) => ({
-    width: 220, 
-    minWidth: 220,
-    backgroundColor: '#f5f7fa', 
-    borderRight: '1px solid #2c3e50', 
-    display: 'flex',
-    flexDirection: 'column',
-    padding: theme.spacing(2),
-    overflow: 'hidden',
-  }));
-  
-  const RightPanel = styled(Box)(({ theme }) => ({
-    flex: 1, // Takes up remaining space
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
-    padding: theme.spacing(2),
-  }));
-  
+  height: '100vh', 
+  width: '100vw', 
+  backgroundColor: '#f9f9f9', 
+  display: 'flex',
+  overflow: 'hidden',
+  position: 'relative', // Add position relative
+}));
+
+const LeftPanel = styled(Box)(({ theme }) => ({
+  width: 220, 
+  minWidth: 220,
+  backgroundColor: '#f5f7fa', 
+  borderRight: '1px solid #2c3e50', 
+  display: 'flex',
+  flexDirection: 'column',
+  padding: theme.spacing(2),
+  overflow: 'hidden',
+}));
+
+const RightPanel = styled(Box)(({ theme }) => ({
+  flex: 1, // Takes up remaining space
+  display: 'flex',
+  flexDirection: 'column',
+  overflow: 'hidden',
+  padding: theme.spacing(2),
+  height: '100%', // Explicitly set height to 100%
+  maxHeight: '100vh', // Add max height
+  boxSizing: 'border-box', // Include padding in the height calculation
+  position: 'relative', // Add position relative
+}));
 
 const PopupContainer = styled(Paper)(({ theme }) => ({
   position: 'absolute',
@@ -52,6 +56,33 @@ const PopupContainer = styled(Paper)(({ theme }) => ({
   width: 'fit-content',
   border: '1px solid #ddd',
   borderRadius: theme.shape.borderRadius,
+}));
+
+// Question container with fixed height
+const QuestionContainer = styled(Box)(({ theme }) => ({
+  borderBottom: '1px solid #ddd',
+  paddingBottom: theme.spacing(2),
+  marginBottom: theme.spacing(2),
+  flexShrink: 0, // Prevent this container from shrinking
+  maxHeight: '220px', // Set a maximum height
+}));
+
+// Diagram container that will expand to fill available space
+// In UMLContainer.jsx
+const DiagramContainer = styled(Box)(({ theme }) => ({
+  flex: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  overflow: 'hidden',
+  minHeight: 0,
+  height: '100%',
+  position: 'relative',
+  boxSizing: 'border-box',
+  marginBottom: 0,
+  paddingBottom: 0,
+  backgroundColor: 'white', 
+  boxShadow: 'none',        
+  border: 'none'            
 }));
 
 const UMLContainer = ({
@@ -79,8 +110,8 @@ const UMLContainer = ({
   setRelationships,
   addMethod,
   removeMethod,
-  addMethodsFromParsedCode, // Add this new prop
-  syncCodeWithSchema, // Optionally add this if needed
+  addMethodsFromParsedCode,
+  syncCodeWithSchema,
   methods,
   popup,
   entityPopupRef,
@@ -126,22 +157,15 @@ const UMLContainer = ({
             setRelationships={setRelationships}
             addMethod={addMethod}
             removeMethod={removeMethod}
-            addMethodsFromParsedCode={addMethodsFromParsedCode} // Pass this down if needed
+            addMethodsFromParsedCode={addMethodsFromParsedCode}
             methods={methods}
           />
         </LeftPanel>
 
         {/* Right Panel: Combined Mermaid Diagram + Question Setup */}
         <RightPanel>
-          {/* Expand/Collapse Button */}
-          {/* Section: Question Setup */}
-          <Box
-            sx={{
-              borderBottom: '1px solid #ddd',
-              paddingBottom: 2,
-              marginBottom: 2,
-            }}
-          >
+          {/* Section: Question Setup - Now using the styled component */}
+          <QuestionContainer>
             <Typography variant="h6" fontWeight="bold" sx={{ fontSize: '16px', color: '#333' }}>
             </Typography>
             <Box
@@ -167,28 +191,40 @@ const UMLContainer = ({
                 setRelationships={setRelationships}
               />
             </Box>
-          </Box>
+          </QuestionContainer>
 
-          {/* Section: Mermaid UML Diagram */}
-          <Box sx={{ flex: 1, overflow: 'auto' }}>
-            <MermaidDiagram
-              schema={schema}
-              relationships={relationships}
-              removeEntity={removeEntity}
-              removeAttribute={removeAttribute}
-              addRelationship={addRelationship}
-              removeRelationship={removeRelationship}
-              addEntity={addEntity}
-              addAttribute={addAttribute}
-              updateAttributeKey={updateAttributeKey}
-              editRelationship={editRelationship}
-              methods={methods}
-              addMethod={addMethod}
-              removeMethod={removeMethod}
-              addMethodsFromParsedCode={addMethodsFromParsedCode} // Pass the new function
-              syncCodeWithSchema={syncCodeWithSchema} // Optionally pass this if needed
-            />
-          </Box>
+          {/* Section: Mermaid UML Diagram - Now using the styled component */}
+          <DiagramContainer>
+            <Box sx={{ 
+              height: '100%',
+              display: 'flex', 
+              flexDirection: 'column',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: '100%'
+            }}>
+              <MermaidDiagram
+                schema={schema}
+                relationships={relationships}
+                removeEntity={removeEntity}
+                removeAttribute={removeAttribute}
+                addRelationship={addRelationship}
+                removeRelationship={removeRelationship}
+                addEntity={addEntity}
+                addAttribute={addAttribute}
+                updateAttributeKey={updateAttributeKey}
+                editRelationship={editRelationship}
+                methods={methods}
+                addMethod={addMethod}
+                removeMethod={removeMethod}
+                addMethodsFromParsedCode={addMethodsFromParsedCode}
+                syncCodeWithSchema={syncCodeWithSchema}
+              />
+            </Box>
+          </DiagramContainer>
 
           {/* Popups for Adding Entities & Attributes */}
           {popup.visible && (

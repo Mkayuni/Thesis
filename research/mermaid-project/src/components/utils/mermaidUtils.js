@@ -114,8 +114,7 @@ export const schemaToMermaidSource = (schema, relationships) => {
 
     const className = capitalizeFirstLetter(entityName);
 
-    // Generate console output to debug the schema processing
-  console.log(`Processing entity for diagram: ${entityName} -> ${className}`);
+    
     
     // Check if this is an interface and use proper notation
     const isInterface = schemaItem.isInterface === true;
