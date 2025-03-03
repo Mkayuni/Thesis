@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -12,6 +12,7 @@ import MermaidDiagram from '../mermaidDiagram/MermaidDiagram';
 import QuestionSetup from '../questionSetup/QuestionSetup';
 import theme from '../../theme';
 
+
 // Styled Components
 const MainContainer = styled(Box)(({ theme }) => ({
   height: '100vh', 
@@ -19,7 +20,11 @@ const MainContainer = styled(Box)(({ theme }) => ({
   backgroundColor: '#f9f9f9', 
   display: 'flex',
   overflow: 'hidden',
-  position: 'relative', // Add position relative
+  position: 'relative',
+  overscrollBehavior: 'none', // Prevent scroll chaining
+  touchAction: 'none', // Disable default touch actions
+  scrollBehavior: 'auto', // Use default scroll behavior when allowed
+  WebkitOverflowScrolling: 'touch', // Improve scroll behavior on iOS
 }));
 
 const LeftPanel = styled(Box)(({ theme }) => ({
@@ -34,15 +39,17 @@ const LeftPanel = styled(Box)(({ theme }) => ({
 }));
 
 const RightPanel = styled(Box)(({ theme }) => ({
-  flex: 1, // Takes up remaining space
+  flex: 1, 
   display: 'flex',
   flexDirection: 'column',
-  overflow: 'hidden',
+  overflow: 'hidden', 
   padding: theme.spacing(2),
-  height: '100%', // Explicitly set height to 100%
-  maxHeight: '100vh', // Add max height
-  boxSizing: 'border-box', // Include padding in the height calculation
-  position: 'relative', // Add position relative
+  height: '100%', 
+  maxHeight: '100vh', 
+  boxSizing: 'border-box', 
+  position: 'relative', 
+  overscrollBehavior: 'none', 
+  touchAction: 'none' 
 }));
 
 const PopupContainer = styled(Paper)(({ theme }) => ({
@@ -73,7 +80,7 @@ const DiagramContainer = styled(Box)(({ theme }) => ({
   flex: 1,
   display: 'flex',
   flexDirection: 'column',
-  overflow: 'hidden',
+  overflow: 'hidden', // This is important
   minHeight: 0,
   height: '100%',
   position: 'relative',
@@ -82,8 +89,17 @@ const DiagramContainer = styled(Box)(({ theme }) => ({
   paddingBottom: 0,
   backgroundColor: 'white', 
   boxShadow: 'none',        
-  border: 'none'            
+  border: 'none', 
+  touchAction: 'none', // Prevents browser handling of touch events like scrolling
+  userSelect: 'none',  // Prevents text selection during dragging
+  overscrollBehavior: 'none', // Prevents scroll chaining
+  scrollbarWidth: 'none', // Firefox
+  msOverflowStyle: 'none', // IE and Edge
+  '&::-webkit-scrollbar': {
+    display: 'none' // Chrome, Safari and Opera
+  }
 }));
+
 
 const UMLContainer = ({
   schema,
@@ -123,6 +139,30 @@ const UMLContainer = ({
   questionContainerRef,
   showSubPopup,
 }) => {
+
+    const preventScroll = useCallback((e) => {
+      // Check if event is inside the diagram area
+      if (e.target.closest('.diagram-area')) {
+        e.preventDefault();
+        return false;
+      }
+    }, []);
+    
+    // Add useEffect to handle this
+    useEffect(() => {
+      const diagramArea = document.querySelector('.diagram-area');
+      if (diagramArea) {
+        diagramArea.addEventListener('wheel', preventScroll, { passive: false });
+        diagramArea.addEventListener('touchmove', preventScroll, { passive: false });
+      }
+      
+      return () => {
+        if (diagramArea) {
+          diagramArea.removeEventListener('wheel', preventScroll);
+          diagramArea.removeEventListener('touchmove', preventScroll);
+        }
+      };
+    }, [preventScroll]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -194,37 +234,45 @@ const UMLContainer = ({
           </QuestionContainer>
 
           {/* Section: Mermaid UML Diagram - Now using the styled component */}
-          <DiagramContainer>
-            <Box sx={{ 
-              height: '100%',
-              display: 'flex', 
-              flexDirection: 'column',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              width: '100%'
-            }}>
-              <MermaidDiagram
-                schema={schema}
-                relationships={relationships}
-                removeEntity={removeEntity}
-                removeAttribute={removeAttribute}
-                addRelationship={addRelationship}
-                removeRelationship={removeRelationship}
-                addEntity={addEntity}
-                addAttribute={addAttribute}
-                updateAttributeKey={updateAttributeKey}
-                editRelationship={editRelationship}
-                methods={methods}
-                addMethod={addMethod}
-                removeMethod={removeMethod}
-                addMethodsFromParsedCode={addMethodsFromParsedCode}
-                syncCodeWithSchema={syncCodeWithSchema}
-              />
-            </Box>
-          </DiagramContainer>
+        <DiagramContainer
+          onKeyDown={(e) => {
+            // Prevent arrow keys from scrolling the viewport
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+              e.preventDefault();
+            }
+          }}
+          tabIndex="0" // Allows the div to receive key events
+        >
+          <Box sx={{ 
+            height: '100%',
+            display: 'flex', 
+            flexDirection: 'column',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100%'
+          }}>
+            <MermaidDiagram
+              schema={schema}
+              relationships={relationships}
+              removeEntity={removeEntity}
+              removeAttribute={removeAttribute}
+              addRelationship={addRelationship}
+              removeRelationship={removeRelationship}
+              addEntity={addEntity}
+              addAttribute={addAttribute}
+              updateAttributeKey={updateAttributeKey}
+              editRelationship={editRelationship}
+              methods={methods}
+              addMethod={addMethod}
+              removeMethod={removeMethod}
+              addMethodsFromParsedCode={addMethodsFromParsedCode}
+              syncCodeWithSchema={syncCodeWithSchema}
+            />
+          </Box>
+        </DiagramContainer>
 
           {/* Popups for Adding Entities & Attributes */}
           {popup.visible && (

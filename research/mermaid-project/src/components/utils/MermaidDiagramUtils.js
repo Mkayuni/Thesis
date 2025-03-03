@@ -1,4 +1,5 @@
 import mermaid from 'mermaid';
+import _ from 'lodash';
 import {
   normalizeEntityName,
   extractEntityName,
@@ -12,16 +13,24 @@ import {
  * @param {number} schemaSize - The size of the schema map
  */
 export const clearMermaidDiagram = (diagramRef, schemaSize) => {
-  if (diagramRef.current) {
-    // Completely remove all content from the diagram container
-    diagramRef.current.innerHTML = '';
-    
-    // Add a placeholder message when the diagram is empty
-    if (schemaSize === 0) {
-      diagramRef.current.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No diagram to display</div>';
+    if (diagramRef.current) {
+      // Instead of completely clearing, check if we already have SVG content
+      const svgElement = diagramRef.current.querySelector('svg');
+      
+      // Only clear if:
+      // 1. Schema is empty, or
+      // 2. No SVG exists yet
+      if (schemaSize === 0 || !svgElement) {
+        // Completely remove all content from the diagram container
+        diagramRef.current.innerHTML = '';
+        
+        // Add a placeholder message when the diagram is empty
+        if (schemaSize === 0) {
+          diagramRef.current.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No diagram to display</div>';
+        }
+      }
     }
-  }
-};
+  };
 
 /**
  * Provides touch and mouse interaction handlers for the diagram
@@ -29,146 +38,175 @@ export const clearMermaidDiagram = (diagramRef, schemaSize) => {
  * @returns {Object} - Object containing event handlers
  */
 export const handleDiagramInteractions = ({
-  schema,
-  scale,
-  setScale,
-  isPanning,
-  setIsPanning,
-  startPanPos,
-  setStartPanPos,
-  panOffset,
-  setPanOffset,
-  containerRef
+    schema,
+    scale,
+    setScale,
+    isPanning,
+    setIsPanning,
+    startPanPos,
+    setStartPanPos,
+    panOffset,
+    setPanOffset,
+    containerRef
 }) => {
-  // Handle touch gestures for zooming (reversed as requested)
-  const handleTouchStart = (e) => {
-    if (schema.size === 0 || e.touches.length !== 2) return;
+    // Handle touch gestures for both panning and zooming
+    const handleTouchStart = (e) => {
+    if (schema.size === 0) return;
     
-    // Track the initial distance between touches
-    const touch1 = e.touches[0];
-    const touch2 = e.touches[1];
-    const initialDistance = Math.hypot(
-      touch2.clientX - touch1.clientX,
-      touch2.clientY - touch1.clientY
-    );
-    
-    // Store the initial distance for later comparison
-    containerRef.current.dataset.initialTouchDistance = initialDistance;
-    containerRef.current.dataset.initialScale = scale;
-  };
-
-  const handleTouchMove = (e) => {
-    if (schema.size === 0 || e.touches.length !== 2) return;
-    e.preventDefault(); // Prevent default to avoid browser zooming
-    
-    const touch1 = e.touches[0];
-    const touch2 = e.touches[1];
-    const currentDistance = Math.hypot(
-      touch2.clientX - touch1.clientX,
-      touch2.clientY - touch1.clientY
-    );
-    
-    const initialDistance = parseFloat(containerRef.current.dataset.initialTouchDistance || 0);
-    const initialScale = parseFloat(containerRef.current.dataset.initialScale || 1);
-    
-    if (initialDistance > 0) {
-      // Calculate the scale factor (reversed as requested)
-      // When fingers move apart (increasing distance) -> zoom out
-      // When fingers move together (decreasing distance) -> zoom in
-      const distanceRatio = initialDistance / currentDistance;
-      const newScale = initialScale * distanceRatio;
-      
-      // Limit scale to reasonable bounds
-      if (newScale > 0.3 && newScale < 3) {
-        setScale(newScale);
-      }
-      
-      // For horizontal panning based on touch movement
-      const touchCenter = {
-        x: (touch1.clientX + touch2.clientX) / 2,
-        y: (touch1.clientY + touch2.clientY) / 2,
-      };
-      
-      // If we have previous touch center, calculate the movement for panning
-      if (containerRef.current.dataset.lastTouchCenterX) {
-        const lastX = parseFloat(containerRef.current.dataset.lastTouchCenterX);
-        const deltaX = touchCenter.x - lastX;
+    if (e.touches.length === 1) {
+        // Single touch for panning
+        setIsPanning(true);
+        setStartPanPos({
+        x: e.touches[0].clientX - panOffset.x,
+        y: e.touches[0].clientY - panOffset.y
+        });
+    } else if (e.touches.length === 2) {
+        // Track the initial distance between touches for zooming
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const initialDistance = Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+        );
         
-        // Apply horizontal panning when fingers move left/right
-        if (Math.abs(deltaX) > 10) { // Small threshold to avoid accidental panning
-          setPanOffset(prev => ({
-            x: prev.x + deltaX / scale,
-            y: prev.y
-          }));
-        }
-      }
-      
-      // Store the current touch center for the next move event
-      containerRef.current.dataset.lastTouchCenterX = touchCenter.x;
-      containerRef.current.dataset.lastTouchCenterY = touchCenter.y;
+        // Store the initial distance for later comparison
+        containerRef.current.dataset.initialTouchDistance = initialDistance;
+        containerRef.current.dataset.initialScale = scale;
     }
-  };
+    };
 
-  const handleTouchEnd = () => {
+    const handleTouchMove = (e) => {
+    if (schema.size === 0) return;
+    
+    if (e.touches.length === 1 && isPanning) {
+        // Handle single-touch panning
+        e.preventDefault();
+        setPanOffset({
+        x: e.touches[0].clientX - startPanPos.x,
+        y: e.touches[0].clientY - startPanPos.y
+        });
+    } else if (e.touches.length === 2) {
+        e.preventDefault(); // Prevent default to avoid browser zooming
+        
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const currentDistance = Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+        );
+        
+        const initialDistance = parseFloat(containerRef.current.dataset.initialTouchDistance || 0);
+        const initialScale = parseFloat(containerRef.current.dataset.initialScale || 1);
+        
+        if (initialDistance > 0) {
+        // Calculate the scale factor (reversed as requested)
+        // When fingers move apart (increasing distance) -> zoom out
+        // When fingers move together (decreasing distance) -> zoom in
+        const distanceRatio = initialDistance / currentDistance;
+        const newScale = initialScale * distanceRatio;
+        
+        // Limit scale to reasonable bounds
+        if (newScale > 0.3 && newScale < 3) {
+            setScale(newScale);
+        }
+        
+        // For horizontal panning based on touch movement
+        const touchCenter = {
+            x: (touch1.clientX + touch2.clientX) / 2,
+            y: (touch1.clientY + touch2.clientY) / 2,
+        };
+        
+        // If we have previous touch center, calculate the movement for panning
+        if (containerRef.current.dataset.lastTouchCenterX) {
+            const lastX = parseFloat(containerRef.current.dataset.lastTouchCenterX);
+            const lastY = parseFloat(containerRef.current.dataset.lastTouchCenterY);
+            const deltaX = touchCenter.x - lastX;
+            const deltaY = touchCenter.y - lastY;
+            
+            // Apply panning when fingers move
+            if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+            setPanOffset(prev => ({
+                x: prev.x + deltaX / scale,
+                y: prev.y + deltaY / scale
+            }));
+            }
+        }
+        
+        // Store the current touch center for the next move event
+        containerRef.current.dataset.lastTouchCenterX = touchCenter.x;
+        containerRef.current.dataset.lastTouchCenterY = touchCenter.y;
+        }
+    }
+    };
+
+    const handleTouchEnd = () => {
+    setIsPanning(false);
     // Clear touch-related data attributes
     if (containerRef.current) {
-      delete containerRef.current.dataset.initialTouchDistance;
-      delete containerRef.current.dataset.initialScale;
-      delete containerRef.current.dataset.lastTouchCenterX;
-      delete containerRef.current.dataset.lastTouchCenterY;
+        delete containerRef.current.dataset.initialTouchDistance;
+        delete containerRef.current.dataset.initialScale;
+        delete containerRef.current.dataset.lastTouchCenterX;
+        delete containerRef.current.dataset.lastTouchCenterY;
     }
-  };
+    };
 
-  // Handle zooming with mouse wheel - reversed
-  const handleWheel = (e) => {
+    // Handle zooming with mouse wheel - reversed
+    const handleWheel = (e) => {
     if (schema.size === 0) return; // No zooming if no entities
     
     // Only if we're not panning
     if (!isPanning) {
-      const delta = e.deltaY;
-      // Reversed logic: deltaY > 0 (scroll down) means zoom in
-      const newScale = delta > 0 ? scale * 1.1 : scale * 0.9;
-      
-      // Limit scale to reasonable bounds
-      if (newScale > 0.3 && newScale < 3) {
+        const delta = e.deltaY;
+        // Reversed logic: deltaY > 0 (scroll down) means zoom in
+        const newScale = delta > 0 ? scale * 1.1 : scale * 0.9;
+        
+        // Limit scale to reasonable bounds
+        if (newScale > 0.3 && newScale < 3) {
         setScale(newScale);
-      }
+        }
     }
-  };
-  
-  // Handle panning start - with conditional check
-  const handleMouseDown = (e) => {
+    };
+    
+    // Handle panning start - check if clicking on diagram element vs background
+    const handleMouseDown = (e) => {
     if (schema.size === 0) return; // No panning if no entities
     
-    // Only start panning with middle mouse button (or right button as a fallback)
-    if (e.button === 1 || e.button === 2) {
-      e.preventDefault();
-      setIsPanning(true);
-      setStartPanPos({
+    // Check if clicking on a diagram element (class node)
+    const isClassElement = e.target.closest('.classGroup') || 
+                            e.target.closest('.node') || 
+                            e.target.closest('.label') ||
+                            e.target.closest('.action-button');
+    
+    // Only start panning if not clicking directly on a class element
+    // or if using middle/right mouse button
+    if (!isClassElement || e.button === 1 || e.button === 2) {
+        e.preventDefault();
+        setIsPanning(true);
+        setStartPanPos({
         x: e.clientX - panOffset.x,
         y: e.clientY - panOffset.y
-      });
+        });
     }
-  };
-  
-  // Handle panning movement - with conditional check
-  const handleMouseMove = (e) => {
+    };
+    
+    // Handle panning movement - with conditional check
+    const handleMouseMove = (e) => {
     if (schema.size === 0) return; // No panning if no entities
     
     if (isPanning) {
-      setPanOffset({
+        setPanOffset({
         x: e.clientX - startPanPos.x,
         y: e.clientY - startPanPos.y
-      });
+        });
     }
-  };
-  
-  // Handle panning end
-  const handleMouseUp = () => {
+    };
+    
+    // Handle panning end
+    const handleMouseUp = () => {
     setIsPanning(false);
-  };
+    };
 
-  return {
+    return {
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
@@ -176,7 +214,7 @@ export const handleDiagramInteractions = ({
     handleMouseDown,
     handleMouseMove,
     handleMouseUp
-  };
+    };
 };
 
 /**
@@ -221,55 +259,101 @@ export const syncJavaCodeWithSchema = (
   });
 };
 
+
+   /**
+ * Updates diagram styles without re-rendering
+ */
+   const updateDiagramStyles = (diagramRef, containerRef, scale) => {
+    if (!diagramRef.current) return;
+    
+    const svgElement = diagramRef.current.querySelector('svg');
+    if (svgElement) {
+      // Make the SVG background transparent
+      svgElement.style.background = 'transparent'; 
+      svgElement.style.overflow = 'visible';
+      
+      // Remove any padding or borders
+      svgElement.style.padding = '0';
+      svgElement.style.maxWidth = '100%';
+      svgElement.style.maxHeight = '100%';
+      svgElement.style.boxShadow = 'none';
+      svgElement.style.border = 'none';
+      
+      // Ensure consistent sizing
+      svgElement.style.width = 'auto';
+      svgElement.style.height = 'auto';
+    }
+  };
+
+
 /**
  * Renders a Mermaid diagram based on the provided schema and relationships
  * @param {Object} params - The parameters object
  */
+
 export const renderMermaidDiagram = async ({
-  diagramRef,
-  containerRef,
-  schema,
-  relationships,
-  clearDiagram,
-  removeEntity,
-  removeAttribute,
-  isPanning,
-  scale,
-  setSelectedEntity,
-  setShowRelationshipManager,
-  setActiveElement,
-  setActionBarPosition,
-  setNeedsRender
-}) => {
-  // Clear the diagram container completely before rendering
-  clearDiagram();
+    diagramRef,
+    containerRef,
+    schema,
+    relationships,
+    clearDiagram,
+    removeEntity,
+    removeAttribute,
+    isPanning,
+    scale,
+    setSelectedEntity,
+    setShowRelationshipManager,
+    setActiveElement,
+    setActionBarPosition,
+    setNeedsRender
+  }) => {
+    // If schema is empty, just clear and don't try to render
+    if (schema.size === 0) {
+      clearDiagram();
+      return;
+    }
+  
+    // Check if we already have a rendered diagram
+    const existingSvg = diagramRef.current?.querySelector('svg');
+    
+    // Generate the mermaid source
+    const source = `classDiagram\n${schemaToMermaidSource(schema, relationships)}`;
+    
+    // Only clear and re-render if the source has changed
+    // Add a data attribute to track the last rendered source
+    if (existingSvg && diagramRef.current.dataset.lastRenderedSource === source) {
+      // If source hasn't changed, just update styling but don't completely re-render
+      updateDiagramStyles(diagramRef, containerRef, scale);
+      return;
+    }
+    
+    // Source has changed, clear and render
+    clearDiagram();
+    
+    console.log("Rendering diagram with schema keys:", Array.from(schema.keys()));
+    console.log('Mermaid source:', source);
+    
+    // Store the current source for future comparison
+    if (diagramRef.current) {
+      diagramRef.current.dataset.lastRenderedSource = source;
+    }
 
-  // If schema is empty, don't try to render anything
-  if (schema.size === 0) {
-    return;
-  }
-
-  // Ensure createElementNS compatibility
-  if (typeof document.createElementNS !== 'function') {
-    document.createElementNS = (ns, tagName) => document.createElement(tagName);
-  }
-
-  console.log("Rendering diagram with schema keys:", Array.from(schema.keys()));
-
-  const source = `classDiagram\n${schemaToMermaidSource(schema, relationships)}`;
-  console.log('Mermaid source:', source);
-
-  // Initialize Mermaid with optimized, compact settings
+  // Initialize Mermaid with transparent styling
   mermaid.initialize({
     startOnLoad: false,
     theme: 'base',
     themeVariables: {
-      primaryColor: '#FFFFFF',
-      primaryBorderColor: '#000000', // Change to '#FFFFFF' if you want no visible borders
-      lineColor: '#000000',          // Keep this darker for visibility
+      primaryColor: 'transparent',
+      primaryBorderColor: '#000000',
+      lineColor: '#000000',
       fontFamily: 'Arial, sans-serif',
       textColor: '#000000',
       fontSize: '14px',
+      nodeBorder: '#000000',
+      mainBkg: 'transparent',
+      clusterBkg: 'transparent',
+      clusterBorder: 'none',
+      titleColor: '#000000',
     },
     securityLevel: 'loose',
     flowchart: {
@@ -295,27 +379,39 @@ export const renderMermaidDiagram = async ({
           diagramRef.current.innerHTML = svg;
 
           // Access and customize the SVG
-        const svgElement = diagramRef.current.querySelector('svg');
-        if (svgElement) {
-        // Make the SVG background white
-        svgElement.style.background = 'white'; 
-        svgElement.style.overflow = 'visible';
-        
-        // Remove any padding or borders
-        svgElement.style.padding = '0';
-        svgElement.style.maxWidth = '100%';
-        svgElement.style.maxHeight = '100%';
-        
-        // Ensure consistent sizing
-        svgElement.style.width = 'auto';
-        svgElement.style.height = 'auto';
-        
-        // Center the diagram
-        const diagramContainer = diagramRef.current;
-        diagramContainer.style.display = 'flex';
-        diagramContainer.style.justifyContent = 'center';
-        diagramContainer.style.alignItems = 'center';
+          const svgElement = diagramRef.current.querySelector('svg');
+          if (svgElement) {
+            // Make the SVG background transparent
+            svgElement.style.background = 'transparent'; 
+            svgElement.style.overflow = 'visible';
+            
+            // Remove any padding or borders
+            svgElement.style.padding = '0';
+            svgElement.style.maxWidth = '100%';
+            svgElement.style.maxHeight = '100%';
+            svgElement.style.boxShadow = 'none';
+            svgElement.style.border = 'none';
+            
+            // Ensure consistent sizing
+            svgElement.style.width = 'auto';
+            svgElement.style.height = 'auto';
+            
+            // Center the diagram
+            const diagramContainer = diagramRef.current;
+            diagramContainer.style.display = 'flex';
+            diagramContainer.style.justifyContent = 'center';
+            diagramContainer.style.alignItems = 'center';
+            diagramContainer.style.background = 'transparent';
+            diagramContainer.style.boxShadow = 'none';
+            diagramContainer.style.border = 'none';
 
+            // Remove container styles from class nodes
+            const rects = svgElement.querySelectorAll('rect');
+            rects.forEach(rect => {
+              // Remove shadow effects but keep the border line
+              rect.setAttribute('filter', 'none');
+              rect.setAttribute('stroke-width', '1px');
+            });
 
             // Add both button systems
             

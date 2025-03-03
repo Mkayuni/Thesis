@@ -1,10 +1,10 @@
 // UMLComponent.js
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, Suspense  } from 'react';
 import mermaid from 'mermaid';
 import './mermaid.css';
 import { usePopup } from './utils/usePopup';
 import { useEntityManagement } from './entityManager/EntityManager';
-import UMLContainer from './containers/UMLContainer';
+const UMLContainer = React.lazy(() => import('./containers/UMLContainer'));
 
 const UMLComponent = () => {
   const {
@@ -53,6 +53,31 @@ const UMLComponent = () => {
   const [methods, setMethods] = useState([]);
   const [attributeType, setAttributeType] = useState('');
   const [generatedJavaCode] = useState('');
+
+
+  useEffect(() => {
+    // Function to prevent default scrolling behavior
+    const preventDefaultScrolling = (e) => {
+      // Prevent default scrolling behavior on the UML diagram area
+      if (umlRef.current && umlRef.current.contains(e.target)) {
+        e.preventDefault();
+        return false;
+      }
+    };
+
+    // Add event listeners for various scroll events
+    document.addEventListener('wheel', preventDefaultScrolling, { passive: false });
+    document.addEventListener('touchmove', preventDefaultScrolling, { passive: false });
+    document.addEventListener('scroll', preventDefaultScrolling, { passive: false });
+
+    return () => {
+      // Remove event listeners when component unmounts
+      document.removeEventListener('wheel', preventDefaultScrolling);
+      document.removeEventListener('touchmove', preventDefaultScrolling);
+      document.removeEventListener('scroll', preventDefaultScrolling);
+    };
+  }, []);
+
 
   useEffect(() => {
     document.addEventListener('mousedown', handleClickOutside);
@@ -206,44 +231,46 @@ const UMLComponent = () => {
   }, [isFeedbackOpen, isSubmitOpen, handleOutsideClick]);
 
   return (
-    <UMLContainer
-      schema={schema}
-      setSchema={setSchema}
-      showPopup={showPopup}
-      expandedPanel={expandedPanel}
-      setExpandedPanel={setExpandedPanel}
-      removeEntity={removeEntity}
-      removeAttribute={removeAttribute}
-      relationships={relationships}
-      removeRelationship={removeRelationship}
-      updateAttributeKey={updateAttributeKey}
-      addRelationship={addRelationship}
-      editRelationship={editRelationship}
-      questions={questions}
-      setQuestions={setQuestions}
-      questionMarkdown={questionMarkdown}
-      setQuestionMarkdown={setQuestionMarkdown}
-      controlsRef={controlsRef}
-      onQuestionClick={handleQuestionClick}
-      hidePopup={hidePopup}
-      addEntity={addEntity}
-      addAttribute={addAttribute}
-      setRelationships={setRelationships}
-      addMethod={addMethod}
-      removeMethod={removeMethod}
-      addMethodsFromParsedCode={addMethodsFromParsedCode} // Pass the new function to the container
-      methods={methods}
-      popup={popup}
-      entityPopupRef={entityPopupRef}
-      subPopup={subPopup}
-      subPopupRef={subPopupRef}
-      handleAddAttributeClick={handleAddAttributeClick}
-      attributeType={attributeType}
-      setAttributeType={setAttributeType}
-      questionContainerRef={questionContainerRef}
-      showSubPopup={showSubPopup}
-      syncCodeWithSchema={syncCodeWithSchema} // Make the new helper available
-    />
+    <Suspense fallback={<div>Loading diagram...</div>}>
+      <UMLContainer
+        schema={schema}
+        setSchema={setSchema}
+        showPopup={showPopup}
+        expandedPanel={expandedPanel}
+        setExpandedPanel={setExpandedPanel}
+        removeEntity={removeEntity}
+        removeAttribute={removeAttribute}
+        relationships={relationships}
+        removeRelationship={removeRelationship}
+        updateAttributeKey={updateAttributeKey}
+        addRelationship={addRelationship}
+        editRelationship={editRelationship}
+        questions={questions}
+        setQuestions={setQuestions}
+        questionMarkdown={questionMarkdown}
+        setQuestionMarkdown={setQuestionMarkdown}
+        controlsRef={controlsRef}
+        onQuestionClick={handleQuestionClick}
+        hidePopup={hidePopup}
+        addEntity={addEntity}
+        addAttribute={addAttribute}
+        setRelationships={setRelationships}
+        addMethod={addMethod}
+        removeMethod={removeMethod}
+        addMethodsFromParsedCode={addMethodsFromParsedCode}
+        methods={methods}
+        popup={popup}
+        entityPopupRef={entityPopupRef}
+        subPopup={subPopup}
+        subPopupRef={subPopupRef}
+        handleAddAttributeClick={handleAddAttributeClick}
+        attributeType={attributeType}
+        setAttributeType={setAttributeType}
+        questionContainerRef={questionContainerRef}
+        showSubPopup={showSubPopup}
+        syncCodeWithSchema={syncCodeWithSchema}
+      />
+    </Suspense>
   );
 };
 

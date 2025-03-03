@@ -4,6 +4,7 @@ import { styled } from '@mui/material/styles';
 import RelationshipManager from '../relationshipManager/RelationshipManager';
 import { SYNTAX_TYPES } from '../ui/ui';
 import Editor from '@monaco-editor/react';
+import _ from 'lodash';
 
 import { 
   renderMermaidDiagram, 
@@ -12,11 +13,11 @@ import {
   syncJavaCodeWithSchema 
 } from '../utils/MermaidDiagramUtils';
 
-// Styled components
+// Styled components - Remove all container styling
 const DiagramBox = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(2),
-  backgroundColor: '#ffffff',
-  borderRadius: '0',        // Remove border radius
+  padding: 0, // Remove padding
+  backgroundColor: 'transparent', // Make background transparent
+  borderRadius: 0,
   overflow: 'hidden',
   width: '100%',
   height: '100%',
@@ -26,10 +27,12 @@ const DiagramBox = styled(Box)(({ theme }) => ({
   right: 0,
   bottom: 0,
   zIndex: 0,
-  border: 'none',           // Remove border
-  boxShadow: 'none',        // Remove box shadow
+  border: 'none',
+  boxShadow: 'none',
   display: 'flex',
   flexDirection: 'column',
+  touchAction: 'none',
+  userSelect: 'none'
 }));
 
 const Toolbar = styled(Box)(({ theme }) => ({
@@ -102,6 +105,10 @@ const MermaidDiagram = ({
   // State for tracking the active element and action bar
   const [activeElement, setActiveElement] = useState(null);
   const [actionBarPosition, setActionBarPosition] = useState({ x: 0, y: 0 });
+  
+  // State for tracking click vs drag
+  const [mouseDownTime, setMouseDownTime] = useState(0);
+  const [isClick, setIsClick] = useState(true);
 
   // Clear diagram function - imported from utils but with local state ref
   const clearDiagram = useCallback(() => {
@@ -109,42 +116,80 @@ const MermaidDiagram = ({
   }, [schema.size]);
 
   // Render diagram function - imported but with local refs and state
-  const renderDiagram = useCallback(async () => {
-    await renderMermaidDiagram({
-      diagramRef,
-      containerRef,
-      schema,
-      relationships,
-      clearDiagram,
-      removeEntity,
-      removeAttribute,
-      isPanning,
-      scale,
-      setSelectedEntity,
-      setShowRelationshipManager,
-      setActiveElement,
-      setActionBarPosition,
-      setNeedsRender
-    });
-  }, [schema, relationships, clearDiagram, removeEntity, removeAttribute, isPanning, scale]);
+  const debouncedRenderDiagram = useCallback(
+    _.debounce(async () => {
+      await renderMermaidDiagram({
+        diagramRef,
+        containerRef,
+        schema,
+        relationships,
+        clearDiagram,
+        removeEntity,
+        removeAttribute,
+        isPanning,
+        scale,
+        setSelectedEntity,
+        setShowRelationshipManager,
+        setActiveElement,
+        setActionBarPosition,
+        setNeedsRender
+      });
+    }, 300), // 300ms debounce time
+    [schema, relationships, clearDiagram, removeEntity, removeAttribute, isPanning, scale]
+  );
+
+  // Custom function to remove container styles from SVG after it's rendered
+  useEffect(() => {
+    const removeContainerStyling = () => {
+      if (diagramRef.current) {
+        const svgElement = diagramRef.current.querySelector('svg');
+        if (svgElement) {
+          // Remove any background, borders, or shadows from the SVG
+          svgElement.style.background = 'transparent';
+          svgElement.style.boxShadow = 'none';
+          svgElement.style.border = 'none';
+          svgElement.style.overflow = 'visible';
+          
+          // Remove container styling from all diagram elements
+          const rectangles = svgElement.querySelectorAll('rect');
+          rectangles.forEach(rect => {
+            if (rect.classList && !rect.classList.contains('label')) {
+              rect.setAttribute('filter', 'none');
+              rect.setAttribute('stroke-width', '1px');
+            }
+          });
+        }
+      }
+    };
+    
+    // Add a mutation observer to watch for changes in the diagram container
+    if (diagramRef.current) {
+      const observer = new MutationObserver(() => {
+        removeContainerStyling();
+      });
+      
+      observer.observe(diagramRef.current, { 
+        childList: true,
+        subtree: true 
+      });
+      
+      return () => observer.disconnect();
+    }
+  }, []);
 
   // Update the effect to thoroughly clean up and re-render on schema changes
   useEffect(() => {
-    // Clear diagram immediately on schema change
-    clearDiagram();
-    
-    // Only render if we have entities
+    // Only render if we have entities, without clearing first
     if (schema.size > 0) {
-      const timerId = setTimeout(() => {
-        renderDiagram();
-      }, 50); // Slightly longer delay for reliability
+      debouncedRenderDiagram();
       
       return () => {
-        clearTimeout(timerId);
-        clearDiagram(); // Clean up on unmount or before re-render
+        debouncedRenderDiagram.cancel(); // Cancel any pending debounced renders
       };
+    } else {
+      clearDiagram(); // Only clear if no entities
     }
-  }, [schema, relationships, renderDiagram, clearDiagram]);
+  }, [schema, relationships, debouncedRenderDiagram, clearDiagram]);
 
   // Additional effect to handle rendering when needed (triggered by button clicks)
   useEffect(() => {
@@ -154,10 +199,21 @@ const MermaidDiagram = ({
       
       // Render the diagram if there are entities left
       if (schema.size > 0) {
-        renderDiagram();
+        debouncedRenderDiagram();
       }
     }
-  }, [needsRender, schema.size, renderDiagram]);
+  }, [needsRender, schema.size, debouncedRenderDiagram]);
+
+  // Add this to MermaidDiagram.js component
+useEffect(() => {
+  // Add class when component mounts
+  document.body.classList.add('diagram-active');
+  
+  // Remove class when component unmounts
+  return () => {
+    document.body.classList.remove('diagram-active');
+  };
+}, []);
 
   // Add an effect to hide action bar when clicking outside
   useEffect(() => {
@@ -166,7 +222,8 @@ const MermaidDiagram = ({
         activeElement && 
         containerRef.current && 
         !event.target.closest('.action-button') &&
-        !event.target.closest('.classGroup')
+        !event.target.closest('.classGroup') &&
+        isClick // Only hide if it was a click, not a drag
       ) {
         setActiveElement(null);
       }
@@ -176,7 +233,21 @@ const MermaidDiagram = ({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [activeElement]);
+  }, [activeElement, isClick]);
+
+  // Prevent default behaviour
+  useEffect(() => {
+    const preventArrowScroll = (e) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+    
+    window.addEventListener('keydown', preventArrowScroll);
+    return () => {
+      window.removeEventListener('keydown', preventArrowScroll);
+    };
+  }, []);
 
   // Get touch and mouse handlers from utils
   const { 
@@ -200,11 +271,58 @@ const MermaidDiagram = ({
     containerRef
   });
 
+  // Custom handlers to differentiate between clicks and drags
+  const handleContainerMouseDown = (e) => {
+    if (schema.size === 0) return;
+    
+    // Determine if this is a direct click on the container vs a diagram element
+    const isClassElement = e.target.closest('.classGroup') || 
+                           e.target.closest('.node') || 
+                           e.target.closest('.label') ||
+                           e.target.closest('.action-button');
+    
+    setMouseDownTime(Date.now());
+    setIsClick(true);
+    
+    if (!isClassElement || e.button === 1 || e.button === 2) {
+      // Only start panning if not clicking on a class element or using middle/right button
+      handleMouseDown(e);
+    }
+  };
+  
+  const handleContainerMouseMove = (e) => {
+    if (isPanning) {
+      // If we've moved while mouse is down, it's a drag, not a click
+      if (isClick && Date.now() - mouseDownTime > 100) {
+        setIsClick(false);
+      }
+      handleMouseMove(e);
+    }
+  };
+  
+  const handleContainerMouseUp = (e) => {
+    const wasDragging = !isClick;
+    handleMouseUp(e);
+    
+    // If this was a quick click and not a drag operation, process normal click behavior
+    if (isClick && Date.now() - mouseDownTime < 200) {
+      // This was a quick click on background - can deselect any selected entity
+      const isClassElement = e.target.closest('.classGroup') || 
+                             e.target.closest('.node') || 
+                             e.target.closest('.label') ||
+                             e.target.closest('.action-button');
+      
+      if (!isClassElement) {
+        setActiveElement(null);
+      }
+    }
+  };
+
   // Update the schema and re-render diagram
   const handleUpdate = () => {
     syncJavaCodeWithSchema(code, SYNTAX_TYPES.JAVA, addEntity, addAttribute, addMethod, addMethodsFromParsedCode);
     setIsCodeModified(false);
-    renderDiagram();
+    debouncedRenderDiagram();
   };
   
   // Handler functions for action buttons
@@ -345,6 +463,7 @@ const MermaidDiagram = ({
       
       <DiagramBox
         ref={containerRef}
+        className="diagram-area"
         sx={{
           cursor: isPanning ? 'grabbing' : (schema.size > 0 ? 'grab' : 'default'),
           flex: 1,
@@ -352,16 +471,57 @@ const MermaidDiagram = ({
           minHeight: 0,
           height: 'auto',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          background: 'transparent', // Ensure transparent background
+          overflow: 'hidden',
+          overscrollBehavior: 'none', // Prevent scroll chaining
+          touchAction: 'none', // Disable default touch actions
+          userSelect: 'none', // Prevent text selection
+          scrollbarWidth: 'none', // Hide scrollbars in Firefox
+          msOverflowStyle: 'none', // Hide scrollbars in IE/Edge
+          WebkitOverflowScrolling: 'touch',
+          WebkitUserSelect: 'none',
+          MozUserSelect: 'none',
+          msUserSelect: 'none',
+          // Fix for iOS and macOS trackpads
+          '&, & *': {
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'none',
+            scrollBehavior: 'auto'
+          },
+          '&::-webkit-scrollbar': {
+            display: 'none' // Hide scrollbars in Chrome/Safari
+          }
         }}
-        onWheel={schema.size > 0 ? handleWheel : null}
-        onMouseDown={schema.size > 0 ? handleMouseDown : null}
-        onMouseMove={schema.size > 0 ? handleMouseMove : null}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        onKeyDown={(e) => {
+          // Prevent arrow keys from scrolling the viewport
+          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+          }
+        }}
+        tabIndex="0" // Allows the div to receive key events
+        onWheel={(e) => {
+          e.preventDefault(); // Explicitly prevent default
+          e.stopPropagation(); // Prevent event propagation
+          if (schema.size > 0) handleWheel(e);
+        }}
+        onMouseDown={schema.size > 0 ? handleContainerMouseDown : null}
+        onMouseMove={schema.size > 0 ? handleContainerMouseMove : null}
+        onMouseUp={handleContainerMouseUp}
+        onMouseLeave={handleContainerMouseUp}
+        onTouchStart={(e) => {
+          e.stopPropagation();
+          handleTouchStart(e);
+        }}
+        onTouchMove={(e) => {
+          e.preventDefault(); // Explicitly prevent default
+          e.stopPropagation();
+          handleTouchMove(e);
+        }}
+        onTouchEnd={(e) => {
+          e.stopPropagation();
+          handleTouchEnd(e);
+        }}
         onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
       >
         {/* Action bar for the selected element */}
@@ -468,22 +628,34 @@ const MermaidDiagram = ({
             bottom: 0,
             display: 'flex',
             justifyContent: 'center',
-            alignItems: 'center'
+            alignItems: 'center',
+            cursor: isPanning ? 'grabbing' : 'grab',
+            background: 'transparent',
+            border: 'none',
+            boxShadow: 'none',
+            padding: 0,
+            margin: 0,
+            overscrollBehavior: 'none', 
+            touchAction: 'none', 
+            userSelect: 'none' 
           }}
         >
           <div 
-          ref={diagramRef} 
-          id="diagram" 
-          style={{ 
-            height: '100%', 
-            width: '100%',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: 'white', // Add this
-            boxShadow: 'none'         // Add this
-          }} 
-        />
+            ref={diagramRef} 
+            id="diagram" 
+            style={{ 
+              height: '100%', 
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: 'transparent', // Changed to transparent
+              boxShadow: 'none',
+              border: 'none',
+              padding: 0,
+              margin: 0
+            }} 
+          />
         </div>
         
         {/* Relationship Manager - UPDATED POSITION */}
