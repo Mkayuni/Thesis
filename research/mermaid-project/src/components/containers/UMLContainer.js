@@ -138,6 +138,7 @@ const UMLContainer = ({
   setAttributeType,
   questionContainerRef,
   showSubPopup,
+  currentQuestion,
 }) => {
 
     const preventScroll = useCallback((e) => {
@@ -270,6 +271,7 @@ const UMLContainer = ({
               removeMethod={removeMethod}
               addMethodsFromParsedCode={addMethodsFromParsedCode}
               syncCodeWithSchema={syncCodeWithSchema}
+              currentQuestion={currentQuestion}
             />
           </Box>
         </DiagramContainer>

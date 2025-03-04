@@ -232,8 +232,14 @@ export const syncJavaCodeWithSchema = (
   addEntity, 
   addAttribute, 
   addMethod, 
-  addMethodsFromParsedCode
+  addMethodsFromParsedCode,
+  questionId = null
 ) => {
+     // Log the association for tracking purposes
+  if (questionId) {
+    console.log(`Parsing code for question: ${questionId}`);
+  }
+
   // First, parse the schema
   const parsedSchema = parseCodeToSchema(javaCode, syntaxType, addMethod, addMethodsFromParsedCode);
   console.log("Parsed Schema:", parsedSchema);
@@ -257,8 +263,16 @@ export const syncJavaCodeWithSchema = (
       addMethodsFromParsedCode(entityName, newEntity.methods);
     }
   });
+  // If you'd like to store this association, you could do something like:
+  if (questionId) {
+    // Store in localStorage for persistence
+    localStorage.setItem(`question_${questionId}_lastCode`, javaCode);
+    
+    // Or maintain an in-memory mapping if that's more suitable
+    window.questionCodeMap = window.questionCodeMap || {};
+    window.questionCodeMap[questionId] = javaCode;
+  }
 };
-
 
    /**
  * Updates diagram styles without re-rendering

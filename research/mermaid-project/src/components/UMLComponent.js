@@ -53,6 +53,7 @@ const UMLComponent = () => {
   const [methods, setMethods] = useState([]);
   const [attributeType, setAttributeType] = useState('');
   const [generatedJavaCode] = useState('');
+  const [currentQuestion, setCurrentQuestion] = useState(null);
 
 
   useEffect(() => {
@@ -111,6 +112,7 @@ const UMLComponent = () => {
       .catch((error) => console.error('Error fetching methods:', error));
   };
 
+  // Update the fetchQuestionHtml function to also set the current question
   const fetchQuestionHtml = (questionTitle) => {
     fetch(`http://127.0.0.1:5000/api/question/${questionTitle}`)
       .then((response) => response.text())
@@ -119,6 +121,8 @@ const UMLComponent = () => {
         setSchema(new Map());
         setRelationships(new Map());
         fetchMethodsForQuestion(questionTitle);
+        // Set the current question when fetched
+        setCurrentQuestion(questionTitle);
       })
       .catch((error) => console.error('Error fetching the question HTML:', error));
   };
@@ -269,6 +273,8 @@ const UMLComponent = () => {
         questionContainerRef={questionContainerRef}
         showSubPopup={showSubPopup}
         syncCodeWithSchema={syncCodeWithSchema}
+        currentQuestion={currentQuestion}
+        setCurrentQuestion={setCurrentQuestion}
       />
     </Suspense>
   );

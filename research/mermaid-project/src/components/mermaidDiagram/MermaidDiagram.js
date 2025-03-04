@@ -84,6 +84,8 @@ const MermaidDiagram = ({
   addMethod,
   addMethodsFromParsedCode,
   removeMethod,
+  currentQuestion,
+  
 }) => {
   const diagramRef = useRef(null);
   const containerRef = useRef(null);
@@ -91,6 +93,13 @@ const MermaidDiagram = ({
   const [showWorkbench, setShowWorkbench] = useState(false);
   const [code, setCode] = useState('');
   const [syntax, setSyntax] = useState(SYNTAX_TYPES.JAVA);
+  const [workbenchData, setWorkbenchData] = useState({
+    code: '',
+    syntax: SYNTAX_TYPES.JAVA,
+    questionId: null,
+    generatedCode: '',
+    isCodeModified: false
+  });
   const [generatedCode, setGeneratedCode] = useState('');
   const [isCodeModified, setIsCodeModified] = useState(false);
   const [needsRender, setNeedsRender] = useState(false);
@@ -138,6 +147,15 @@ const MermaidDiagram = ({
     }, 300), // 300ms debounce time
     [schema, relationships, clearDiagram, removeEntity, removeAttribute, isPanning, scale]
   );
+
+  // When showing the workbench, set the associated question
+  const handleOpenWorkbench = () => {
+    setShowWorkbench(true);
+    setWorkbenchData(prev => ({
+      ...prev,
+      questionId: currentQuestion
+    }));
+  };
 
   // Custom function to remove container styles from SVG after it's rendered
   useEffect(() => {
@@ -320,11 +338,24 @@ useEffect(() => {
   };
 
   // Update the schema and re-render diagram
-  const handleUpdate = () => {
-    syncJavaCodeWithSchema(code, SYNTAX_TYPES.JAVA, addEntity, addAttribute, addMethod, addMethodsFromParsedCode);
-    setIsCodeModified(false);
-    debouncedRenderDiagram();
-  };
+    const handleUpdate = () => {
+      syncJavaCodeWithSchema(
+        workbenchData.code, 
+        workbenchData.syntax, 
+        addEntity, 
+        addAttribute, 
+        addMethod, 
+        addMethodsFromParsedCode,
+        workbenchData.questionId // Pass the question ID to link it with the code
+      );
+      
+      setWorkbenchData({
+        ...workbenchData,
+        isCodeModified: false
+      });
+      
+      debouncedRenderDiagram();
+    };
   
   // Handler functions for action buttons
   const handleDeleteEntity = () => {
@@ -415,6 +446,39 @@ useEffect(() => {
     }
   };
 
+  //Submission Logic
+  const handleSubmitForGrading = () => {
+    if (!workbenchData.questionId) {
+      alert("Please select a question before submitting");
+      return;
+    }
+    
+    // Prepare the submission data
+    const submissionData = {
+      questionId: workbenchData.questionId,
+      code: workbenchData.code,
+      schema: Array.from(schema.entries()), // Convert map to array for JSON
+      relationships: Array.from(relationships.entries())
+    };
+    
+    // Send to your backend for grading
+    fetch('http://127.0.0.1:5000/api/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(submissionData),
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log('Grading result:', data);
+      // Handle the grading response, e.g., show feedback
+    })
+    .catch((error) => {
+      console.error('Error submitting for grading:', error);
+    });
+  };
+  
   // Reset zoom and pan
   const handleResetView = () => {
     setScale(1);
@@ -441,10 +505,10 @@ useEffect(() => {
             </IconButton>
           </Tooltip>
           <Tooltip title="Open WorkBench">
-            <IconButton color="primary" size="small" onClick={() => setShowWorkbench(true)}>
-              🛠️
-            </IconButton>
-          </Tooltip>
+          <IconButton color="primary" size="small" onClick={handleOpenWorkbench}>
+            🛠️
+          </IconButton>
+        </Tooltip>
           {schema.size > 0 && (
             <>
               <Tooltip title="Fit to View">
@@ -718,7 +782,7 @@ useEffect(() => {
   >
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
       <Typography variant="h6" sx={{ fontSize: '1rem', margin: 0 }}>
-        Code WorkBench
+        Code WorkBench {workbenchData.questionId && `- ${workbenchData.questionId}`}
       </Typography>
       <Box>
         <IconButton 
@@ -736,24 +800,24 @@ useEffect(() => {
       </Box>
     </Box>
           <Select
-            value={syntax}
-            onChange={(e) => setSyntax(e.target.value)}
-            fullWidth
-            sx={{ mb: 2 }}
-            size="small"
-          >
-            <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
-            <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
-          </Select>
+        value={workbenchData.syntax}
+        onChange={(e) => setWorkbenchData({...workbenchData, syntax: e.target.value})}
+        fullWidth
+        sx={{ mb: 2 }}
+        size="small"
+      >
+        <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
+        <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
+      </Select>
           
           {/* Fixed height container for the editor */}
           <MonacoEditorWrapper
             height={isWorkbenchFullscreen ? "calc(100vh - 120px)" : "300px"}
-            language={syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
+            language={workbenchData.syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
             theme="vs-light"
-            value={code}
+            value={workbenchData.code}
             onChange={(value) => {
-              setCode(value);
+              setWorkbenchData(prev => ({...prev, code: value}));
               setIsCodeModified(true);
             }}
             options={{
@@ -778,17 +842,27 @@ useEffect(() => {
               disabled={!isCodeModified}
               sx={{ fontSize: '0.8rem' }}
             >
-              Update
-            </Button>
-            <Button
-              variant="outlined"
-              color="secondary"
-              size="small"
-              onClick={() => setShowWorkbench(false)}
-              sx={{ fontSize: '0.8rem' }}
-            >
-              Close
-            </Button>
+             Update
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            size="small"
+            onClick={handleSubmitForGrading}
+            disabled={!workbenchData.questionId || !workbenchData.code}
+            sx={{ fontSize: '0.8rem' }}
+          >
+            Submit for Grading
+          </Button>
+          <Button
+            variant="outlined"
+            color="secondary"
+            size="small"
+            onClick={() => setShowWorkbench(false)}
+            sx={{ fontSize: '0.8rem' }}
+          >
+            Close
+          </Button>
           </Box>
           {generatedCode && (
             <Box sx={{ mt: 1, p: 1, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
