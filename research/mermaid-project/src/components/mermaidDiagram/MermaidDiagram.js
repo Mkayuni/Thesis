@@ -3,8 +3,8 @@ import { Box, Tooltip, IconButton, Typography, Button, Select, MenuItem } from '
 import { styled } from '@mui/material/styles';
 import RelationshipManager from '../relationshipManager/RelationshipManager';
 import { SYNTAX_TYPES } from '../ui/ui';
-import Editor from '@monaco-editor/react';
 import _ from 'lodash';
+import MonacoEditorWrapper from '../monacoWrapper/MonacoEditorWrapper';
 
 import { 
   renderMermaidDiagram, 
@@ -94,6 +94,7 @@ const MermaidDiagram = ({
   const [generatedCode, setGeneratedCode] = useState('');
   const [isCodeModified, setIsCodeModified] = useState(false);
   const [needsRender, setNeedsRender] = useState(false);
+  const [isWorkbenchFullscreen, setIsWorkbenchFullscreen] = useState(false);
   
   // States for zoom and pan functionality
   const [scale, setScale] = useState(1);
@@ -691,88 +692,116 @@ useEffect(() => {
         {/* Workbench - UPDATED POSITION */}
         {showWorkbench && (
           <Box
-            sx={{
-              position: 'fixed',
-              top: '80px',
-              right: '30px',
-              zIndex: 1200,
-              backgroundColor: '#ffffff',
-              borderRadius: '4px',
-              border: '1px solid #e0e0e0',
-              padding: '16px',
-              width: '500px',
-              maxHeight: '80vh',
-              overflow: 'auto'
-            }}
-          >
-            <Typography variant="h6" gutterBottom sx={{ fontSize: '1rem' }}>
-              Code WorkBench
-            </Typography>
-            <Select
-              value={syntax}
-              onChange={(e) => setSyntax(e.target.value)}
-              fullWidth
-              sx={{ mb: 2 }}
-              size="small"
-            >
-              <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
-              <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
-            </Select>
-            <Editor
-              height="300px"
-              language={syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
-              theme="vs-light"
-              value={code}
-              onChange={(value) => {
-                setCode(value);
-                setIsCodeModified(true);
-              }}
-              options={{
-                automaticLayout: true,
-                padding: { top: 10, bottom: 10 },
-              }}
-            />
-            <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-              <Button
-                variant="contained"
-                color="primary"
-                size="small"
-                sx={{ fontSize: '0.8rem' }}
-              >
-                Generate
-              </Button>
-              <Button
-                variant="contained"
-                color="secondary"
-                size="small"
-                onClick={handleUpdate}
-                disabled={!isCodeModified}
-                sx={{ fontSize: '0.8rem' }}
-              >
-                Update
-              </Button>
-              <Button
-                variant="outlined"
-                color="secondary"
-                size="small"
-                onClick={() => setShowWorkbench(false)}
-                sx={{ fontSize: '0.8rem' }}
-              >
-                Close
-              </Button>
-            </Box>
-            {generatedCode && (
-              <Box sx={{ mt: 1, p: 1, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-                <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
-                  {generatedCode}
-                </Typography>
-              </Box>
-            )}
-          </Box>
-        )}
-      </DiagramBox>
+    sx={{
+      position: 'fixed',
+      top: isWorkbenchFullscreen ? '0' : '80px',
+      right: isWorkbenchFullscreen ? '0' : '30px',
+      left: isWorkbenchFullscreen ? '0' : 'auto', 
+      bottom: isWorkbenchFullscreen ? '0' : 'auto',
+      zIndex: 1200,
+      backgroundColor: '#ffffff',
+      borderRadius: isWorkbenchFullscreen ? '0' : '4px',
+      border: '1px solid #e0e0e0',
+      padding: '16px',
+      width: isWorkbenchFullscreen ? '100%' : '500px',
+      height: isWorkbenchFullscreen ? '100%' : 'auto',
+      maxHeight: isWorkbenchFullscreen ? '100%' : '80vh',
+      overflow: 'auto',
+      transition: 'all 0.3s ease-out',
+      display: 'flex', // Add flex display
+      flexDirection: 'column' // Stack children vertically
+    }}
+    onMouseDown={(e) => e.stopPropagation()}
+    onMouseMove={(e) => e.stopPropagation()}
+    onMouseUp={(e) => e.stopPropagation()}
+    onWheel={(e) => e.stopPropagation()}
+  >
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Typography variant="h6" sx={{ fontSize: '1rem', margin: 0 }}>
+        Code WorkBench
+      </Typography>
+      <Box>
+        <IconButton 
+          size="small" 
+          onClick={() => setIsWorkbenchFullscreen(!isWorkbenchFullscreen)}
+        >
+          {isWorkbenchFullscreen ? '⤓' : '⤢'}
+        </IconButton>
+        <IconButton 
+          size="small" 
+          onClick={() => setShowWorkbench(false)}
+        >
+          ✖️
+        </IconButton>
+      </Box>
     </Box>
-  );
+          <Select
+            value={syntax}
+            onChange={(e) => setSyntax(e.target.value)}
+            fullWidth
+            sx={{ mb: 2 }}
+            size="small"
+          >
+            <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
+            <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
+          </Select>
+          
+          {/* Fixed height container for the editor */}
+          <MonacoEditorWrapper
+            height={isWorkbenchFullscreen ? "calc(100vh - 120px)" : "300px"}
+            language={syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
+            theme="vs-light"
+            value={code}
+            onChange={(value) => {
+              setCode(value);
+              setIsCodeModified(true);
+            }}
+            options={{
+              automaticLayout: true,
+              padding: { top: 10, bottom: 10 },
+            }}
+          />
+          <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              sx={{ fontSize: '0.8rem' }}
+            >
+              Generate
+            </Button>
+            <Button
+              variant="contained"
+              color="secondary"
+              size="small"
+              onClick={handleUpdate}
+              disabled={!isCodeModified}
+              sx={{ fontSize: '0.8rem' }}
+            >
+              Update
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              size="small"
+              onClick={() => setShowWorkbench(false)}
+              sx={{ fontSize: '0.8rem' }}
+            >
+              Close
+            </Button>
+          </Box>
+          {generatedCode && (
+            <Box sx={{ mt: 1, p: 1, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+              <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
+                {generatedCode}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      )}
+      </DiagramBox>
+      </Box>
+      );
 };
 
 export default MermaidDiagram;

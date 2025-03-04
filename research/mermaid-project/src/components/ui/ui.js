@@ -20,6 +20,13 @@ export const initWorkbench = () => {
         return;
     }
 
+     // Add this to prevent event propagation to the parent diagram
+     workbench.addEventListener('mousedown', (e) => e.stopPropagation());
+     workbench.addEventListener('mousemove', (e) => e.stopPropagation());
+     workbench.addEventListener('mouseup', (e) => e.stopPropagation());
+     workbench.addEventListener('click', (e) => e.stopPropagation());
+     workbench.addEventListener('wheel', (e) => e.stopPropagation());
+
     // Clear existing content
     workbench.innerHTML = '';
 
@@ -48,6 +55,15 @@ export const initWorkbench = () => {
         language: currentSyntax === SYNTAX_TYPES.JAVA ? 'java' : 'python',
         theme: 'vs-light',
         automaticLayout: true,
+    });
+
+    // Add these event listeners right here, after initializing the editor
+    codeEditorContainer.addEventListener('mousedown', (e) => e.stopPropagation());
+    codeEditorContainer.addEventListener('mousemove', (e) => e.stopPropagation());
+    codeEditorContainer.addEventListener('mouseup', (e) => e.stopPropagation());
+    codeEditorContainer.addEventListener('wheel', (e) => {
+        e.stopPropagation();
+        // Don't prevent default here so scrolling still works in the editor
     });
 
     // Generate Button
