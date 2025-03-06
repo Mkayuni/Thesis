@@ -1,16 +1,16 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { Box, Tooltip, IconButton, Typography, Button, Select, MenuItem } from '@mui/material';
+import { Box, Tooltip, IconButton, Typography, Button } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import RelationshipManager from '../relationshipManager/RelationshipManager';
 import { SYNTAX_TYPES } from '../ui/ui';
 import _ from 'lodash';
-import MonacoEditorWrapper from '../monacoWrapper/MonacoEditorWrapper';
+import CodeWorkbench from '../utils/CodeWorkbench';
 
 import { 
   renderMermaidDiagram, 
   clearMermaidDiagram, 
   handleDiagramInteractions,
-  syncJavaCodeWithSchema 
+  syncJavaCodeWithSchema
 } from '../utils/MermaidDiagramUtils';
 
 // Styled components - Remove all container styling
@@ -85,23 +85,11 @@ const MermaidDiagram = ({
   addMethodsFromParsedCode,
   removeMethod,
   currentQuestion,
-  
 }) => {
   const diagramRef = useRef(null);
   const containerRef = useRef(null);
   const [showRelationshipManager, setShowRelationshipManager] = useState(false);
   const [showWorkbench, setShowWorkbench] = useState(false);
-  const [code, setCode] = useState('');
-  const [syntax, setSyntax] = useState(SYNTAX_TYPES.JAVA);
-  const [workbenchData, setWorkbenchData] = useState({
-    code: '',
-    syntax: SYNTAX_TYPES.JAVA,
-    questionId: null,
-    generatedCode: '',
-    isCodeModified: false
-  });
-  const [generatedCode, setGeneratedCode] = useState('');
-  const [isCodeModified, setIsCodeModified] = useState(false);
   const [needsRender, setNeedsRender] = useState(false);
   const [isWorkbenchFullscreen, setIsWorkbenchFullscreen] = useState(false);
   
@@ -151,10 +139,11 @@ const MermaidDiagram = ({
   // When showing the workbench, set the associated question
   const handleOpenWorkbench = () => {
     setShowWorkbench(true);
-    setWorkbenchData(prev => ({
-      ...prev,
-      questionId: currentQuestion
-    }));
+  };
+
+  // Toggle workbench fullscreen mode
+  const handleToggleWorkbenchFullscreen = () => {
+    setIsWorkbenchFullscreen(!isWorkbenchFullscreen);
   };
 
   // Custom function to remove container styles from SVG after it's rendered
@@ -224,15 +213,15 @@ const MermaidDiagram = ({
   }, [needsRender, schema.size, debouncedRenderDiagram]);
 
   // Add this to MermaidDiagram.js component
-useEffect(() => {
-  // Add class when component mounts
-  document.body.classList.add('diagram-active');
-  
-  // Remove class when component unmounts
-  return () => {
-    document.body.classList.remove('diagram-active');
-  };
-}, []);
+  useEffect(() => {
+    // Add class when component mounts
+    document.body.classList.add('diagram-active');
+    
+    // Remove class when component unmounts
+    return () => {
+      document.body.classList.remove('diagram-active');
+    };
+  }, []);
 
   // Add an effect to hide action bar when clicking outside
   useEffect(() => {
@@ -296,9 +285,9 @@ useEffect(() => {
     
     // Determine if this is a direct click on the container vs a diagram element
     const isClassElement = e.target.closest('.classGroup') || 
-                           e.target.closest('.node') || 
-                           e.target.closest('.label') ||
-                           e.target.closest('.action-button');
+                          e.target.closest('.node') || 
+                          e.target.closest('.label') ||
+                          e.target.closest('.action-button');
     
     setMouseDownTime(Date.now());
     setIsClick(true);
@@ -327,35 +316,15 @@ useEffect(() => {
     if (isClick && Date.now() - mouseDownTime < 200) {
       // This was a quick click on background - can deselect any selected entity
       const isClassElement = e.target.closest('.classGroup') || 
-                             e.target.closest('.node') || 
-                             e.target.closest('.label') ||
-                             e.target.closest('.action-button');
+                            e.target.closest('.node') || 
+                            e.target.closest('.label') ||
+                            e.target.closest('.action-button');
       
       if (!isClassElement) {
         setActiveElement(null);
       }
     }
   };
-
-  // Update the schema and re-render diagram
-    const handleUpdate = () => {
-      syncJavaCodeWithSchema(
-        workbenchData.code, 
-        workbenchData.syntax, 
-        addEntity, 
-        addAttribute, 
-        addMethod, 
-        addMethodsFromParsedCode,
-        workbenchData.questionId // Pass the question ID to link it with the code
-      );
-      
-      setWorkbenchData({
-        ...workbenchData,
-        isCodeModified: false
-      });
-      
-      debouncedRenderDiagram();
-    };
   
   // Handler functions for action buttons
   const handleDeleteEntity = () => {
@@ -424,7 +393,7 @@ useEffect(() => {
       }
     }
   };
-
+  
   // Function to handle zooming to fit the diagram content
   const handleZoomToFit = () => {
     if (schema.size === 0) return; // Don't zoom if no entities
@@ -444,39 +413,6 @@ useEffect(() => {
       setScale(newScale);
       setPanOffset({ x: 0, y: 0 }); // Reset panning when fitting to view
     }
-  };
-
-  //Submission Logic
-  const handleSubmitForGrading = () => {
-    if (!workbenchData.questionId) {
-      alert("Please select a question before submitting");
-      return;
-    }
-    
-    // Prepare the submission data
-    const submissionData = {
-      questionId: workbenchData.questionId,
-      code: workbenchData.code,
-      schema: Array.from(schema.entries()), // Convert map to array for JSON
-      relationships: Array.from(relationships.entries())
-    };
-    
-    // Send to your backend for grading
-    fetch('http://127.0.0.1:5000/api/submit', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(submissionData),
-    })
-    .then(response => response.json())
-    .then(data => {
-      console.log('Grading result:', data);
-      // Handle the grading response, e.g., show feedback
-    })
-    .catch((error) => {
-      console.error('Error submitting for grading:', error);
-    });
   };
   
   // Reset zoom and pan
@@ -505,20 +441,20 @@ useEffect(() => {
             </IconButton>
           </Tooltip>
           <Tooltip title="Open WorkBench">
-          <IconButton color="primary" size="small" onClick={handleOpenWorkbench}>
-            🛠️
-          </IconButton>
-        </Tooltip>
+            <IconButton color="primary" size="small" onClick={handleOpenWorkbench}>
+              🛠️
+            </IconButton>
+          </Tooltip>
           {schema.size > 0 && (
             <>
               <Tooltip title="Fit to View">
                 <IconButton color="primary" size="small" onClick={handleZoomToFit}>
-                🔍
+                  🔍
                 </IconButton>
               </Tooltip>
               <Tooltip title="Reset View">
                 <IconButton color="primary" size="small" onClick={handleResetView}>
-                🔄
+                  🔄
                 </IconButton>
               </Tooltip>
             </>
@@ -723,7 +659,7 @@ useEffect(() => {
           />
         </div>
         
-        {/* Relationship Manager - UPDATED POSITION */}
+        {/* Relationship Manager */}
         {showRelationshipManager && (
           <Box
             sx={{
@@ -753,129 +689,24 @@ useEffect(() => {
           </Box>
         )}
   
-        {/* Workbench - UPDATED POSITION */}
+        {/* Workbench */}
         {showWorkbench && (
-          <Box
-    sx={{
-      position: 'fixed',
-      top: isWorkbenchFullscreen ? '0' : '80px',
-      right: isWorkbenchFullscreen ? '0' : '30px',
-      left: isWorkbenchFullscreen ? '0' : 'auto', 
-      bottom: isWorkbenchFullscreen ? '0' : 'auto',
-      zIndex: 1200,
-      backgroundColor: '#ffffff',
-      borderRadius: isWorkbenchFullscreen ? '0' : '4px',
-      border: '1px solid #e0e0e0',
-      padding: '16px',
-      width: isWorkbenchFullscreen ? '100%' : '500px',
-      height: isWorkbenchFullscreen ? '100%' : 'auto',
-      maxHeight: isWorkbenchFullscreen ? '100%' : '80vh',
-      overflow: 'auto',
-      transition: 'all 0.3s ease-out',
-      display: 'flex', // Add flex display
-      flexDirection: 'column' // Stack children vertically
-    }}
-    onMouseDown={(e) => e.stopPropagation()}
-    onMouseMove={(e) => e.stopPropagation()}
-    onMouseUp={(e) => e.stopPropagation()}
-    onWheel={(e) => e.stopPropagation()}
-  >
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-      <Typography variant="h6" sx={{ fontSize: '1rem', margin: 0 }}>
-        Code WorkBench {workbenchData.questionId && `- ${workbenchData.questionId}`}
-      </Typography>
-      <Box>
-        <IconButton 
-          size="small" 
-          onClick={() => setIsWorkbenchFullscreen(!isWorkbenchFullscreen)}
-        >
-          {isWorkbenchFullscreen ? '⤓' : '⤢'}
-        </IconButton>
-        <IconButton 
-          size="small" 
-          onClick={() => setShowWorkbench(false)}
-        >
-          ✖️
-        </IconButton>
-      </Box>
-    </Box>
-          <Select
-        value={workbenchData.syntax}
-        onChange={(e) => setWorkbenchData({...workbenchData, syntax: e.target.value})}
-        fullWidth
-        sx={{ mb: 2 }}
-        size="small"
-      >
-        <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
-        <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
-      </Select>
-          
-          {/* Fixed height container for the editor */}
-          <MonacoEditorWrapper
-            height={isWorkbenchFullscreen ? "calc(100vh - 120px)" : "300px"}
-            language={workbenchData.syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
-            theme="vs-light"
-            value={workbenchData.code}
-            onChange={(value) => {
-              setWorkbenchData(prev => ({...prev, code: value}));
-              setIsCodeModified(true);
-            }}
-            options={{
-              automaticLayout: true,
-              padding: { top: 10, bottom: 10 },
-            }}
+          <CodeWorkbench 
+            schema={schema}
+            relationships={relationships}
+            addEntity={addEntity}
+            addAttribute={addAttribute}
+            addMethod={addMethod}
+            addMethodsFromParsedCode={addMethodsFromParsedCode}
+            currentQuestion={currentQuestion}
+            onClose={() => setShowWorkbench(false)}
+            isFullscreen={isWorkbenchFullscreen}
+            onToggleFullscreen={handleToggleWorkbenchFullscreen}
           />
-          <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-            <Button
-              variant="contained"
-              color="primary"
-              size="small"
-              sx={{ fontSize: '0.8rem' }}
-            >
-              Generate
-            </Button>
-            <Button
-              variant="contained"
-              color="secondary"
-              size="small"
-              onClick={handleUpdate}
-              disabled={!isCodeModified}
-              sx={{ fontSize: '0.8rem' }}
-            >
-             Update
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            size="small"
-            onClick={handleSubmitForGrading}
-            disabled={!workbenchData.questionId || !workbenchData.code}
-            sx={{ fontSize: '0.8rem' }}
-          >
-            Submit for Grading
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            size="small"
-            onClick={() => setShowWorkbench(false)}
-            sx={{ fontSize: '0.8rem' }}
-          >
-            Close
-          </Button>
-          </Box>
-          {generatedCode && (
-            <Box sx={{ mt: 1, p: 1, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-              <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
-                {generatedCode}
-              </Typography>
-            </Box>
-          )}
-        </Box>
-      )}
+        )}
       </DiagramBox>
-      </Box>
-      );
+    </Box>
+  );
 };
 
 export default MermaidDiagram;

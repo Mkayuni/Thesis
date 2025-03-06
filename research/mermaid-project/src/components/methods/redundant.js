@@ -1,1134 +1,1135 @@
-import React, { useEffect, useState, useRef } from 'react';
-import {
-  Typography,
-  TextField,
-  Divider,
-  IconButton,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Button,
-  Box,
-  Menu,
-  MenuItem,
-  Paper,
-  FormControl,
-  InputLabel,
-  Select,
-  Checkbox,
-  FormControlLabel,
-} from '@mui/material';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
+import { Box, Tooltip, IconButton, Typography, Button, Select, MenuItem } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import DeleteIcon from '@mui/icons-material/Delete';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import KeyIcon from '@mui/icons-material/VpnKey';
-import CategoryIcon from '@mui/icons-material/Category';
-import RelationshipManager from './relationshipManager/RelationshipManager';
-import { usePopup } from './utils/usePopup';
-import Popup from './utils/Popup';
+import RelationshipManager from '../relationshipManager/RelationshipManager';
+import { SYNTAX_TYPES } from '../ui/ui';
+import _ from 'lodash';
+import MonacoEditorWrapper from '../monacoWrapper/MonacoEditorWrapper';
+import { parseCodeToSchema } from '../utils/mermaidUtils';
 
-const DrawerContainer = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(2),
-  backgroundColor: '#ffffff',
-  borderRadius: theme.shape.borderRadius,
-  boxShadow: theme.shadows[3],
+import { 
+  renderMermaidDiagram, 
+  clearMermaidDiagram, 
+  handleDiagramInteractions,
+  syncJavaCodeWithSchema
+} from '../utils/MermaidDiagramUtils';
+
+// Styled components - Remove all container styling
+const DiagramBox = styled(Box)(({ theme }) => ({
+  padding: 0, // Remove padding
+  backgroundColor: 'transparent', // Make background transparent
+  borderRadius: 0,
+  overflow: 'hidden',
+  width: '100%',
   height: '100%',
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 0,
+  border: 'none',
+  boxShadow: 'none',
   display: 'flex',
   flexDirection: 'column',
-  gap: theme.spacing(2),
-  flex: 1,
-  overflow: 'hidden',
-  borderLeft: '2px solid #ddd',
+  touchAction: 'none',
+  userSelect: 'none'
 }));
 
-const ContentContainer = styled(Box)(({ theme }) => ({
-  overflow: 'auto',
-  flex: 1,
+const Toolbar = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: theme.spacing(1),
+  backgroundColor: '#ffffff',
+  borderRadius: '4px',
+  marginBottom: theme.spacing(1),
+  border: '1px solid #e0e0e0',
 }));
 
-const AccordionSummaryStyled = styled(AccordionSummary)(({ theme }) => ({
-  backgroundColor: theme.palette.primary.light,
-  '&.Mui-expanded': {
-    backgroundColor: theme.palette.primary.main,
-    color: theme.palette.primary.contrastText,
-  },
-}));
-
-const PopupContainer = styled(Paper)(({ theme }) => ({
+// Compact floating action buttons
+const ActionBar = styled(Box)(({ theme }) => ({
   position: 'absolute',
-  padding: theme.spacing(2),
-  backgroundColor: '#bbbbbb',
-  color: '#000000',
-  border: '1px solid #ccc',
-  boxShadow: theme.shadows[5],
-  zIndex: 1000,
-  maxHeight: '80vh',
-  overflowY: 'auto',
-  width: 'fit-content',
+  display: 'flex',
+  gap: '4px',
+  backgroundColor: 'white',
+  padding: theme.spacing(0.5),
+  borderRadius: '4px',
+  border: '1px solid #e0e0e0',
+  zIndex: 1100,
 }));
 
-const ControlsComponent = ({
-  setQuestionMarkdown,
+// Compact zoom control panel
+const ZoomControls = styled(Box)(({ theme }) => ({
+  position: 'absolute',
+  bottom: '10px',
+  right: '10px',
+  zIndex: 1050,
+  display: 'flex',
+  gap: '4px',
+  backgroundColor: 'white',
+  padding: theme.spacing(0.5),
+  borderRadius: '4px',
+  border: '1px solid #e0e0e0',
+}));
+
+const MermaidDiagram = ({
   schema,
-  setSchema,
-  questions,
-  expandedPanel,
-  setExpandedPanel,
+  relationships,
   removeEntity,
   removeAttribute,
-  relationships,
-  removeRelationship,
-  updateAttributeKey,
-  controlsRef,
-  addEntity,
   addAttribute,
+  addEntity,
   addRelationship,
-  editRelationship,
-  onQuestionClick,
-  hidePopup,
-  setRelationships,
+  removeRelationship,
   addMethod,
+  addMethodsFromParsedCode,
   removeMethod,
+  currentQuestion,
+  
 }) => {
-  const [showTextBox, setShowTextBox] = useState(false);
-  const [tempQuestion, setTempQuestion] = useState('');
-  const [anchorEl, setAnchorEl] = useState(null);
+  const diagramRef = useRef(null);
+  const containerRef = useRef(null);
+  const [showRelationshipManager, setShowRelationshipManager] = useState(false);
+  const [showWorkbench, setShowWorkbench] = useState(false);
+  const [code, setCode] = useState('');
+  const [syntax, setSyntax] = useState(SYNTAX_TYPES.JAVA);
+  const [workbenchData, setWorkbenchData] = useState({
+    code: '',
+    syntax: SYNTAX_TYPES.JAVA,
+    questionId: null,
+    generatedCode: '',
+    isCodeModified: false,
+    consoleOutput: ''
+  });
+  const [generatedCode, setGeneratedCode] = useState('');
+  const [isCodeModified, setIsCodeModified] = useState(false);
+  const [needsRender, setNeedsRender] = useState(false);
+  const [isWorkbenchFullscreen, setIsWorkbenchFullscreen] = useState(false);
+  
+  // States for zoom and pan functionality
+  const [scale, setScale] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [startPanPos, setStartPanPos] = useState({ x: 0, y: 0 });
   const [selectedEntity, setSelectedEntity] = useState(null);
-  const [selectedAttribute, setSelectedAttribute] = useState(null);
-  const [expandedQuestions, setExpandedQuestions] = useState(false);
+  
+  // State for tracking the active element and action bar
+  const [activeElement, setActiveElement] = useState(null);
+  const [actionBarPosition, setActionBarPosition] = useState({ x: 0, y: 0 });
+  
+  // State for tracking click vs drag
+  const [mouseDownTime, setMouseDownTime] = useState(0);
+  const [isClick, setIsClick] = useState(true);
 
-  const [typeAnchorEl, setTypeAnchorEl] = useState(null);
-  const [selectedTypeEntity, setSelectedTypeEntity] = useState(null);
-  const [selectedTypeAttribute, setSelectedTypeAttribute] = useState(null);
+  // Clear diagram function - imported from utils but with local state ref
+  const clearDiagram = useCallback(() => {
+    clearMermaidDiagram(diagramRef, schema.size);
+  }, [schema.size]);
 
-  const [methodToAssign, setMethodToAssign] = useState(null);
-  const [entitySelectPopupOpen, setEntitySelectPopupOpen] = useState(false);
+  // Render diagram function - imported but with local refs and state
+  const debouncedRenderDiagram = useCallback(
+    _.debounce(async () => {
+      await renderMermaidDiagram({
+        diagramRef,
+        containerRef,
+        schema,
+        relationships,
+        clearDiagram,
+        removeEntity,
+        removeAttribute,
+        isPanning,
+        scale,
+        setSelectedEntity,
+        setShowRelationshipManager,
+        setActiveElement,
+        setActionBarPosition,
+        setNeedsRender
+      });
+    }, 300), // 300ms debounce time
+    [schema, relationships, clearDiagram, removeEntity, removeAttribute, isPanning, scale]
+  );
 
-  const [visibility, setVisibility] = useState('public');
-  const [returnType, setReturnType] = useState('void');
-  const [isStatic, setIsStatic] = useState(false); // Add state for Static
+  // When showing the workbench, set the associated question
+  const handleOpenWorkbench = () => {
+    setShowWorkbench(true);
+    setWorkbenchData(prev => ({
+      ...prev,
+      questionId: currentQuestion
+    }));
+  };
 
-  const [availableMethods, setAvailableMethods] = useState([]); // New state to hold fetched methods
-
-  const {
-    popup,
-    subPopup,
-    entityPopupRef,
-    subPopupRef,
-    handleClickOutside,
-    showPopup: showPopupMethod,
-    hidePopup: hidePopupMethod,
-    showSubPopup,
-  } = usePopup();
-
-  const questionContainerRef = useRef(null);
-
+  // Custom function to remove container styles from SVG after it's rendered
   useEffect(() => {
+    const removeContainerStyling = () => {
+      if (diagramRef.current) {
+        const svgElement = diagramRef.current.querySelector('svg');
+        if (svgElement) {
+          // Remove any background, borders, or shadows from the SVG
+          svgElement.style.background = 'transparent';
+          svgElement.style.boxShadow = 'none';
+          svgElement.style.border = 'none';
+          svgElement.style.overflow = 'visible';
+          
+          // Remove container styling from all diagram elements
+          const rectangles = svgElement.querySelectorAll('rect');
+          rectangles.forEach(rect => {
+            if (rect.classList && !rect.classList.contains('label')) {
+              rect.setAttribute('filter', 'none');
+              rect.setAttribute('stroke-width', '1px');
+            }
+          });
+        }
+      }
+    };
+    
+    // Add a mutation observer to watch for changes in the diagram container
+    if (diagramRef.current) {
+      const observer = new MutationObserver(() => {
+        removeContainerStyling();
+      });
+      
+      observer.observe(diagramRef.current, { 
+        childList: true,
+        subtree: true 
+      });
+      
+      return () => observer.disconnect();
+    }
+  }, []);
+
+  // Update the effect to thoroughly clean up and re-render on schema changes
+  useEffect(() => {
+    // Only render if we have entities, without clearing first
+    if (schema.size > 0) {
+      debouncedRenderDiagram();
+      
+      return () => {
+        debouncedRenderDiagram.cancel(); // Cancel any pending debounced renders
+      };
+    } else {
+      clearDiagram(); // Only clear if no entities
+    }
+  }, [schema, relationships, debouncedRenderDiagram, clearDiagram]);
+
+  // Additional effect to handle rendering when needed (triggered by button clicks)
+  useEffect(() => {
+    if (needsRender) {
+      // Reset the flag
+      setNeedsRender(false);
+      
+      // Render the diagram if there are entities left
+      if (schema.size > 0) {
+        debouncedRenderDiagram();
+      }
+    }
+  }, [needsRender, schema.size, debouncedRenderDiagram]);
+
+  // Add this to MermaidDiagram.js component
+useEffect(() => {
+  // Add class when component mounts
+  document.body.classList.add('diagram-active');
+  
+  // Remove class when component unmounts
+  return () => {
+    document.body.classList.remove('diagram-active');
+  };
+}, []);
+
+  // Add an effect to hide action bar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        activeElement && 
+        containerRef.current && 
+        !event.target.closest('.action-button') &&
+        !event.target.closest('.classGroup') &&
+        isClick // Only hide if it was a click, not a drag
+      ) {
+        setActiveElement(null);
+      }
+    };
+    
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [handleClickOutside]);
+  }, [activeElement, isClick]);
 
+  // Prevent default behaviour
   useEffect(() => {
-    // Fetch available methods from the backend
-    fetch('http://127.0.0.1:5000/api/question/Fish%20Store/methods')
-      .then((response) => response.json())
-      .then((data) => setAvailableMethods(data.methods || []))
-      .catch((error) => console.error('Error fetching methods:', error));
+    const preventArrowScroll = (e) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+    
+    window.addEventListener('keydown', preventArrowScroll);
+    return () => {
+      window.removeEventListener('keydown', preventArrowScroll);
+    };
   }, []);
 
-  // Function to parse method strings into method name and parameters
-  const parseMethodSignature = (signature) => {
-    const methodNameMatch = signature.match(/^([a-zA-Z0-9_]+)\(/);
-    const paramsMatch = signature.match(/\(([^)]*)\)/);
+  // Get touch and mouse handlers from utils
+  const { 
+    handleTouchStart, 
+    handleTouchMove, 
+    handleTouchEnd, 
+    handleWheel,
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp
+  } = handleDiagramInteractions({
+    schema,
+    scale,
+    setScale,
+    isPanning,
+    setIsPanning,
+    startPanPos,
+    setStartPanPos,
+    panOffset,
+    setPanOffset,
+    containerRef
+  });
 
-    const methodName = methodNameMatch ? methodNameMatch[1] : signature; // Extract method name
-    const parameters = paramsMatch ? paramsMatch[1].split(',').map(param => param.trim()) : []; // Extract parameters
-
-    return { methodName, parameters };
-  };
-
-  const handleAccordionChange = (panel) => (event, isExpanded) => {
-    setExpandedPanel(isExpanded ? panel : false);
-  };
-
-  const handleQuestionSubmit = () => {
-    setQuestionMarkdown(tempQuestion);
-    setShowTextBox(false);
-  };
-
-  const handleKeyMenuClick = (event, entity, attribute) => {
-    setAnchorEl(event.currentTarget);
-    setSelectedEntity(entity);
-    setSelectedAttribute(attribute);
-  };
-
-  const handleKeyMenuClose = (key) => {
-    setAnchorEl(null);
-    if (selectedEntity && selectedAttribute) {
-      updateAttributeKey(selectedEntity, selectedAttribute, key);
+  // Custom handlers to differentiate between clicks and drags
+  const handleContainerMouseDown = (e) => {
+    if (schema.size === 0) return;
+    
+    // Determine if this is a direct click on the container vs a diagram element
+    const isClassElement = e.target.closest('.classGroup') || 
+                           e.target.closest('.node') || 
+                           e.target.closest('.label') ||
+                           e.target.closest('.action-button');
+    
+    setMouseDownTime(Date.now());
+    setIsClick(true);
+    
+    if (!isClassElement || e.button === 1 || e.button === 2) {
+      // Only start panning if not clicking on a class element or using middle/right button
+      handleMouseDown(e);
     }
-    setSelectedEntity(null);
-    setSelectedAttribute(null);
+  };
+  
+  const handleContainerMouseMove = (e) => {
+    if (isPanning) {
+      // If we've moved while mouse is down, it's a drag, not a click
+      if (isClick && Date.now() - mouseDownTime > 100) {
+        setIsClick(false);
+      }
+      handleMouseMove(e);
+    }
+  };
+  
+  const handleContainerMouseUp = (e) => {
+    const wasDragging = !isClick;
+    handleMouseUp(e);
+    
+    // If this was a quick click and not a drag operation, process normal click behavior
+    if (isClick && Date.now() - mouseDownTime < 200) {
+      // This was a quick click on background - can deselect any selected entity
+      const isClassElement = e.target.closest('.classGroup') || 
+                             e.target.closest('.node') || 
+                             e.target.closest('.label') ||
+                             e.target.closest('.action-button');
+      
+      if (!isClassElement) {
+        setActiveElement(null);
+      }
+    }
   };
 
-  const handleTypeMenuClick = (event, entity, attribute) => {
-    setTypeAnchorEl(event.currentTarget);
-    setSelectedTypeEntity(entity);
-    setSelectedTypeAttribute(attribute);
+  // Update the schema and re-render diagram
+    const handleUpdate = () => {
+      syncJavaCodeWithSchema(
+        workbenchData.code, 
+        workbenchData.syntax, 
+        addEntity, 
+        addAttribute, 
+        addMethod, 
+        addMethodsFromParsedCode,
+        workbenchData.questionId // Pass the question ID to link it with the code
+      );
+      
+      setWorkbenchData({
+        ...workbenchData,
+        isCodeModified: false
+      });
+      
+      debouncedRenderDiagram();
+    };
+  
+  // Handler functions for action buttons
+  const handleDeleteEntity = () => {
+    if (activeElement) {
+      removeEntity(activeElement);
+      setActiveElement(null);
+      setNeedsRender(true);
+    }
   };
-
-  const handleTypeMenuClose = (type) => {
-    setTypeAnchorEl(null);
-    if (selectedTypeEntity && selectedTypeAttribute) {
-      setSchema((prevSchema) => {
-        const newSchema = new Map(prevSchema);
-        const entityData = newSchema.get(selectedTypeEntity);
-        if (entityData) {
-          const updatedAttributes = new Map(entityData.attribute);
-          if (updatedAttributes.has(selectedTypeAttribute)) {
-            const attributeData = updatedAttributes.get(selectedTypeAttribute);
-            attributeData.type = type;
-            updatedAttributes.set(selectedTypeAttribute, attributeData);
+  
+  const handleAddAttribute = () => {
+    if (activeElement) {
+      const attrName = prompt('Enter attribute name:');
+      const attrType = prompt('Enter attribute type (optional):');
+      
+      if (attrName) {
+        addAttribute(activeElement, attrName, '', attrType || '');
+        setNeedsRender(true);
+      }
+    }
+  };
+  
+  const handleAddMethod = () => {
+    if (activeElement) {
+      const methodName = prompt('Enter method name:');
+      const returnType = prompt('Enter return type (optional):');
+      const params = prompt('Enter parameters (optional, comma separated):');
+      
+      if (methodName) {
+        const method = {
+          name: methodName,
+          returnType: returnType || 'void',
+          parameters: params ? params.split(',').map(p => p.trim()) : [],
+          visibility: 'public'
+        };
+        
+        addMethod(activeElement, method);
+        setNeedsRender(true);
+      }
+    }
+  };
+  
+  // Function to handle removing an attribute more safely
+  const handleRemoveAttribute = () => {
+    if (activeElement) {
+      const entity = schema.get(activeElement);
+      if (entity && entity.attribute && entity.attribute.size > 0) {
+        // Get all attributes and let user select which one to remove
+        const attributes = Array.from(entity.attribute.keys());
+        if (attributes.length === 1) {
+          // If only one attribute, remove it directly
+          removeAttribute(activeElement, attributes[0]);
+        } else {
+          // Otherwise, let user choose
+          const attrToRemove = prompt(
+            `Enter the name of the attribute to remove:\n${attributes.join(', ')}`,
+            attributes[attributes.length - 1]
+          );
+          if (attrToRemove && attributes.includes(attrToRemove)) {
+            removeAttribute(activeElement, attrToRemove);
           }
-          entityData.attribute = updatedAttributes;
-          newSchema.set(selectedTypeEntity, entityData);
         }
-        return newSchema;
+        setNeedsRender(true);
+      } else {
+        alert('This entity has no attributes to remove.');
+      }
+    }
+  };
+
+  // Function to handle zooming to fit the diagram content
+  const handleZoomToFit = () => {
+    if (schema.size === 0) return; // Don't zoom if no entities
+    
+    const svgElement = diagramRef.current?.querySelector('svg');
+    if (svgElement) {
+      const containerWidth = containerRef.current.clientWidth;
+      const containerHeight = containerRef.current.clientHeight;
+      const svgWidth = svgElement.getBBox().width;
+      const svgHeight = svgElement.getBBox().height;
+      
+      // Calculate the scale that would perfectly fit the SVG in the container
+      const scaleX = containerWidth / (svgWidth + 40);
+      const scaleY = containerHeight / (svgHeight + 40);
+      const newScale = Math.min(scaleX, scaleY, 1); // Don't scale beyond 100%
+      
+      setScale(newScale);
+      setPanOffset({ x: 0, y: 0 }); // Reset panning when fitting to view
+    }
+  };
+
+
+  //Logic for submit test run
+  const handleTestRun = () => {
+    if (!workbenchData.code) {
+      setWorkbenchData({
+        ...workbenchData,
+        consoleOutput: "<span style='color: #ff6b6b'>❌ Error: No code to validate.</span>"
+      });
+      return;
+    }
+  
+    // Run validation logic
+    const results = validateCodeInComponent(workbenchData.code, workbenchData.syntax);
+    
+    // Update the console output with results
+    setWorkbenchData({
+      ...workbenchData,
+      consoleOutput: results.messages.join('<br>')
+    });
+    
+    if (results.isValid) {
+      // If validation passed, add success message
+      setWorkbenchData(prev => ({
+        ...prev,
+        consoleOutput: prev.consoleOutput + "<br><br><span style='color: #1dd1a1'>✅ Code structure looks good! Ready to submit.</span>"
+      }));
+    }
+  };
+
+  // Implement a component version of the validation logic
+const validateCodeInComponent = (code, syntax) => {
+  const errors = [];
+  let isValid = true;
+  
+  // Check for class declarations
+  if (!code.includes('class ')) {
+    errors.push({
+      line: 1, // Default to line 1 for general errors
+      message: 'Error: No class declarations found.',
+      severity: 'error'
+    });
+    isValid = false;
+  }
+  
+  if (syntax === SYNTAX_TYPES.JAVA) {
+    // Check for missing semicolons in Java
+    const lines = code.split('\n');
+    lines.forEach((line, index) => {
+      const lineNumber = index + 1;
+      
+      // Skip comments, empty lines, and lines that don't need semicolons
+      const trimmedLine = line.trim();
+      if (trimmedLine === '' || 
+          trimmedLine.startsWith('//') || 
+          trimmedLine.startsWith('/*') || 
+          trimmedLine.startsWith('*') || 
+          trimmedLine.startsWith('}') || 
+          trimmedLine.startsWith('{') || 
+          trimmedLine.endsWith('{') || 
+          trimmedLine.endsWith('}')) {
+        return;
+      }
+      
+      // Check if line needs a semicolon but doesn't have one
+      if (!trimmedLine.endsWith(';') && 
+          !trimmedLine.includes('class ') && 
+          !trimmedLine.includes('interface ') &&
+          !trimmedLine.includes('@')) {
+        errors.push({
+          line: lineNumber,
+          message: 'Syntax error: Missing semicolon at the end of statement.',
+          severity: 'error'
+        });
+        isValid = false;
+      }
+    });
+    
+    // Check for assignment errors (missing value after equals sign)
+    const assignmentErrorRegex = /=\s*;/g;
+    let assignMatch;
+    while ((assignMatch = assignmentErrorRegex.exec(code)) !== null) {
+      const lineIndex = code.substring(0, assignMatch.index).split('\n').length - 1;
+      errors.push({
+        line: lineIndex + 1,
+        message: "Syntax error: Assignment missing value after equals sign.",
+        severity: 'error'
+      });
+      isValid = false;
+    }
+    
+    // Check for missing opening braces in method declarations
+    const methodDeclarationRegex = /(\w+\s+\w+\s*\([^)]*\))\s*(?![{])/g;
+    let methodMatch;
+    while ((methodMatch = methodDeclarationRegex.exec(code)) !== null) {
+      // Make sure this isn't an interface method that ends with semicolon
+      const nextChar = code.substring(methodMatch.index + methodMatch[0].length).trim()[0];
+      if (nextChar !== '{' && nextChar !== ';') {
+        const lineIndex = code.substring(0, methodMatch.index).split('\n').length - 1;
+        errors.push({
+          line: lineIndex + 1,
+          message: "Syntax error: Missing opening brace '{' after method declaration.",
+          severity: 'error'
+        });
+        isValid = false;
+      }
+    }
+    
+    // Check braces balance
+    const openBraces = (code.match(/\{/g) || []).length;
+    const closeBraces = (code.match(/\}/g) || []).length;
+    
+    if (openBraces !== closeBraces) {
+      errors.push({
+        line: 1,
+        message: `Error: Unbalanced braces. Opening: ${openBraces}, Closing: ${closeBraces}`,
+        severity: 'error'
+      });
+      isValid = false;
+    }
+    
+    // Add the positive class found message
+    const classRegex = /class\s+(\w+)/g;
+    const foundClasses = [];
+    let classMatch;
+    while ((classMatch = classRegex.exec(code)) !== null) {
+      foundClasses.push(classMatch[1]);
+    }
+    
+    if (foundClasses.length > 0) {
+      errors.push({
+        line: 1,
+        message: `Found ${foundClasses.length} classes: ${foundClasses.join(', ')}`,
+        severity: 'info'
       });
     }
-    setSelectedTypeEntity(null);
-    setSelectedTypeAttribute(null);
-  };
-
-  const handleQuestionsAccordionChange = () => {
-    setExpandedQuestions(!expandedQuestions);
-  };
-
-  const handleAddEntity = (entityName) => {
-    addEntity(entityName);
-    hidePopup();
-  };
-
-  const handleAddAttribute = (entityName, attribute, key = '') => {
-    addAttribute(entityName, attribute, key);
-    hidePopup();
-  };
-
-  const handleRemoveMethod = (entity, methodName) => {
-    removeMethod(entity, methodName);
-  };
-
-  const handleQuestionClick = (question) => {
-    onQuestionClick(question);
-    setSchema(new Map());
-    setRelationships(new Map());
-  };
-
-  const handleMethodLinkClick = () => {
-    setEntitySelectPopupOpen(true);
-  };
-
-  const handleAddMethodToEntity = (entity) => {
-    if (methodToAssign) {
-      const methodDetails = {
-        name: methodToAssign,
-        returnType,
-        parameters: '',
-        visibility,
-        static: isStatic, // Include static value from checkbox
-      };
-      addMethod(entity, methodDetails);
-      setMethodToAssign(null);
-      setEntitySelectPopupOpen(false);
+  }
+  
+  // Format the errors for display
+  const messages = errors.map(error => {
+    let color;
+    let icon;
+    
+    switch(error.severity) {
+      case 'error':
+        color = '#ff6b6b';
+        icon = '❌';
+        break;
+      case 'warning':
+        color = '#feca57';
+        icon = '⚠️';
+        break;
+      case 'info':
+        color = '#54a0ff';
+        icon = 'ℹ️';
+        break;
+      default:
+        color = '#f0f0f0';
+        icon = '';
     }
+    
+    return `<span style="color: ${color}">${icon} Line ${error.line}: ${error.message}</span>`;
+  });
+  
+  return { isValid, messages, errors };
+};
+
+  //Submission Logic
+  const handleSubmitForGrading = () => {
+    if (!workbenchData.questionId) {
+      alert("Please select a question before submitting");
+      return;
+    }
+    
+    // Prepare the submission data
+    const submissionData = {
+      questionId: workbenchData.questionId,
+      code: workbenchData.code,
+      schema: Array.from(schema.entries()), // Convert map to array for JSON
+      relationships: Array.from(relationships.entries())
+    };
+    
+    // Send to your backend for grading
+    fetch('http://127.0.0.1:5000/api/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(submissionData),
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log('Grading result:', data);
+      // Handle the grading response, e.g., show feedback
+    })
+    .catch((error) => {
+      console.error('Error submitting for grading:', error);
+    });
+  };
+
+  // Add this function in your component
+  const addDiagnosticMarkers = (editor, monaco, errors) => {
+    const model = editor.getModel();
+    if (!model) return;
+    
+    // Clear previous markers
+    monaco.editor.setModelMarkers(model, 'owner', []);
+    
+    // Add new markers
+    const markers = errors.map(err => ({
+      severity: monaco.MarkerSeverity.Error,
+      message: err.message,
+      startLineNumber: err.line,
+      startColumn: 1,
+      endLineNumber: err.line,
+      endColumn: model.getLineMaxColumn(err.line)
+    }));
+    
+    monaco.editor.setModelMarkers(model, 'owner', markers);
+  };
+  
+  // Reset zoom and pan
+  const handleResetView = () => {
+    setScale(1);
+    setPanOffset({ x: 0, y: 0 });
   };
 
   return (
-    <DrawerContainer ref={controlsRef}>
-      <Box sx={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
-        <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
-          Controls
+    <Box sx={{ 
+      height: '100%', 
+      display: 'flex',
+      flexDirection: 'column',
+      position: 'relative',
+      flex: 1,
+      minHeight: 0
+    }}>
+      <Toolbar>
+        <Typography variant="h6" color="primary" sx={{ fontSize: '1rem' }}>
+          UML Diagram
         </Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          sx={{ marginLeft: 'auto' }}
-          onClick={() => setShowTextBox(!showTextBox)}
-        >
-          {showTextBox ? 'Hide' : 'Add UML Question'}
-        </Button>
-      </Box>
-      {showTextBox && (
-        <Box sx={{ marginBottom: '24px' }}>
-          <TextField
-            placeholder="Enter UML question here"
-            value={tempQuestion}
-            onChange={(e) => setTempQuestion(e.target.value)}
-            multiline
-            rows={4}
-            fullWidth
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            sx={{ marginTop: '8px' }}
-            onClick={handleQuestionSubmit}
-          >
-            Submit
-          </Button>
+        <Box>
+          <Tooltip title="Add Relationship">
+            <IconButton color="primary" size="small" onClick={() => setShowRelationshipManager(true)}>
+              🔗
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Open WorkBench">
+          <IconButton color="primary" size="small" onClick={handleOpenWorkbench}>
+            🛠️
+          </IconButton>
+        </Tooltip>
+          {schema.size > 0 && (
+            <>
+              <Tooltip title="Fit to View">
+                <IconButton color="primary" size="small" onClick={handleZoomToFit}>
+                🔍
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Reset View">
+                <IconButton color="primary" size="small" onClick={handleResetView}>
+                🔄
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
         </Box>
-      )}
-      <ContentContainer>
-        <Accordion expanded={expandedQuestions} onChange={handleQuestionsAccordionChange}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6" sx={{ marginBottom: '8px' }}>
-              Questions
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <Box
-              sx={{
-                padding: '16px',
-                backgroundColor: '#f0f0f0',
-                borderRadius: '4px',
-                marginTop: '16px',
-              }}
+      </Toolbar>
+      
+      <DiagramBox
+        ref={containerRef}
+        className="diagram-area"
+        sx={{
+          cursor: isPanning ? 'grabbing' : (schema.size > 0 ? 'grab' : 'default'),
+          flex: 1,
+          position: 'relative',
+          minHeight: 0,
+          height: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'transparent', // Ensure transparent background
+          overflow: 'hidden',
+          overscrollBehavior: 'none', // Prevent scroll chaining
+          touchAction: 'none', // Disable default touch actions
+          userSelect: 'none', // Prevent text selection
+          scrollbarWidth: 'none', // Hide scrollbars in Firefox
+          msOverflowStyle: 'none', // Hide scrollbars in IE/Edge
+          WebkitOverflowScrolling: 'touch',
+          WebkitUserSelect: 'none',
+          MozUserSelect: 'none',
+          msUserSelect: 'none',
+          // Fix for iOS and macOS trackpads
+          '&, & *': {
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'none',
+            scrollBehavior: 'auto'
+          },
+          '&::-webkit-scrollbar': {
+            display: 'none' // Hide scrollbars in Chrome/Safari
+          }
+        }}
+        onKeyDown={(e) => {
+          // Prevent arrow keys from scrolling the viewport
+          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+          }
+        }}
+        tabIndex="0" // Allows the div to receive key events
+        onWheel={(e) => {
+          e.preventDefault(); // Explicitly prevent default
+          e.stopPropagation(); // Prevent event propagation
+          if (schema.size > 0) handleWheel(e);
+        }}
+        onMouseDown={schema.size > 0 ? handleContainerMouseDown : null}
+        onMouseMove={schema.size > 0 ? handleContainerMouseMove : null}
+        onMouseUp={handleContainerMouseUp}
+        onMouseLeave={handleContainerMouseUp}
+        onTouchStart={(e) => {
+          e.stopPropagation();
+          handleTouchStart(e);
+        }}
+        onTouchMove={(e) => {
+          e.preventDefault(); // Explicitly prevent default
+          e.stopPropagation();
+          handleTouchMove(e);
+        }}
+        onTouchEnd={(e) => {
+          e.stopPropagation();
+          handleTouchEnd(e);
+        }}
+        onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
+      >
+        {/* Action bar for the selected element */}
+        {activeElement && (
+          <ActionBar
+            sx={{
+              top: `${actionBarPosition.y}px`,
+              left: `${actionBarPosition.x}px`,
+            }}
+          >
+            <Button 
+              variant="contained" 
+              size="small" 
+              color="error"
+              className="action-button"
+              onClick={handleDeleteEntity}
+              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
             >
-              {questions.map((question, index) => (
-                <Button
-                  key={index}
-                  onClick={() => handleQuestionClick(question)}
-                  fullWidth
-                  sx={{ justifyContent: 'flex-start', marginBottom: '8px' }}
-                >
-                  {question}
-                </Button>
-              ))}
-            </Box>
-          </AccordionDetails>
-        </Accordion>
-        <Divider />
-        <Accordion
-          expanded={expandedPanel === 'entities-panel'}
-          onChange={handleAccordionChange('entities-panel')}
-          disableGutters
-          TransitionProps={{ unmountOnExit: true }}
+              Delete
+            </Button>
+            <Button 
+              variant="contained" 
+              size="small" 
+              color="primary"
+              className="action-button"
+              onClick={handleAddAttribute}
+              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+            >
+              Add Attr
+            </Button>
+            <Button 
+              variant="contained" 
+              size="small" 
+              color="secondary"
+              className="action-button"
+              onClick={handleRemoveAttribute}
+              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+            >
+              Del Attr
+            </Button>
+            <Button 
+              variant="contained" 
+              size="small" 
+              color="info"
+              className="action-button"
+              onClick={handleAddMethod}
+              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+            >
+              Add Mthd
+            </Button>
+            <Button 
+              variant="contained" 
+              size="small" 
+              color="warning"
+              className="action-button"
+              onClick={() => {
+                setSelectedEntity(activeElement);
+                setShowRelationshipManager(true);
+              }}
+              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+            >
+              Add Rel
+            </Button>
+          </ActionBar>
+        )}
+        
+        {/* Zoom controls - only show if we have entities */}
+        {schema.size > 0 && (
+          <ZoomControls>
+            <Button 
+              variant="contained" 
+              size="small" 
+              onClick={() => setScale(Math.min(scale * 1.2, 3))}
+              sx={{ minWidth: '30px', py: 0 }}
+            >
+              +
+            </Button>
+            <Button 
+              variant="contained" 
+              size="small"
+              onClick={() => setScale(Math.max(scale * 0.8, 0.3))}
+              sx={{ minWidth: '30px', py: 0 }}
+            >
+              -
+            </Button>
+            <Typography variant="body2" sx={{ mx: 1, alignSelf: 'center', fontSize: '0.75rem' }}>
+              {Math.round(scale * 100)}%
+            </Typography>
+          </ZoomControls>
+        )}
+        
+        {/* Diagram container with zoom and pan */}
+        <div 
+          style={{
+            transform: schema.size > 0 ? `scale(${scale}) translate(${panOffset.x}px, ${panOffset.y}px)` : 'none',
+            transformOrigin: 'center center',
+            transition: isPanning ? 'none' : 'transform 0.1s',
+            height: '100%',
+            width: '100%',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0, 
+            bottom: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            cursor: isPanning ? 'grabbing' : 'grab',
+            background: 'transparent',
+            border: 'none',
+            boxShadow: 'none',
+            padding: 0,
+            margin: 0,
+            overscrollBehavior: 'none', 
+            touchAction: 'none', 
+            userSelect: 'none' 
+          }}
         >
-          <AccordionSummaryStyled
-            expandIcon={<ExpandMoreIcon />}
-            aria-controls="entities-content"
-            id="entities-header"
+          <div 
+            ref={diagramRef} 
+            id="diagram" 
+            style={{ 
+              height: '100%', 
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: 'transparent', // Changed to transparent
+              boxShadow: 'none',
+              border: 'none',
+              padding: 0,
+              margin: 0
+            }} 
+          />
+        </div>
+        
+        {/* Relationship Manager - UPDATED POSITION */}
+        {showRelationshipManager && (
+          <Box
+            sx={{
+              position: 'fixed',
+              top: '80px',
+              right: '30px',
+              zIndex: 1200,
+              maxHeight: '80vh',
+              overflow: 'auto',
+              backgroundColor: 'white',
+              padding: '10px',
+              border: '1px solid #e0e0e0',
+              borderRadius: '4px'
+            }}
           >
-            <Typography>Manage Entities and Methods</Typography>
-          </AccordionSummaryStyled>
-          <AccordionDetails sx={{ backgroundColor: '#e0f7fa' }}>
-            {Array.from(schema.entries()).map(([entity, { attribute, methods }]) => (
-              <Box key={entity} sx={{ marginBottom: '16px' }}>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                    {entity}
-                  </Typography>
-                  <IconButton onClick={() => removeEntity(entity)} size="small" sx={{ color: 'red' }}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-                {Array.from(attribute.entries()).map(([attr, { key, type }]) => (
-                  <Box
-                    key={attr}
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    <Typography variant="body1" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {attr} {key && <span>({key})</span>} {type && <span>[{type}]</span>}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <IconButton
-                        onClick={(event) => handleKeyMenuClick(event, entity, attr)}
-                        size="small"
-                        sx={{ color: 'green' }}
-                      >
-                        <KeyIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        onClick={(event) => handleTypeMenuClick(event, entity, attr)}
-                        size="small"
-                        sx={{ color: 'purple' }}
-                      >
-                        <CategoryIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton onClick={() => removeAttribute(entity, attr)} size="small" sx={{ color: 'blue' }}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                ))}
-                {methods && methods.length > 0 && (
-                  <Box sx={{ marginTop: '16px' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                      Methods:
-                    </Typography>
-                    {methods.map((method) => (
-                      <Box
-                        key={method.name}
-                        sx={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: '8px',
-                        }}
-                      >
-                        <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {method.name}({(Array.isArray(method.parameters) ? method.parameters.join(', ') : 'No parameters')}) :{' '}
-                          {method.returnType}
-                        </Typography>
-                        <IconButton onClick={() => handleRemoveMethod(entity, method.name)} size="small" sx={{ color: 'blue' }}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    ))}
-                  </Box>
-                )}
-              </Box>
-            ))}
-          </AccordionDetails>
-        </Accordion>
-        <Accordion
-          expanded={expandedPanel === 'relationships-panel'}
-          onChange={handleAccordionChange('relationships-panel')}
-          disableGutters
-          TransitionProps={{ unmountOnExit: true }}
-        >
-          <AccordionSummaryStyled
-            expandIcon={<ExpandMoreIcon />}
-            aria-controls="relationships-content"
-            id="relationships-header"
-          >
-            <Typography>Manage Relationships</Typography>
-          </AccordionSummaryStyled>
-          <AccordionDetails sx={{ backgroundColor: '#f1f8e9' }}>
             <RelationshipManager
               schema={schema}
               relationships={relationships}
               addRelationship={addRelationship}
-              editRelationship={editRelationship}
               removeRelationship={removeRelationship}
+              onClose={() => {
+                setShowRelationshipManager(false);
+                setSelectedEntity(null);
+              }}
+              selectedEntity={selectedEntity}
             />
-          </AccordionDetails>
-        </Accordion>
-      </ContentContainer>
-
-      {/* Entity selection popup to assign a method */}
-      {entitySelectPopupOpen && (
-        <PopupContainer>
-          <Typography>Select an entity to assign the method</Typography>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Available Methods</InputLabel>
-            <Select
-              value={methodToAssign}
-              onChange={(e) => setMethodToAssign(e.target.value)}
-            >
-              {availableMethods.map((method, index) => {
-                const { methodName, parameters } = parseMethodSignature(method); // Parse method signature here
-                return (
-                  <MenuItem key={index} value={methodName}>
-                    {methodName}({
-                      parameters.length > 0 ? parameters.join(', ') : 'No parameters'
-                    })
-                  </MenuItem>
-                );
-              })}
-            </Select>
-          </FormControl>
-          {Array.from(schema.keys()).map((entity) => (
-            <Button key={entity} onClick={() => handleAddMethodToEntity(entity)} sx={{ marginTop: 1 }}>
-              {entity}
-            </Button>
-          ))}
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Return Type</InputLabel>
-            <Select value={returnType} onChange={(e) => setReturnType(e.target.value)}>
-              <MenuItem value="void">void</MenuItem>
-              <MenuItem value="int">int</MenuItem>
-              <MenuItem value="float">float</MenuItem>
-              <MenuItem value="String">String</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Visibility</InputLabel>
-            <Select value={visibility} onChange={(e) => setVisibility(e.target.value)}>
-              <MenuItem value="public">public</MenuItem>
-              <MenuItem value="protected">protected</MenuItem>
-              <MenuItem value="private">private</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControlLabel
-            control={<Checkbox checked={isStatic} onChange={(e) => setIsStatic(e.target.checked)} />}
-            label="Static"
-          />
-        </PopupContainer>
-      )}
-
-      {/* Example clickable method link */}
-      <Typography>
-        Click a method to assign:{' '}
-        <span
-          onClick={handleMethodLinkClick}
-          style={{ cursor: 'pointer', color: '#1976d2', textDecoration: 'underline' }}
-        >
-          Assign Method
-        </span>
-      </Typography>
-
-      {/* Key Menu */}
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => handleKeyMenuClose('')}>
-        <MenuItem onClick={() => handleKeyMenuClose('')}>Not a key</MenuItem>
-        <MenuItem onClick={() => handleKeyMenuClose('PK')}>Primary Key</MenuItem>
-        <MenuItem onClick={() => handleKeyMenuClose('PPK')}>Partial Primary Key</MenuItem>
-      </Menu>
-      {/* Data Type Menu */}
-      <Menu anchorEl={typeAnchorEl} open={Boolean(typeAnchorEl)} onClose={() => handleTypeMenuClose('')}>
-        <MenuItem onClick={() => handleTypeMenuClose('String')}>String</MenuItem>
-        <MenuItem onClick={() => handleTypeMenuClose('int')}>Integer</MenuItem>
-        <MenuItem onClick={() => handleTypeMenuClose('boolean')}>Boolean</MenuItem>
-        <MenuItem onClick={() => handleTypeMenuClose('float')}>Float</MenuItem>
-      </Menu>
-      <Popup
-        popup={popup}
-        hidePopup={hidePopupMethod}
-        addEntity={handleAddEntity}
-        addAttribute={handleAddAttribute}
-        showSubPopup={showSubPopup}
-        entityPopupRef={entityPopupRef}
-      />
-    </DrawerContainer>
-  );
-};
-
-export default ControlsComponent;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import { SYNTAX_TYPES } from '../ui/ui'; // Import SYNTAX_TYPES
-
-
-// Helper function to capitalize the first letter of a string
-export const capitalizeFirstLetter = (string) => {
-  if (typeof string !== 'string' || !string) {
-    console.error('Invalid input to capitalizeFirstLetter:', string);
-    return ''; // Return an empty string or handle the error as needed
-  }
-  return string.charAt(0).toUpperCase() + string.slice(1);
-};
-
-// Helper function to normalize entity names (remove spaces and convert to lowercase)
-export const normalizeEntityName = (name) => {
-  return name.replace(/\s+/g, '').toLowerCase();
-};
-
-// Helper function to extract entity names from node IDs
-export const extractEntityName = (nodeId) => {
-  const parts = nodeId.split('-');
-  return parts.length >= 2 ? normalizeEntityName(parts[1]) : normalizeEntityName(nodeId);
-};
-
-// Helper function to clean up type formatting
-const formatType = (type) => {
-  if (!type) return ''; // Return an empty string if type is undefined
-  let formattedType = type.replace(/\[.*\]/g, '[]'); // Replace any array notation (e.g. [string]) with []
-  formattedType = formattedType.replace(/[()]+/g, ''); // Remove unnecessary parentheses
-  return formattedType;
-};
-
-//Schema to MermaidSource
-export const schemaToMermaidSource = (schema, relationships) => {
-  let schemaText = [];
-  console.log("Processing schema for Mermaid diagram...");
-
-  // Process each entity in the schema
-  schema.forEach((schemaItem, entityName) => {
-    if (!schemaItem) return; // Ensure schemaItem is defined
-
-    const className = capitalizeFirstLetter(entityName);
-    let classDefinition = `class ${className} {\n`;
-
-    // Track processed attributes to avoid duplicates
-    const attributeSet = new Set();
-    const attributeLines = [];
-
-    if (schemaItem.attribute && schemaItem.attribute.size > 0) {
-      schemaItem.attribute.forEach((attr) => {
-        const attrLine = `  -${attr.attribute}: ${attr.type}`;
-        if (!attributeSet.has(attrLine)) {
-          attributeSet.add(attrLine);
-          attributeLines.push(attrLine);
-        }
-      });
-    } else {
-      attributeLines.push("  // No attributes");
-    }
-
-    // Track processed methods to avoid duplicates
-    const methodSet = new Set();
-    const methodLines = [];
-
-    // Include Constructor If Defined
-    if (schemaItem.constructor && Array.isArray(schemaItem.constructor.parameters)) {
-      const paramList = schemaItem.constructor.parameters.map((param) => `${param}`).join(", ");
-      const constructorSignature = `  +${className}(${paramList})`;
-
-      if (!methodSet.has(constructorSignature)) {
-        methodSet.add(constructorSignature);
-        methodLines.push(constructorSignature);
-      }
-
-      console.log(`Including Constructor: ${className}(${paramList})`);
-    }
-
-    // Include Getters and Setters
-    if (schemaItem.methods && Array.isArray(schemaItem.methods)) {
-      console.log(`📌 Methods included for Mermaid (${className}):`, schemaItem.methods); // Debug log
-      schemaItem.methods.forEach((method) => {
-        const visibilitySymbol =
-          method.visibility === "private" ? "-" : method.visibility === "protected" ? "#" : "+";
-        const paramList = method.parameters.map((param) => `${param}`).join(", ");
-        const returnType = method.returnType ? `: ${method.returnType}` : ": void";
-        const methodSignature = `  ${visibilitySymbol}${method.name}(${paramList})${returnType}`;
-    
-        if (!methodSet.has(methodSignature)) {
-          methodSet.add(methodSignature);
-          methodLines.push(methodSignature);
-        }
-      });
-    }
-    
+          </Box>
+        )}
   
-    // Combine attributes and methods into the class definition
-    classDefinition += attributeLines.join("\n") + "\n";
-
-    if (methodLines.length > 0) {
-      if (attributeLines.length > 0) {
-        classDefinition += "\n"; // Add a newline between attributes and methods if both exist
-      }
-      classDefinition += methodLines.join("\n") + "\n";
-    }
-
-    classDefinition += `}\n`;
-    schemaText.push(classDefinition);
-
-    // Debug: Log attributes and methods
-    console.log(`Attributes for ${className}:`, schemaItem.attribute);
-    console.log(`Methods for ${className}:`, schemaItem.methods);
-
-    // Handle Inheritance Relationships Properly
-    if (schemaItem.parent) {
-      const parentName = capitalizeFirstLetter(schemaItem.parent);
-      console.log(`Adding inheritance: ${parentName} <|-- ${className}`);
-      schemaText.push(`${parentName} <|-- ${className}`);
-
-      // Merge methods properly without overwriting child methods
-      const parentSchema = schema.get(schemaItem.parent);
-      if (parentSchema && parentSchema.methods) {
-        console.log(`Merging methods from parent ${parentName} to child ${className}`);
-
-        const existingChildMethods = schemaItem.methods || [];
-        const uniqueParentMethods = parentSchema.methods.filter(
-          (parentMethod) => !existingChildMethods.some((childMethod) => childMethod.name === parentMethod.name)
-        );
-
-        schemaItem.methods = [...existingChildMethods, ...uniqueParentMethods];
-      }
-    }
-  });
-
-  // Handle Regular Relationships Separately
-  relationships.forEach((rel) => {
-    if (!rel.relationA || !rel.relationB) return; // Prevent undefined errors
-
-    const relationA = capitalizeFirstLetter(rel.relationA);
-    const relationB = capitalizeFirstLetter(rel.relationB);
-    console.log(`Adding Relationship: ${relationA} -- ${relationB} (${rel.type})`);
-
-    if (rel.type === "inheritance") {
-      schemaText.push(`${relationB} <|-- ${relationA}`);
-    } else if (rel.type === "composition") {
-      schemaText.push(`${relationA} *-- "${rel.cardinalityA}" ${relationB} : "◆ ${rel.label || "Composition"}"`);
-    } else if (rel.type === "aggregation") {
-      schemaText.push(`${relationA} o-- "${rel.cardinalityA}" ${relationB} : "◇ ${rel.label || "Aggregation"}"`);
-    } else {
-      schemaText.push(`${relationA} "${rel.cardinalityA}" -- "${rel.cardinalityB}" ${relationB} : ${rel.label || ""}`);
-    }
-  });
-
-  console.log("Final Mermaid Source:\n", schemaText.join("\n"));
-  return schemaText.join("\n");
-};
-
-  // Normalize type by removing unwanted characters like brackets or parentheses
-  const normalizeType = (type) => {
-    if (!type) return ''; // Return an empty string if type is undefined
-    return type.replace(/[\[\]]/g, '').trim(); // Only remove brackets, not parentheses
-  };
-
-
-// Parse source code into a schema format
-export const parseCodeToSchema = (sourceCode, syntaxType, addMethod) => {
-  if (typeof addMethod !== 'function') {
-    throw new Error("addMethod must be a function");
-  }
-  const schemaMap = new Map();
-  const relationships = new Map(); // Stores relationships
-  const detectedClasses = new Set(); // Track classes that are defined in the source code
-
-  // List of primitive and built-in types to exclude
-  const PRIMITIVE_TYPES = new Set([
-    "String", "int", "double", "float", "boolean", "char", "long", "short", "byte", "void"
-  ]);
-
-  if (syntaxType === SYNTAX_TYPES.JAVA) {
-    const classRegex = /(?:public|protected|private)?\s*class\s+(\w+)(?:\s+extends\s+(\w+))?\s*\{([\s\S]*?)\}/g;
-    let classMatch;
-
-    while ((classMatch = classRegex.exec(sourceCode)) !== null) {
-      const className = classMatch[1];
-      detectedClasses.add(className); // Track defined classes
-      const parentClass = classMatch[2] || null;
-      const classContent = classMatch[3];
-      const attributes = new Map();
-      const methods = [];
-      const methodNames = new Set();
-
-      // Parse fields (attributes)
-      const fieldRegex = /(?:private|protected|public)?\s+(\w+)\s+(\w+);/g;
-      let fieldMatch;
-
-      while ((fieldMatch = fieldRegex.exec(classContent)) !== null) {
-        const type = fieldMatch[1];
-        const name = fieldMatch[2];
-        attributes.set(name, { type });
-
-        // Detect composition and aggregation
-        if (!PRIMITIVE_TYPES.has(type)) {
-          if (type.match(/^(List|Set|Map)<(\w+)>$/)) {
-            const match = type.match(/^(List|Set|Map)<(\w+)>$/);
-            const collectionType = match[1];
-            const itemType = match[2];
-            relationships.set(`${className}-${itemType}`, {
-              type: 'aggregation',
-              relationA: className,
-              relationB: itemType,
-              cardinalityA: '1',
-              cardinalityB: 'many',
-              label: 'Aggregation',
-            });
-          } else if (/^[A-Z]/.test(type)) {
-            relationships.set(`${className}-${type}`, {
-              type: 'composition',
-              relationA: className,
-              relationB: type,
-              cardinalityA: '1',
-              cardinalityB: '1',
-              label: 'Composition',
-            });
-          }
-        }
-      }
-
-      // Detect aggregation (e.g., private List<Car> cars;)
-      const aggregationRegex = /(?:private|protected|public)?\s+(List|Set|Map)\s*<\s*(\w+)\s*>\s+(\w+)(?:\s*=.*)?;/g;
-      let aggregationMatch;
-
-      console.log(`\nProcessing Class: ${className}`); // Log the class being processed
-      console.log("Class Content:\n", classContent);  // Log the raw class content
-
-      while ((aggregationMatch = aggregationRegex.exec(classContent)) !== null) {
-        const collectionType = aggregationMatch[1]; // e.g., "List"
-        const itemType = aggregationMatch[2];      // e.g., "Car"
-        const fieldName = aggregationMatch[3];     // e.g., "cars"
-
-        console.log(`\nDetected Aggregation in ${className}:`);
-        console.log(` - Collection Type: ${collectionType}`);
-        console.log(` - Item Type: ${itemType}`);
-        console.log(` - Field Name: ${fieldName}`);
-
-        // Store the aggregation relationship
-        relationships.set(`${className}-${itemType}`, {
-          type: 'aggregation',
-          relationA: className,
-          relationB: itemType,
-          cardinalityA: '1',       // Garage has 1 collection
-          cardinalityB: 'many',    // Collection contains many items
-          label: 'Aggregation',
-        });
-
-        // Add the field to attributes
-        attributes.set(fieldName, { type: `${collectionType}<${itemType}>` });
-      }
-
-      console.log("Final Relationships Map:", relationships); // Log the relationships detected
-
-      // Detect instantiations inside constructors
-      const instantiationRegex = /this\.(\w+)\s*=\s*new\s+(\w+)\(/g;
-      let instantiationMatch;
-
-      while ((instantiationMatch = instantiationRegex.exec(classContent)) !== null) {
-        const fieldName = instantiationMatch[1];
-        const instantiatedType = instantiationMatch[2];
-
-        console.log(`Detected instantiation: ${className} → ${instantiatedType}`);
-        attributes.set(fieldName, { type: instantiatedType });
-
-        // Store composition relationship dynamically
-        relationships.set(`${className}-${instantiatedType}`, {
-          type: 'composition',
-          relationA: className,
-          relationB: instantiatedType,
-          cardinalityA: '1',
-          cardinalityB: '1',
-          label: 'Composition',
-        });
-      }
-
-
-     // Parse all methods (including inferred methods)
-      const methodRegex = /(public|private|protected)?\s+(\w+)\s+(\w+)\s*\(([^)]*)\)\s*\{/g;
-      const getterSetterRegex = /(public|protected|private)?\s+(\w+)\s+(get|set)([A-Z]\w*)\s*\(([^)]*)\)\s*\{/g;
-
-      let methodMatch;
-
-      while ((methodMatch = methodRegex.exec(classContent)) !== null) {
-          const visibility = methodMatch[1] || "public";
-          let returnType = methodMatch[2] || "void";
-          const methodName = methodMatch[3];
-          const parameters = methodMatch[4] ? methodMatch[4].trim().split(",").map(param => param.trim()) : [];
-
-          // Add all methods to the schema
-          methods.push({
-              visibility,
-              returnType,
-              name: methodName,
-              parameters
-          });
-      }
-
-      // Detect explicit getters and setters using separate regex
-      let getterSetterMatch;
-      while ((getterSetterMatch = getterSetterRegex.exec(classContent)) !== null) {
-          const visibility = getterSetterMatch[1] || "public";
-          const returnType = getterSetterMatch[2] || "void";
-          const methodType = getterSetterMatch[3]; // "get" or "set"
-          const methodNameSuffix = getterSetterMatch[4]; // Capitalized part of the method name
-          const parameters = getterSetterMatch[5] ? getterSetterMatch[5].trim().split(",").map(param => param.trim()) : [];
-
-          // Add getters and setters directly to the schema without checking for attributes
-          if (methodType === "get") {
-              methods.push({
-                  visibility,
-                  returnType,
-                  name: `get${methodNameSuffix}`, // Preserve capitalization
-                  parameters: []
+        {/* Workbench - UPDATED POSITION */}
+        {showWorkbench && (
+          <Box
+            sx={{
+              position: 'fixed',
+              top: isWorkbenchFullscreen ? '0' : '80px',
+              right: isWorkbenchFullscreen ? '0' : '30px',
+              left: isWorkbenchFullscreen ? '0' : 'auto', 
+              bottom: isWorkbenchFullscreen ? '0' : 'auto',
+              zIndex: 1200,
+              backgroundColor: '#ffffff',
+              borderRadius: isWorkbenchFullscreen ? '0' : '4px',
+              border: '1px solid #e0e0e0',
+              padding: '16px',
+              width: isWorkbenchFullscreen ? '100%' : '500px',
+              height: isWorkbenchFullscreen ? '100%' : 'auto',
+              maxHeight: isWorkbenchFullscreen ? '100%' : '80vh',
+              overflow: 'auto',
+              transition: 'all 0.3s ease-out',
+              display: 'flex', // Add flex display
+              flexDirection: 'column' // Stack children vertically
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseMove={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" sx={{ fontSize: '1rem', margin: 0 }}>
+                Code WorkBench {workbenchData.questionId && `- ${workbenchData.questionId}`}
+              </Typography>
+              <Box>
+                <IconButton 
+                  size="small" 
+                  onClick={() => setIsWorkbenchFullscreen(!isWorkbenchFullscreen)}
+                >
+                  {isWorkbenchFullscreen ? '⤓' : '⤢'}
+                </IconButton>
+                <IconButton 
+                  size="small" 
+                  onClick={() => setShowWorkbench(false)}
+                >
+                  ✖️
+                </IconButton>
+              </Box>
+            </Box>
+            <Select
+              value={workbenchData.syntax}
+              onChange={(e) => setWorkbenchData({...workbenchData, syntax: e.target.value})}
+              fullWidth
+              sx={{ mb: 2 }}
+              size="small"
+            >
+              <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
+              <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
+            </Select>
+                  
+            {/* Fixed height container for the editor */}
+            <MonacoEditorWrapper
+            height={isWorkbenchFullscreen ? "calc(100vh - 120px)" : "300px"}
+            language={workbenchData.syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
+            theme="vs-light"
+            value={workbenchData.code}
+            onChange={(value) => {
+              setWorkbenchData(prev => ({...prev, code: value, isCodeModified: true}));
+            }}
+            options={{
+              automaticLayout: true,
+              padding: { top: 10, bottom: 10 },
+            }}
+            // Add this right after your MonacoEditorWrapper's onMount handler:
+            onMount={(editor, monaco) => {
+              // Configure language support
+              if (!monaco.languages.getLanguages().some(lang => lang.id === 'java')) {
+                // Register Java language if not already registered
+                monaco.languages.register({ id: 'java' });
+              }
+              
+              if (!monaco.languages.getLanguages().some(lang => lang.id === 'python')) {
+                // Register Python language if not already registered
+                monaco.languages.register({ id: 'python' });
+              }
+              
+              // Set up a listener for model changes to check for errors
+              editor.onDidChangeModelContent(() => {
+                setTimeout(() => {
+                  // Get the model for the current editor
+                  const model = editor.getModel();
+                  if (!model) return;
+                  
+                  // Run custom validation
+                  const { isValid, messages, errors } = validateCodeInComponent(editor.getValue(), workbenchData.syntax);
+                  
+                  // Add diagnostic markers based on our custom validation
+                  const markers = errors.map(err => ({
+                    severity: err.severity === 'error' ? monaco.MarkerSeverity.Error : 
+                              err.severity === 'warning' ? monaco.MarkerSeverity.Warning : 
+                              monaco.MarkerSeverity.Info,
+                    message: err.message,
+                    startLineNumber: err.line,
+                    startColumn: 1,
+                    endLineNumber: err.line,
+                    endColumn: model.getLineMaxColumn(err.line) || 1
+                  }));
+                  
+                  // Set markers on the model
+                  monaco.editor.setModelMarkers(model, 'custom-validation', markers);
+                  
+                  // Update the console output with error messages
+                  if (messages.length > 0) {
+                    setWorkbenchData(prev => ({
+                      ...prev,
+                      consoleOutput: messages.join('<br>')
+                    }));
+                  }
+                }, 300); // Small delay to ensure Monaco has processed the changes
               });
-          } else if (methodType === "set") {
-              methods.push({
-                  visibility,
-                  returnType: "void", // Setters always return void
-                  name: `set${methodNameSuffix}`, // Preserve capitalization
-                  parameters
-              });
-          }
-      }
-      
-      // Handle inheritance
-      if (parentClass) {
-        const parentSchema = schemaMap.get(parentClass);
-        if (parentSchema) {
-          const inheritedMethods = parentSchema.methods.filter(
-            (parentMethod) => !methods.some((childMethod) => childMethod.name === parentMethod.name)
-          );
-
-          console.log(`Inheriting ${inheritedMethods.length} methods from ${parentClass} to ${className}`);
-
-          // Preserve existing child methods and only add missing parent methods
-          methods.push(...inheritedMethods);
-        }
-      }
-
-      // Infer methods for aggregation fields
-      attributes.forEach((attr, attrName) => {
-        const match = attr.type.match(/^(List|Set|Map)<(\w+)>$/);
-        if (!match) return; // Skip non-collection fields
-        const collectionType = match[1]; // e.g., "List"
-        const itemType = match[2];       // e.g., "Car"
-
-        // Infer "add" method (e.g., addCar(Car car))
-        const addMethodName = `add${capitalizeFirstLetter(itemType)}`;
-        if (!methodNames.has(addMethodName)) {
-          console.log(`Inferred add method: ${addMethodName}`);
-          methods.push({
-            visibility: 'public',
-            returnType: 'void',
-            name: addMethodName,
-            parameters: [`${itemType.toLowerCase()}: ${itemType}`], // Format parameter as "car: Car"
-          });
-          methodNames.add(addMethodName);
-        }
-
-        // Infer "get" method (e.g., getCars(): List<Car>)
-        const getMethodName = `get${capitalizeFirstLetter(attrName)}`;
-        if (!methodNames.has(getMethodName)) {
-          console.log(`Inferred get method: ${getMethodName}`);
-          methods.push({
-            visibility: 'public',
-            returnType: `${collectionType}<${itemType}>`,
-            name: getMethodName,
-            parameters: [],
-          });
-          methodNames.add(getMethodName);
-        }
-      });
-
-      // Add the entity to the schema
-      schemaMap.set(className, {
-        entity: className,
-        attribute: attributes,
-        methods: methods,
-        parent: parentClass, // Add parent class to the schema
-      });
-
-      // Call addMethod for each method
-      methods.forEach((method) => {
-        addMethod(className, method);
-      });
-
-      console.log("Parsed Class:", className, "Methods:", methods, "Parent:", parentClass); // Log parsed class
-    }
-
-    // **Ensure all instantiated classes exist in schema**
-    relationships.forEach((rel) => {
-      if (rel.type === "composition" && !schemaMap.has(rel.relationB) && !detectedClasses.has(rel.relationB)) {
-        // Exclude primitive and built-in types
-        if (!PRIMITIVE_TYPES.has(rel.relationB)) {
-          console.log(` Adding missing class definition for: ${rel.relationB}`);
-          schemaMap.set(rel.relationB, {
-            entity: rel.relationB,
-            attribute: new Map(), // No attributes detected for undefined class
-            methods: [],
-          });
-        }
-      }
-    });
-  } else if (syntaxType === SYNTAX_TYPES.PYTHON) {
-    // Python parsing logic remains unchanged for now
-    const classRegex = /class (\w+):\s*((?:.|\n)*?)(?=\n\S|$)/g;
-    const attrRegex = /self\.(\w+)\s*:\s*(\w+)/g;
-    const methodRegex = /def (\w+)\((self,?[^)]*)\):/g;
-    let classMatch;
-
-    while ((classMatch = classRegex.exec(sourceCode)) !== null) {
-      const className = classMatch[1].toLowerCase();
-      const classContent = classMatch[2];
-      const attributes = new Map();
-      const methods = []; // Initialize methods array
-
-      // Parse attributes
-      let attrMatch;
-      while ((attrMatch = attrRegex.exec(classContent)) !== null) {
-        const name = attrMatch[1];
-        const type = attrMatch[2];
-        attributes.set(name, { type });
-      }
-
-      // Parse methods
-      let methodMatch;
-      while ((methodMatch = methodRegex.exec(classContent)) !== null) {
-        const methodName = methodMatch[1];
-        const parameters = methodMatch[2].split(',').map(param => param.trim()).slice(1); // Remove 'self'
-        methods.push({ visibility: "public", returnType: "", name: methodName, parameters });
-      }
-
-      // Add the entity to the schema
-      schemaMap.set(className, {
-        entity: className,
-        attribute: attributes,
-        methods: methods, // Ensure methods is always defined
-      });
-
-      // Call addMethod for each method
-      methods.forEach((method) => {
-        addMethod(className, method);
-      });
-    }
-  }
-
-  // Log the final schema map for debugging
-  console.log("Final schema map:", schemaMap);
-  console.log("Detected Relationships:", relationships);
-  return schemaMap;
+            }}
+                 
+            />
+            <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                sx={{ fontSize: '0.8rem' }}
+              >
+                Generate
+              </Button>
+              <Button
+                variant="contained"
+                color="secondary"
+                size="small"
+                onClick={handleUpdate}
+                disabled={!workbenchData.isCodeModified}
+                sx={{ fontSize: '0.8rem' }}
+              >
+               Update
+              </Button>
+              <Button
+                variant="contained"
+                color="success"
+                size="small"
+                onClick={handleTestRun}
+                sx={{ fontSize: '0.8rem' }}
+              >
+                Test Run
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                onClick={handleSubmitForGrading}
+                disabled={!workbenchData.questionId || !workbenchData.code}
+                sx={{ fontSize: '0.8rem' }}
+              >
+                Submit for Grading
+              </Button>
+            </Box>
+            
+            {/* Console output */}
+            {workbenchData.consoleOutput && (
+              <Box 
+              sx={{ 
+                mt: 1, 
+                p: 1, 
+                backgroundColor: '#1e1e1e', 
+                color: '#f0f0f0',
+                fontFamily: 'monospace',
+                borderRadius: '4px',
+                whiteSpace: 'pre-wrap'
+              }}
+              dangerouslySetInnerHTML={{ __html: workbenchData.consoleOutput }}
+            />
+          )}
+            {/* Generated code display */}
+            {workbenchData.generatedCode && (
+              <Box sx={{ mt: 1, p: 1, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+                <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
+                  {workbenchData.generatedCode}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        )}
+      </DiagramBox>
+    </Box>
+);
 };
 
-// Apply updates to the schema based on changes
-export const applySchemaUpdates = (
-  updatedSchema,
-  schema,
-  removeEntity,
-  removeAttribute,
-  addAttribute,
-  addEntity
-) => {
-  // Remove entities not present in updated schema
-  schema.forEach((_, entityName) => {
-    if (!updatedSchema.has(entityName)) {
-      removeEntity(entityName);
-    }
-  });
-
-  // Update existing or add new entities
-  updatedSchema.forEach((newEntity, entityName) => {
-    const currentEntity = schema.get(entityName);
-    if (currentEntity) {
-      // Update attributes
-      currentEntity.attribute.forEach((_, attrName) => {
-        if (!newEntity.attribute.has(attrName)) {
-          removeAttribute(entityName, attrName);
-        }
-      });
-
-      newEntity.attribute.forEach((newAttr, attrName) => {
-        const currentAttr = currentEntity.attribute.get(attrName);
-
-        // Only update the attribute if the type has changed and is not empty
-        if (newAttr.type && (!currentAttr || currentAttr.type !== newAttr.type)) {
-          if (currentAttr) {
-            removeAttribute(entityName, attrName);
-          }
-          console.log(`Updating Attribute: ${attrName} in Entity: ${entityName}, New Type: ${newAttr.type}`);
-          addAttribute(entityName, attrName, currentAttr?.key || '', newAttr.type);
-        } else if (!newAttr.type && currentAttr) {
-          console.warn(`Type is empty for Attribute: ${attrName} in Entity: ${entityName}`);
-        }
-      });
-    } else {
-      // Add new entity
-      addEntity(entityName);
-      newEntity.attribute.forEach((newAttr, attrName) => {
-        console.log(`Adding Attribute: ${attrName} to Entity: ${entityName}, Type: ${newAttr.type}`);
-        addAttribute(entityName, attrName, '', newAttr.type);
-      });
-    }
-  });
-};
-
-// Parse Mermaid diagram source into code
-export const parseMermaidToCode = (mermaidSource, syntax) => {
-  const classRegex = /class\s+(\w+)\s*\{([^}]*)\}/g;
-  const relationshipRegex = /(\w+)"([^"]+)"--"([^"]+)"(\w+)/g;
-  let code = '';
-  let match;
-
-  // Generate code for each class
-  while ((match = classRegex.exec(mermaidSource)) !== null) {
-    const [, className, classContent] = match;
-    code += generateClassCode(className, classContent, syntax) + '\n\n';
-  }
-
-  // Add relationship comments
-  while ((match = relationshipRegex.exec(mermaidSource)) !== null) {
-    const [, classA, cardinalityA, cardinalityB, classB] = match;
-    const commentSymbol = syntax === SYNTAX_TYPES.PYTHON ? "#" : "//";
-    code += `${commentSymbol} Relationship: ${classA} "${cardinalityA}" -- "${cardinalityB}" ${classB}\n`;
-  }
-
-  return code.trim();
-};
-
-// Generate class code based on syntax (Java or Python)
-export const generateClassCode = (className, classContent, syntax) => {
-  const attributeRegex = /(?:\s*[-+#]?\s*)(\w+)\s*:\s*([\w<>()]*)?/g; // Allow parentheses and brackets in type
-  let attributes = [];
-  let match;
-
-  // Extract attributes from class content
-  while ((match = attributeRegex.exec(classContent)) !== null) {
-    let [, attributeName, attributeType] = match;
-    // Normalize the type (no default type)
-    attributeType = normalizeType(attributeType);
-    attributes.push({ name: attributeName, type: attributeType });
-  }
-
-  // Generate Java or Python class code
-  return syntax === SYNTAX_TYPES.JAVA
-    ? generateJavaClass(className, attributes)
-    : generatePythonClass(className, attributes);
-};
-
-// Generate Java class code
-const generateJavaClass = (className, attributes) => {
-  let code = `public class ${className} {\n`;
-  if (attributes.length === 0) {
-    code += "    // No attributes\n";
-  }
-  // Generate fields
-  attributes.forEach(({ name, type }) => {
-    code += `    private ${type} ${name};\n`;
-  });
-  // Generate getters and setters
-  attributes.forEach(({ name, type }) => {
-    const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
-    code += `
-    public ${type} get${capitalizedName}() {
-        return this.${name};
-    }
-    public void set${capitalizedName}(${type} ${name}) {
-        this.${name} = ${name};
-    }\n`;
-  });
-  code += '}';
-  return code;
-};
-
-// Generate Python class code
-const generatePythonClass = (className, attributes) => {
-  let code = `class ${className}:\n`;
-  if (attributes.length === 0) {
-    code += "    # No attributes\n";
-    return code;
-  }
-  // Generate __init__ method
-  code += "    def __init__(self):\n";
-  attributes.forEach(({ name }) => {
-    code += `        self._${name} = None\n`;
-  });
-  // Generate properties (getters and setters)
-  attributes.forEach(({ name }) => {
-    code += `
-    @property
-    def ${name}(self):
-        return self._${name}
-    @${name}.setter
-    def ${name}(self, value):
-        self._${name} = value\n`;
-  });
-  return code;
-};
+export default MermaidDiagram;
