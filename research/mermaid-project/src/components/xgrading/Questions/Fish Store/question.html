@@ -1,41 +1,68 @@
-<pl-uml-element random="False" max-grade="10">
+<pl-uml-element random="False" max-grade="25">
     <uml-question>
-        Construct a database design in UML for a fish store where:
-        A fish store maintains a number of [aquaria](tank), each with a [number](number), [name](name), [volume](volume), and [color](color).
-        Each [tank](tank) contains a number of [fish](fish), each with an [id](id), [name](name), [color](color), and [weight](weight).
-        Each [fish](fish) is of a particular [species](species), which has a [id](id), [name](name), and [preferred food](preferredFood).
-        Each individual [fish](fish) has a number of [events](event) in its life, involving a [date](date) and a [note](note) relating to the event.
+        Design a class diagram in UML for a fish store using object-oriented principles: A fish store maintains a number of [tanks], each identified by a [number] and having a [volume]. Each [tank] contains a number of [fish], each identified by a [name] and having a [weight]. Each [fish] belongs to a particular [species], which has a [name] and a [preferred food].Each [fish] has a number of [events] in its life, involving a [date] and a [note].
+        Include the following methods in your design:  
+        `<method>addFish(Fish fish)</method>, <method>removeFish(String fishName)</method>, <method>getFishList()</method>, <method>cleanTank()</method>, <method>updateWeight(float newWeight)</method>, <method>getSpecies()</method>, <method>addEvent(Event event)</method>, <method>getEventHistory()</method>, <method>getPreferredFood()</method>`
+        
+        ### **Design Requirements**
+        Your task is to design a class diagram in UML for the fish store. Follow these guidelines:
+        1. **Interfaces**:  
+           - Include two interfaces that represent common behaviors:  
+             - One for objects that can be **maintained or serviced** .  
+             - One for objects that can **move in water** .  
+           - Name your interfaces appropriately. For example:  
+             - For objects that can be maintained or serviced, consider names like `Serviceable`, `Preparable`, or `Careable`.  
+             - For objects that can move in water, consider names like `ActiveInWater`, `Danceable`, or `Flowable`.
 
-        `<method>addFish(Fish fish)</method>, <method>removeFish(int fish_id)</method>, <method>getFishList()</method>, <method>cleanTank()</method>, <method>moveToTank(int tank_id)</method>, <method>updateWeight(float new_weight)</method>, <method>getSpecies()</method>, <method>addEvent(Event event)</method>, <method>getEventHistory()</method>, <method>getPreferredFood()</method>, <method>calculateDepth()</method>, <method>getAllEvents()</method>, <method>setColor(String color)</method>, <method>setNoteForTank(String note)</method>, <method>getFishCount()</method>, <method>trackFishLocation(int fish_id)</method>, <method>getSpeciesInfo()</method>`
+        2. **Implement Interfaces**:  
+           - Assign the interfaces to appropriate classes:  
+             - A container in the aquarium might need regular maintenance. Which interface would it implement?  
+             - Aquatic creatures might perform specific actions in water. Which interface would they implement?
+
+        3. **Aggregation Relationships**:  
+           - Use aggregation to model relationships where objects can exist independently:  
+             - A container holds multiple aquatic creatures. If the container is removed, the creatures can still exist.  
+             - Each aquatic creature belongs to a specific category or group. If the creature is removed, the group still exists.
+
+        4. **Composition Relationships**:  
+           - Use composition to model relationships where one object depends entirely on another for its existence:  
+             - Each aquatic creature has a history of significant occurrences (e.g., feeding, health checks). If the creature is removed, its history no longer exists.
+
+        5. **Inheritance and Polymorphism**:  
+           - Demonstrate inheritance by implementing the interfaces in the appropriate classes.  
+           - Ensure your design supports polymorphism by allowing different classes to implement the same interface in their own way.
     </uml-question>
-    <uml-answer>
-        [Tank|number {PK};name;volume;color|
-        +int getNumber(); 
-        #void addFish(Fish fish); 
-        -void cleanTank(); 
-        +static int getTankCount()]
 
-        [Fish|id {PK};name;color;weight|
-        +void swim(); 
-        #void eat(Food food); 
-        -void grow(); 
-        +static int getFishCount()]
+    <!-- Design Elements (Extractable by Frontend Logic) -->
+    <uml-design-elements>
+        [Cleanable] <|.. [Tank] : implements
+        [Swimmable] <|.. [Fish] : implements
 
-        [Species|id {PK};name;preferredFood|
-        +String getName(); 
-        #void setPreferredFood(Food food); 
-        -void classifySpecies(); 
-        +static List<Species> getAllSpecies()]
+        [Tank|number;volume|
+        +void addFish(Fish fish); 
+        +void removeFish(String fishName); 
+        +List<Fish> getFishList(); 
+        +void cleanTank();]
 
-        [Event|date {PPK};note|
+        [Fish|name;weight|
+        +void updateWeight(float newWeight); 
+        +Species getSpecies(); 
+        +void addEvent(Event event); 
+        +List<Event> getEventHistory();]
+
+        [Species|name;preferredFood|
+        +String getPreferredFood(); 
+        +void setPreferredFood(String food);]
+
+        [Event|date;note|
         +Date getDate(); 
-        #void setNote(String note); 
-        -void logEvent(); 
-        +static List<Event> getAllEvents()]
+        +void setNote(String note);]
 
-        [Tank] 1..1 - 0..* [Fish]
-        [Fish] 1..* - 1..1 [Species]
-        [Fish] 1..1 - 0..* [Event]
-    </uml-answer>
-    <uml-marking entity-name="0.2" entity-attributes="0.1" entity-key="0.2" extra-entity-penalty="0.25" weak_entity="0.5" relationship="0.5" cardinality="0.25" extra-relationship-penalty="0.25"></uml-marking>
+        [Tank] o-- "0..*" [Fish] : aggregation
+        [Fish] o-- "1" [Species] : aggregation
+        [Fish] *-- "0..*" [Event] : composition
+    </uml-design-elements>
+
+    <!-- Marking Schema -->
+    <uml-marking entity-name="0.2" entity-attributes="0.1" extra-entity-penalty="0.25" relationship="0.5" cardinality="0.25" extra-relationship-penalty="0.25"></uml-marking>
 </pl-uml-element>
