@@ -1,8 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Typography, IconButton, Button, Select, MenuItem } from '@mui/material';
 import MonacoEditorWrapper from '../monacoWrapper/MonacoEditorWrapper';
 import { SYNTAX_TYPES } from '../ui/ui';
-import { parseCodeToSchema } from '../utils/mermaidUtils';
 import { syncJavaCodeWithSchema } from '../utils/MermaidDiagramUtils';
 
 const CodeWorkbench = ({
@@ -16,18 +15,34 @@ const CodeWorkbench = ({
   onClose,
   isFullscreen,
   onToggleFullscreen
+  
 }) => {
-  const [workbenchData, setWorkbenchData] = useState({
-    code: '',
-    syntax: SYNTAX_TYPES.JAVA,
-    questionId: currentQuestion || null,
-    generatedCode: '',
-    isCodeModified: false,
-    consoleOutput: ''
-  });
+    const [workbenchData, setWorkbenchData] = useState(() => {
+        // Try to load saved code for this question
+        const savedCode = currentQuestion ? 
+          localStorage.getItem(`workbench_code_${currentQuestion}`) : null;
+        
+        return {
+          code: savedCode || '',
+          syntax: SYNTAX_TYPES.JAVA,
+          questionId: currentQuestion || null,
+          generatedCode: '',
+          isCodeModified: false,
+          consoleOutput: ''
+        };
+      });
 
   // Add position state for vertical adjustment
   const [position, setPosition] = useState({ x: 30, y: 80 }); // Default right:30px, top:80px
+
+   
+    // For local Storage
+    useEffect(() => {
+        // Save code to localStorage whenever it changes
+        if (workbenchData.questionId && workbenchData.code) {
+        localStorage.setItem(`workbench_code_${workbenchData.questionId}`, workbenchData.code);
+        }
+    }, [workbenchData.code, workbenchData.questionId]);
 
   // Update the schema and re-render diagram
   const handleUpdate = () => {

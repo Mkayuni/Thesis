@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { Box, Tooltip, IconButton, Typography, Button } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import RelationshipManager from '../relationshipManager/RelationshipManager';
-import { SYNTAX_TYPES } from '../ui/ui';
 import _ from 'lodash';
 import CodeWorkbench from '../utils/CodeWorkbench';
 
@@ -10,7 +9,6 @@ import {
   renderMermaidDiagram, 
   clearMermaidDiagram, 
   handleDiagramInteractions,
-  syncJavaCodeWithSchema
 } from '../utils/MermaidDiagramUtils';
 
 // Styled components - Remove all container styling
