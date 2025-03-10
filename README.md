@@ -310,14 +310,8 @@ This framework is being developed as part of a thesis project at Western Kentuck
 
 ## 👥 Contributors
 
-- **Faculty Advisor**: [Dr. Xing Guangming]
+- **Faculty Advisor**: Dr. Xing Guangming
 - **Department**: Computer Science, Western Kentucky University
-
-## 📃 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
 
 <div align="center">
   <b>⭐ Project Status</b>: Under active development as part of a thesis at Western Kentucky University
