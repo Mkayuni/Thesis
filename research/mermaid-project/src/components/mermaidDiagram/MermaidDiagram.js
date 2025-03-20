@@ -345,25 +345,44 @@ const MermaidDiagram = ({
     }
   };
   
-  const handleAddMethod = () => {
-    if (activeElement) {
-      const methodName = prompt('Enter method name:');
-      const returnType = prompt('Enter return type (optional):');
-      const params = prompt('Enter parameters (optional, comma separated):');
-      
-      if (methodName) {
-        const method = {
-          name: methodName,
-          returnType: returnType || 'void',
-          parameters: params ? params.split(',').map(p => p.trim()) : [],
-          visibility: 'public'
-        };
-        
-        addMethod(activeElement, method);
-        setNeedsRender(true);
-      }
+// Handler functions for action buttons
+const handleAddMethod = () => {
+  if (activeElement) {
+    // If activeElement is a complex object with entity and method properties
+    const entityName = typeof activeElement === 'object' && activeElement.entity 
+      ? activeElement.entity 
+      : activeElement;
+    
+    const methodName = prompt('Enter method name:');
+    if (!methodName) return;
+    
+    const returnType = prompt('Enter return type (optional):');
+    const params = prompt('Enter parameters (optional, comma separated):');
+    
+    const method = {
+      name: methodName,
+      returnType: returnType || 'void',
+      parameters: params ? params.split(',').map(p => p.trim()) : [],
+      visibility: 'public'
+    };
+    
+    addMethod(entityName, method);
+    setNeedsRender(true);
+  }
+};
+
+// Add a new function for handling method editing/removal
+const handleMethodAction = () => {
+  if (typeof activeElement === 'object' && activeElement.method && activeElement.entity) {
+    const action = prompt(`What do you want to do with method ${activeElement.method}?`, 'remove');
+    
+    if (action && action.toLowerCase() === 'remove') {
+      removeMethod(activeElement.entity, activeElement.method);
+      setActiveElement(null);
+      setNeedsRender(true);
     }
-  };
+  }
+};
   
   // Function to handle removing an attribute more safely
   const handleRemoveAttribute = () => {
@@ -523,7 +542,7 @@ const MermaidDiagram = ({
         }}
         onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
       >
-        {/* Action bar for the selected element */}
+      {/* Action bar for the selected element */}
         {activeElement && (
           <ActionBar
             sx={{
@@ -531,62 +550,101 @@ const MermaidDiagram = ({
               left: `${actionBarPosition.x}px`,
             }}
           >
-            <Button 
-              variant="contained" 
-              size="small" 
-              color="error"
-              className="action-button"
-              onClick={handleDeleteEntity}
-              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
-            >
-              Delete
-            </Button>
-            <Button 
-              variant="contained" 
-              size="small" 
-              color="primary"
-              className="action-button"
-              onClick={handleAddAttribute}
-              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
-            >
-              Add Attr
-            </Button>
-            <Button 
-              variant="contained" 
-              size="small" 
-              color="secondary"
-              className="action-button"
-              onClick={handleRemoveAttribute}
-              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
-            >
-              Del Attr
-            </Button>
-            <Button 
-              variant="contained" 
-              size="small" 
-              color="info"
-              className="action-button"
-              onClick={handleAddMethod}
-              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
-            >
-              Add Mthd
-            </Button>
-            <Button 
-              variant="contained" 
-              size="small" 
-              color="warning"
-              className="action-button"
-              onClick={() => {
-                setSelectedEntity(activeElement);
-                setShowRelationshipManager(true);
-              }}
-              sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
-            >
-              Add Rel
-            </Button>
+            {typeof activeElement === 'object' && activeElement.type === 'method' ? (
+              // Method-specific actions
+              <>
+                <Button 
+                  variant="contained" 
+                  size="small" 
+                  color="error"
+                  className="action-button"
+                  onClick={() => {
+                    if (activeElement.entity && activeElement.method) {
+                      removeMethod(activeElement.entity, activeElement.method);
+                      setActiveElement(null);
+                      setNeedsRender(true);
+                    }
+                  }}
+                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+                >
+                  Del Method
+                </Button>
+                <Button 
+                  variant="contained" 
+                  size="small" 
+                  color="primary"
+                  className="action-button"
+                  onClick={() => {
+                    if (activeElement.entity) {
+                      setActiveElement(activeElement.entity);
+                    }
+                  }}
+                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+                >
+                  Edit Entity
+                </Button>
+              </>
+            ) : (
+              // Entity actions (your existing buttons)
+              <>
+                <Button 
+                  variant="contained" 
+                  size="small" 
+                  color="error"
+                  className="action-button"
+                  onClick={handleDeleteEntity}
+                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+                >
+                  Delete
+                </Button>
+                <Button 
+                  variant="contained" 
+                  size="small" 
+                  color="primary"
+                  className="action-button"
+                  onClick={handleAddAttribute}
+                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+                >
+                  Add Attr
+                </Button>
+                <Button 
+                  variant="contained" 
+                  size="small" 
+                  color="secondary"
+                  className="action-button"
+                  onClick={handleRemoveAttribute}
+                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+                >
+                  Del Attr
+                </Button>
+                <Button 
+                  variant="contained" 
+                  size="small" 
+                  color="info"
+                  className="action-button"
+                  onClick={handleAddMethod}
+                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+                >
+                  Add Mthd
+                </Button>
+                <Button 
+                  variant="contained" 
+                  size="small" 
+                  color="warning"
+                  className="action-button"
+                  onClick={() => {
+                    setSelectedEntity(typeof activeElement === 'object' ? activeElement.entity : activeElement);
+                    setShowRelationshipManager(true);
+                  }}
+                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
+                >
+                  Add Rel
+                </Button>
+              </>
+            )}
           </ActionBar>
         )}
-        
+
         {/* Zoom controls - only show if we have entities */}
         {schema.size > 0 && (
           <ZoomControls>
@@ -611,7 +669,7 @@ const MermaidDiagram = ({
             </Typography>
           </ZoomControls>
         )}
-        
+
         {/* Diagram container with zoom and pan */}
         <div 
           style={{
@@ -656,7 +714,7 @@ const MermaidDiagram = ({
             }} 
           />
         </div>
-        
+
         {/* Relationship Manager */}
         {showRelationshipManager && (
           <Box
@@ -686,7 +744,7 @@ const MermaidDiagram = ({
             />
           </Box>
         )}
-  
+
         {/* Workbench */}
         {showWorkbench && (
           <CodeWorkbench 

@@ -1,8 +1,24 @@
 import { useRef, useState, useCallback } from 'react';
 
 export const usePopup = () => {
-  const [popup, setPopup] = useState({ visible: false, x: 0, y: 0, entityOrAttribute: '', type: '', entities: [] });
-  const [subPopup, setSubPopup] = useState({ visible: false, x: 0, y: 0, entityOrAttribute: '', type: '', entities: [] });
+  const [popup, setPopup] = useState({ 
+    visible: false, 
+    x: 0, 
+    y: 0, 
+    entityOrAttribute: '', 
+    type: '', // This will be 'entity', 'attribute', or 'method'
+    entities: [] 
+  });
+  
+  const [subPopup, setSubPopup] = useState({ 
+    visible: false, 
+    x: 0, 
+    y: 0, 
+    entityOrAttribute: '', 
+    type: '', 
+    entities: [] 
+  });
+  
   const entityPopupRef = useRef(null);
   const subPopupRef = useRef(null);
 
@@ -20,6 +36,15 @@ export const usePopup = () => {
   }, []);
 
   const showPopup = useCallback((e, entityOrAttribute, type, schema, questionContainerRef) => {
+    // Validate type parameter
+    if (!['entity', 'attribute', 'method'].includes(type)) {
+      console.warn(`Invalid popup type: ${type}. Using default 'entity'.`);
+      type = 'entity';
+    }
+    
+    // Log for debugging
+    console.log(`Showing popup for: ${entityOrAttribute}, Type: ${type}`);
+    
     if (e.preventDefault) e.preventDefault(); 
     const rect = e.target ? e.target.getBoundingClientRect() : { left: 0, bottom: 0, right: 0, top: 0 };
     const questionContainerRect = questionContainerRef.current.getBoundingClientRect();
@@ -28,13 +53,18 @@ export const usePopup = () => {
     let x = rect.left - questionContainerRect.left;
     let y = rect.bottom - questionContainerRect.top + window.scrollY;
 
+    // Make sure schema is available
+    const entities = schema && typeof schema.keys === 'function' 
+      ? Array.from(schema.keys()) 
+      : [];
+
     setPopup({
       visible: true,
       x,
       y,
       entityOrAttribute,
-      type,
-      entities: Array.from(schema.keys()),
+      type, // Store the type which will determine which form to show
+      entities,
     });
   }, []);
 
@@ -54,6 +84,21 @@ export const usePopup = () => {
     return { x, y };
   };
 
+  // New function to determine if a method popup should be shown
+  const isMethodPopup = () => {
+    return popup.visible && popup.type === 'method';
+  };
+
+  // New function to determine if an entity popup should be shown
+  const isEntityPopup = () => {
+    return popup.visible && popup.type === 'entity';
+  };
+
+  // New function to determine if an attribute popup should be shown
+  const isAttributePopup = () => {
+    return popup.visible && popup.type === 'attribute';
+  };
+
   return {
     popup,
     subPopup,
@@ -64,6 +109,9 @@ export const usePopup = () => {
     hidePopup,
     adjustPopupPosition,
     setPopup,
-    setSubPopup
+    setSubPopup,
+    isMethodPopup,
+    isEntityPopup,
+    isAttributePopup
   };
 };

@@ -448,120 +448,179 @@ export const renderMermaidDiagram = async ({
                 editButton.textContent = '✏️';
 
                 // Delete button
-                const deleteButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                deleteButton.setAttribute('x', bbox.x + bbox.width + 15);
-                deleteButton.setAttribute('y', bbox.y + 35);
-                deleteButton.setAttribute('fill', '#ff4d4d');
-                deleteButton.style.cursor = 'pointer';
-                deleteButton.style.display = 'none';
-                deleteButton.textContent = '🗑️';
-                deleteButton.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  // Instead of directly calling handleEntityRemoval, set entity to remove
-                  if (schema.has(entityName)) {
-                    // Directly remove without callbacks to avoid circular dependencies
-                    console.log(`Removing entity via button: ${entityName}`);
-                    removeEntity(entityName);
-                    
-                    // Force immediate diagram cleanup
-                    setTimeout(() => {
-                      clearDiagram();
-                      
-                      // Set flag to trigger render in useEffect
-                      setNeedsRender(true);
-                    }, 10);
-                  }
-                });
-
-                // Minus button
-                const minusButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                minusButton.setAttribute('x', bbox.x + bbox.width + 15);
-                minusButton.setAttribute('y', bbox.y + 55);
-                minusButton.setAttribute('fill', '#4caf50');
-                minusButton.style.cursor = 'pointer';
-                minusButton.style.display = 'none';
-                minusButton.textContent = '➖';
-                minusButton.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  // Handle attribute removal directly
-                  const normalizedEntityName = normalizeEntityName(entityName);
-                  const entity = schema.get(normalizedEntityName);
-                  if (entity && entity.attribute.size > 0) {
-                    const lastAttribute = Array.from(entity.attribute.keys()).pop();
-                    if (lastAttribute) {
-                      removeAttribute(normalizedEntityName, lastAttribute);
-                      
-                      // Force immediate diagram cleanup after attribute removal
-                      setTimeout(() => {
-                        clearDiagram();
-                        setNeedsRender(true);
-                      }, 10);
-                    }
-                  }
-                });
-
-                // Relationship button
-                const relationshipButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                relationshipButton.setAttribute('x', bbox.x + bbox.width + 15);
-                relationshipButton.setAttribute('y', bbox.y + 75);
-                relationshipButton.setAttribute('fill', '#ff9800');
-                relationshipButton.style.cursor = 'pointer';
-                relationshipButton.style.display = 'none';
-                relationshipButton.textContent = '🔗';
-                relationshipButton.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  setSelectedEntity(entityName);
-                  setShowRelationshipManager(true);
-                });
-
-                // Toggle visibility of buttons on edit button click
-                editButton.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  deleteButton.style.display = deleteButton.style.display === 'none' ? 'block' : 'none';
-                  minusButton.style.display = minusButton.style.display === 'none' ? 'block' : 'none';
-                  relationshipButton.style.display = relationshipButton.style.display === 'none' ? 'block' : 'none';
-                });
-
-                // Append buttons to the group
-                iconsGroup.appendChild(editButton);
-                iconsGroup.appendChild(deleteButton);
-                iconsGroup.appendChild(minusButton);
-                iconsGroup.appendChild(relationshipButton);
-                node.appendChild(iconsGroup);
-              }
-            });
-            
-            // 2. Add event listeners for action bar (on click)
-            const classGroups = svgElement.querySelectorAll('.classGroup');
-            classGroups.forEach((node) => {
-              node.style.cursor = 'pointer';
-              
-              node.addEventListener('click', (e) => {
-                if (isPanning) return; // Don't activate when panning
-                
-                const nodeId = node.id || '';
-                const entityName = extractEntityName(nodeId);
-                
-                // Get position for the action bar (above the node)
-                const rect = node.getBoundingClientRect();
-                const containerRect = containerRef.current.getBoundingClientRect();
-                
-                setActiveElement(entityName);
-                setActionBarPosition({
-                  x: (rect.left - containerRect.left) / scale,
-                  y: (rect.top - containerRect.top - 45) / scale, // Position above the element
-                });
-              });
-            });
-          }
-        } catch (err) {
-          console.error('Mermaid render error:', err);
-          clearDiagram(); // Ensure diagram is cleared on error
-        }
-      }
-    }, 50); // Slightly longer delay for more reliable initialization
-  } catch (error) {
-    console.error('Error rendering Mermaid diagram:', error);
-    clearDiagram(); // Ensure diagram is cleared on error
+const deleteButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+deleteButton.setAttribute('x', bbox.x + bbox.width + 15);
+deleteButton.setAttribute('y', bbox.y + 35);
+deleteButton.setAttribute('fill', '#ff4d4d');
+deleteButton.style.cursor = 'pointer';
+deleteButton.style.display = 'none';
+deleteButton.textContent = '🗑️';
+deleteButton.addEventListener('click', (e) => {
+  e.stopPropagation();
+  // Instead of directly calling handleEntityRemoval, set entity to remove
+  if (schema.has(entityName)) {
+    // Directly remove without callbacks to avoid circular dependencies
+    console.log(`Removing entity via button: ${entityName}`);
+    removeEntity(entityName);
+    
+    // Force immediate diagram cleanup
+    setTimeout(() => {
+      clearDiagram();
+      
+      // Set flag to trigger render in useEffect
+      setNeedsRender(true);
+    }, 10);
   }
+});
+
+// Minus button
+const minusButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+minusButton.setAttribute('x', bbox.x + bbox.width + 15);
+minusButton.setAttribute('y', bbox.y + 55);
+minusButton.setAttribute('fill', '#4caf50');
+minusButton.style.cursor = 'pointer';
+minusButton.style.display = 'none';
+minusButton.textContent = '➖';
+minusButton.addEventListener('click', (e) => {
+  e.stopPropagation();
+  // Handle attribute removal directly
+  const normalizedEntityName = normalizeEntityName(entityName);
+  const entity = schema.get(normalizedEntityName);
+  if (entity && entity.attribute.size > 0) {
+    const lastAttribute = Array.from(entity.attribute.keys()).pop();
+    if (lastAttribute) {
+      removeAttribute(normalizedEntityName, lastAttribute);
+      
+      // Force immediate diagram cleanup after attribute removal
+      setTimeout(() => {
+        clearDiagram();
+        setNeedsRender(true);
+      }, 10);
+    }
+  }
+});
+
+// Relationship button
+const relationshipButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+relationshipButton.setAttribute('x', bbox.x + bbox.width + 15);
+relationshipButton.setAttribute('y', bbox.y + 75);
+relationshipButton.setAttribute('fill', '#ff9800');
+relationshipButton.style.cursor = 'pointer';
+relationshipButton.style.display = 'none';
+relationshipButton.textContent = '🔗';
+relationshipButton.addEventListener('click', (e) => {
+  e.stopPropagation();
+  setSelectedEntity(entityName);
+  setShowRelationshipManager(true);
+});
+
+// Toggle visibility of buttons on edit button click
+editButton.addEventListener('click', (e) => {
+  e.stopPropagation();
+  deleteButton.style.display = deleteButton.style.display === 'none' ? 'block' : 'none';
+  minusButton.style.display = minusButton.style.display === 'none' ? 'block' : 'none';
+  relationshipButton.style.display = relationshipButton.style.display === 'none' ? 'block' : 'none';
+});
+
+// Append buttons to the group
+iconsGroup.appendChild(editButton);
+iconsGroup.appendChild(deleteButton);
+iconsGroup.appendChild(minusButton);
+iconsGroup.appendChild(relationshipButton);
+node.appendChild(iconsGroup);
+}
+});
+
+// 2. Add event listeners for action bar (on click)
+const classGroups = svgElement.querySelectorAll('.classGroup');
+classGroups.forEach((node) => {
+  node.style.cursor = 'pointer';
+  
+  node.addEventListener('click', (e) => {
+    if (isPanning) return; // Don't activate when panning
+    
+    const nodeId = node.id || '';
+    const entityName = extractEntityName(nodeId);
+    
+    // Get position for the action bar (above the node)
+    const rect = node.getBoundingClientRect();
+    const containerRect = containerRef.current.getBoundingClientRect();
+    
+    setActiveElement(entityName);
+    setActionBarPosition({
+      x: (rect.left - containerRect.left) / scale,
+      y: (rect.top - containerRect.top - 45) / scale, // Position above the element
+    });
+  });
+});
+
+// 3. Add event listeners for methods - find and make methods clickable
+const methodElements = [];
+const classTables = svgElement.querySelectorAll('.classGroup table');
+classTables.forEach(table => {
+  // Methods are typically in the third row of table or after attributes section
+  const rows = table.querySelectorAll('tr');
+  
+  // Skip first row (class name) - start from 1, not 0
+  if (rows.length > 1) {
+    // Find the parent class group element to get entity name
+    const classGroup = table.closest('.classGroup');
+    if (!classGroup) return;
+    
+    const nodeId = classGroup.id || '';
+    const entityName = extractEntityName(nodeId);
+    
+    // Process each row after the first
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const cellText = row.textContent || '';
+      
+      // Check if this row contains a method (has parentheses)
+      if (cellText.includes('(') && cellText.includes(')')) {
+        // Add pointer cursor to make it clear it's clickable
+        row.style.cursor = 'pointer';
+        
+        // Add click event to the method row
+        row.addEventListener('click', (e) => {
+          e.stopPropagation(); // Prevent triggering parent class click
+          
+          // Get method name (everything before the parentheses)
+          const methodName = cellText.split('(')[0].trim().replace(/^[+\-#~]/, '');
+          
+          // Calculate position for popup
+          const rect = row.getBoundingClientRect();
+          const containerRect = containerRef.current.getBoundingClientRect();
+          
+          // Set active element as an object with entity and method info
+          setActiveElement({
+            entity: entityName,
+            method: methodName,
+            type: 'method'
+          });
+          
+          // Position action bar near the method
+          setActionBarPosition({
+            x: (rect.right - containerRect.left + 10) / scale,  // Position to the right of the method
+            y: (rect.top - containerRect.top) / scale,  // Align with the method
+          });
+        });
+        
+        methodElements.push(row);
+      }
+    }
+  }
+});
+
+console.log(`Found ${methodElements.length} method elements in diagram`);
+}
+} catch (err) {
+  console.error('Mermaid render error:', err);
+  clearDiagram(); // Ensure diagram is cleared on error
+}
+}
+}, 50); // Slightly longer delay for more reliable initialization
+} catch (error) {
+console.error('Error rendering Mermaid diagram:', error);
+clearDiagram(); // Ensure diagram is cleared on error
+}
 };

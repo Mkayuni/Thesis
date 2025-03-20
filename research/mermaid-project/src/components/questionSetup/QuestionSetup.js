@@ -1,23 +1,192 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { questionStyles } from './QuestionStyles';
 
-const QuestionSetup = ({ questionMarkdown, setSchema }) => {
+const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPopup, schema, questionContainerRef }) => {
   const [hasQuestion, setHasQuestion] = useState(false);
   const [questionHTML, setQuestionHTML] = useState('');
   const [requirementsHTML, setRequirementsHTML] = useState('');
   const [detailsVisible, setDetailsVisible] = useState(false);
+  const [entities, setEntities] = useState(new Set());
+  const [methods, setMethods] = useState(new Set());
+  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+  const [popupContent, setPopupContent] = useState('');
+  const [isPopupVisible, setIsPopupVisible] = useState(false);
+  
+  // Use ref to track clicks within our component
+  const panelRef = useRef(null);
+  const wasInside = useRef(false);
+  
+  // Create our own internal showPopup that will display the popup in the panel
+  const showInternalPopup = (event, content, type = 'entity') => {
+    // Get the click coordinates relative to the target element
+    const rect = event.target.getBoundingClientRect();
+    const x = rect.left;
+    const y = rect.bottom;
+    
+    // Set the popup content and position
+    setPopupContent(`${type}: ${content}`);
+    setPopupPosition({ x, y });
+    setIsPopupVisible(true);
+    
+    // Mark that we clicked inside to prevent closing
+    wasInside.current = true;
+  };
 
   useEffect(() => {
     if (questionMarkdown) {
       setHasQuestion(true);
+      
+      // Extract entities and methods first
+      const extractedEntities = extractEntitiesAndAttributes(questionMarkdown);
+      setEntities(extractedEntities.entities);
+      
+      // Extract methods
+      const extractedMethods = extractMethods(questionMarkdown);
+      setMethods(extractedMethods);
+      
+      // Parse the markdown with clickable elements
       const parsedContent = parseQuestionMarkdown(questionMarkdown);
       setQuestionHTML(parsedContent.questionHTML);
       setRequirementsHTML(parsedContent.requirementsHTML);
       
       // Reset details visibility when question changes
-      setDetailsVisible(false);
+      setDetailsVisible(true); // Default to showing the question
+      
+      // Set up window functions for click handling
+      window.showPopup = (event, entityOrMethod, isEntity = false, type = 'entity') => {
+        // Prevent the default behavior
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Log for debugging
+        console.log("Click: ", entityOrMethod, "Type:", type);
+        
+        // Show our internal popup
+        showInternalPopup(event, entityOrMethod, type);
+        
+        // For method form, we need to show a special popup to select which entity the method belongs to
+        if (type === 'method') {
+          // Create a custom object to hold both the method name and a flag indicating
+          // this is a method selection that should trigger the entity selection popup
+          const methodData = {
+            methodName: entityOrMethod,
+            needsEntitySelection: true
+          };
+          
+          // Show popup with method selection data
+          originalShowPopup(event, methodData, 'method', schema, questionContainerRef);
+        } else {
+          originalShowPopup(event, entityOrMethod, type, schema, questionContainerRef);
+        }
+        
+        // Mark that we're handling the event to prevent panel close
+        wasInside.current = true;
+      };
+      
+      window.addEntityOrAttribute = (nameInER, event) => {
+        if (!event) {
+          // Create a synthetic event if one wasn't passed
+          event = {
+            preventDefault: () => {},
+            stopPropagation: () => {},
+            target: document.activeElement || document.body
+          };
+        }
+        
+        // Always prevent default behavior
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Show internal popup for all entity/attribute clicks
+        const type = extractedEntities.entities.has(nameInER) ? 'entity' : 'attribute';
+        showInternalPopup(event, nameInER, type);
+        
+        // CRITICAL: Pass the schema explicitly for usePopup to work correctly
+        // Use the detected type ('entity' or 'attribute')
+        originalShowPopup(event, nameInER, type, schema, questionContainerRef);
+        
+        // Mark that we're handling the event to prevent panel close
+        wasInside.current = true;
+      };
+      
+      // Global click handler for managing panel visibility
+      const handleGlobalClick = (e) => {
+        // If we clicked inside our component earlier, reset the flag and don't close
+        if (wasInside.current) {
+          wasInside.current = false;
+          return;
+        }
+        
+        // Check if the click is outside our panel
+        if (panelRef.current && !panelRef.current.contains(e.target)) {
+          // Only close popup, not the panel
+          if (isPopupVisible) {
+            setIsPopupVisible(false);
+          }
+          // Don't close the panel - we'll let the user close it manually
+        }
+      };
+      
+      // Add click listener
+      document.addEventListener('mousedown', handleGlobalClick);
+      
+      return () => {
+        document.removeEventListener('mousedown', handleGlobalClick);
+      };
     }
-  }, [questionMarkdown, setSchema]);
+  }, [questionMarkdown, setSchema, originalShowPopup, schema, questionContainerRef]);
+  
+  // Handle document click to close popup
+  const handleDocumentClick = (event) => {
+    // Close popup if clicking outside of it
+    if (isPopupVisible && !event.target.closest('.popup') && 
+        !event.target.classList.contains('class-highlight') && 
+        !event.target.classList.contains('method-highlight') &&
+        !event.target.classList.contains('entity-highlight')) {
+      setIsPopupVisible(false);
+    }
+  };
+
+  // Extract entities and attributes function
+  function extractEntitiesAndAttributes(question) {
+    const entityAttributePattern = /\[([^\]]+)\]/g;
+    const entities = new Set();
+    const attributes = new Set();
+    let match;
+
+    while ((match = entityAttributePattern.exec(question)) !== null) {
+      const entityName = match[1].replace(/\s+/g, '').toLowerCase(); // Normalize entity name
+      entities.add(entityName);
+      attributes.add(match[1]);
+    }
+
+    return { entities, attributes };
+  }
+
+  // Extract methods function
+  function extractMethods(question) {
+    const methodPattern = /<method>(.*?)<\/method>/g;
+    const methods = new Set();
+    let match;
+
+    while ((match = methodPattern.exec(question)) !== null) {
+      methods.add(match[1].trim());
+    }
+
+    return methods;
+  }
+
+  // Add entity function
+  const addEntity = (entityName) => {
+    const normalizedEntityName = entityName.replace(/\s+/g, '').toLowerCase(); // Normalize entity name
+    setSchema((prevSchema) => {
+      const newSchema = new Map(prevSchema);
+      if (!newSchema.has(normalizedEntityName)) {
+        newSchema.set(normalizedEntityName, { entity: normalizedEntityName, attribute: new Map(), methods: [] });
+      }
+      return newSchema;
+    });
+  };
 
   // Parse the markdown content with special handling for UML questions
   function parseQuestionMarkdown(content) {
@@ -52,8 +221,15 @@ const QuestionSetup = ({ questionMarkdown, setSchema }) => {
   function processQuestionPart(questionText) {
     if (!questionText) return '';
     
-    // Replace class brackets with spans
-    let html = questionText.replace(/\[(.*?)\]/g, '<span class="class-highlight">$1</span>');
+    // First, handle the entity and attribute mentions in square brackets
+    let html = questionText;
+    
+    // Replace entity references like [tanks] with clickable spans
+    html = html.replace(/\[([^\]]+)\]/g, (match, content) => {
+      const normalizedContent = content.toLowerCase().replace(/\s+/g, '');
+      // Add a data attribute to store whether it's already labeled as an entity in the markup
+      return `<span class="class-highlight" data-is-entity="${entities.has(normalizedContent)}" onclick="window.addEntityOrAttribute('${normalizedContent}', event)">${content}</span>`;
+    });
     
     // Process code blocks with method tags
     const codeBlockPattern = /`([^`]+)`/g;
@@ -61,20 +237,24 @@ const QuestionSetup = ({ questionMarkdown, setSchema }) => {
       // Highlight methods within the code block
       const highlightedCode = codeContent.replace(
         /<method>(.*?)<\/method>/g, 
-        '<span class="method-highlight">$1</span>'
+        (match, methodName) => {
+          return `<span class="method-highlight" onclick="window.showPopup(event, '${methodName}', false, 'method')">${methodName}</span>`;
+        }
       );
       return `<div class="code-block">${highlightedCode}</div>`;
     });
     
-    // Highlight any remaining method tags outside code blocks
+    // Highlight any remaining method tags outside code blocks with clickability
     html = html.replace(
       /<method>(.*?)<\/method>/g, 
-      '<span class="method-highlight">$1</span>'
+      (match, methodName) => {
+        return `<span class="method-highlight" onclick="window.showPopup(event, '${methodName}', false, 'method')">${methodName}</span>`;
+      }
     );
     
-    // Handle basic formatting
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    // Handle basic formatting (but don't overwrite our spans)
+    html = html.replace(/\*\*([^<>]*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*([^<>*]*?)\*/g, '<em>$1</em>');
     
     // Handle paragraphs
     const paragraphs = html.split('\n\n').filter(p => p.trim() !== '');
@@ -95,15 +275,19 @@ const QuestionSetup = ({ questionMarkdown, setSchema }) => {
     // Preprocess to identify and properly format numbered lists with nested items
     html = preprocessNestedLists(html);
     
-    // Replace class brackets with spans
-    html = html.replace(/\[(.*?)\]/g, '<span class="class-highlight">$1</span>');
+    // Replace entities in square brackets with clickable spans
+    html = html.replace(/\[([^\]]+)\]/g, (match, content) => {
+      const normalizedContent = content.toLowerCase().replace(/\s+/g, '');
+      // Add a data attribute to store whether it's already labeled as an entity in the markup
+      return `<span class="class-highlight" data-is-entity="${entities.has(normalizedContent)}" onclick="window.addEntityOrAttribute('${normalizedContent}', event)">${content}</span>`;
+    });
     
     // Replace inline code blocks
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
     
-    // Handle basic formatting
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    // Handle basic formatting (but not the ones we already processed)
+    html = html.replace(/\*\*([^<>]*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*([^<>*]*?)\*/g, '<em>$1</em>');
     
     return `<h3>Design Requirements</h3>\n${html}`;
   }
@@ -214,6 +398,13 @@ const QuestionSetup = ({ questionMarkdown, setSchema }) => {
     setDetailsVisible(!detailsVisible);
   };
 
+  // Prevent panel from closing on link clicks
+  const handlePanelClick = (e) => {
+    e.stopPropagation();
+    // Mark that we're handling the event inside the panel
+    wasInside.current = true;
+  };
+
   return (
     <>
       {/* Main Question Container - Shows button if question exists */}
@@ -232,7 +423,12 @@ const QuestionSetup = ({ questionMarkdown, setSchema }) => {
       
       {/* Fixed Question Details Panel */}
       {detailsVisible && (
-        <div className="fixed-panel">
+        <div 
+          className="fixed-panel" 
+          ref={panelRef}
+          onClick={handlePanelClick}
+          onMouseDown={() => { wasInside.current = true; }}
+        >
           <div className="panel-header">
             <h2>Assignment</h2>
             <button className="close-button" onClick={() => setDetailsVisible(false)}>×</button>
@@ -247,6 +443,31 @@ const QuestionSetup = ({ questionMarkdown, setSchema }) => {
             {requirementsHTML && (
               <div className="requirements-section" 
                 dangerouslySetInnerHTML={{ __html: requirementsHTML }}>
+              </div>
+            )}
+            
+            {/* Inline popup */}
+            {isPopupVisible && (
+              <div 
+                className="popup"
+                style={{
+                  position: 'absolute',
+                  left: `${popupPosition.x}px`,
+                  top: `${popupPosition.y}px`,
+                  zIndex: 1001
+                }}
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent popup from closing when clicked
+                  wasInside.current = true; // Mark that we're handling the event inside
+                }}
+              >
+                {popupContent}
+                <button 
+                  className="close-popup-button"
+                  onClick={() => setIsPopupVisible(false)}
+                >
+                  ×
+                </button>
               </div>
             )}
           </div>
@@ -267,7 +488,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema }) => {
           box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
           display: flex;
           flex-direction: column;
-          overflow: hidden;
+          overflow: visible; /* Changed from hidden to visible to allow popups to show */
           z-index: 1000;
         }
         
@@ -310,6 +531,83 @@ const QuestionSetup = ({ questionMarkdown, setSchema }) => {
           padding: 1.5rem;
           overflow-y: auto;
           max-height: calc(100vh - 120px);
+          position: relative; /* For positioning the popup */
+        }
+        
+        /* Style for the clickable elements */
+        .class-highlight {
+          background-color: #e6f2ff;
+          border-radius: 4px;
+          padding: 2px 5px;
+          color: #0066cc;
+          font-weight: bold;
+          cursor: pointer;
+          display: inline-block;
+          margin: 0 2px;
+        }
+        
+        .class-highlight:hover {
+          background-color: #cce6ff;
+          text-decoration: underline;
+        }
+        
+        .method-highlight {
+          background-color: #f0f5ff;
+          color: #3333cc;
+          font-family: monospace;
+          padding: 2px 5px;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+        
+        .method-highlight:hover {
+          background-color: #d6e4ff;
+          text-decoration: underline;
+        }
+        
+        /* Style for the popup */
+        .popup {
+          background-color: #fff;
+          border: 1px solid #ddd;
+          padding: 8px 12px;
+          border-radius: 4px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+          font-size: 0.9rem;
+          max-width: 200px;
+          word-wrap: break-word;
+          position: relative;
+        }
+        
+        .close-popup-button {
+          position: absolute;
+          top: 2px;
+          right: 2px;
+          background: none;
+          border: none;
+          font-size: 14px;
+          cursor: pointer;
+          color: #666;
+          width: 20px;
+          height: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+        }
+        
+        .close-popup-button:hover {
+          background-color: #f0f0f0;
+        }
+        
+        /* Style for entity highlights */
+        .entity-highlight {
+          cursor: pointer;
+          color: #0066cc;
+          font-weight: bold;
+        }
+        
+        .entity-highlight:hover {
+          text-decoration: underline;
         }
       `}</style>
     </>

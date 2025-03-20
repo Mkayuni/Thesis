@@ -222,6 +222,7 @@ const UMLComponent = () => {
     },
     [hidePopup]
   );
+  
 
   useEffect(() => {
     if (isFeedbackOpen || isSubmitOpen) {
