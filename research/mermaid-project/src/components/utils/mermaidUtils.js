@@ -97,6 +97,25 @@ export const formatType = (type) => {
   return formattedType;
 };
 
+// Add this function to your mermaidUtils.js file:
+
+/**
+ * Formats a type name according to UML conventions
+ * Primitive types like int, float, etc. use their UML standard formats
+ * Custom types (classes, interfaces) are capitalized
+ * @param {string} type - The type name to format
+ * @returns {string} - The properly formatted UML type name
+ */
+export const formatUMLType = (type) => {
+  if (!type || typeof type !== 'string') return 'String'; // Default type
+  
+  // Trim whitespace and normalize
+  const trimmedType = type.trim();
+  
+  // Reuse the existing formatType function which already handles
+  // proper UML capitalization rules
+  return formatType(trimmedType);
+};
 
 // Schema to Mermaid Source
 export const schemaToMermaidSource = (schema, relationships) => {

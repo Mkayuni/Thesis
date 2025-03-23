@@ -23,8 +23,11 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
     const x = rect.left;
     const y = rect.bottom;
     
+    // Display text: use "class" instead of "entity" in the popup display
+    const displayType = type === 'entity' ? 'class' : type;
+    
     // Set the popup content and position
-    setPopupContent(`${type}: ${content}`);
+    setPopupContent(`${displayType}: ${content}`);
     setPopupPosition({ x, y });
     setIsPopupVisible(true);
     
@@ -101,8 +104,8 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
         const type = extractedEntities.entities.has(nameInER) ? 'entity' : 'attribute';
         showInternalPopup(event, nameInER, type);
         
-        // CRITICAL: Pass the schema explicitly for usePopup to work correctly
-        // Use the detected type ('entity' or 'attribute')
+        // Pass the type but DO NOT set any default attribute type
+        // This will trigger the attribute form with the dropdown
         originalShowPopup(event, nameInER, type, schema, questionContainerRef);
         
         // Mark that we're handling the event to prevent panel close

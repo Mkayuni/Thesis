@@ -6,7 +6,7 @@ export const usePopup = () => {
     x: 0, 
     y: 0, 
     entityOrAttribute: '', 
-    type: '', // This will be 'entity', 'attribute', or 'method'
+    type: '', 
     entities: [] 
   });
   
@@ -43,7 +43,7 @@ export const usePopup = () => {
     }
     
     // Log for debugging
-    console.log(`Showing popup for: ${entityOrAttribute}, Type: ${type}`);
+    console.log(`Showing popup for:`, entityOrAttribute, `Type:`, type);
     
     if (e.preventDefault) e.preventDefault(); 
     const rect = e.target ? e.target.getBoundingClientRect() : { left: 0, bottom: 0, right: 0, top: 0 };
@@ -58,6 +58,14 @@ export const usePopup = () => {
       ? Array.from(schema.keys()) 
       : [];
 
+    // For debugging
+    console.log('Setting popup state with:', {
+      visible: true,
+      entityOrAttribute,
+      type,
+      entities: entities.length
+    });
+
     setPopup({
       visible: true,
       x,
@@ -69,6 +77,7 @@ export const usePopup = () => {
   }, []);
 
   const hidePopup = () => {
+    console.log('Hiding popup');
     setPopup({ visible: false, x: 0, y: 0, entityOrAttribute: '', type: '', entities: [] });
     setSubPopup({ visible: false, x: 0, y: 0, entityOrAttribute: '', type: '', entities: [] });
   };
@@ -99,6 +108,11 @@ export const usePopup = () => {
     return popup.visible && popup.type === 'attribute';
   };
 
+  // For debugging popup state
+  const logPopupState = () => {
+    console.log('Current popup state:', popup);
+  };
+
   return {
     popup,
     subPopup,
@@ -112,6 +126,7 @@ export const usePopup = () => {
     setSubPopup,
     isMethodPopup,
     isEntityPopup,
-    isAttributePopup
+    isAttributePopup,
+    logPopupState 
   };
 };

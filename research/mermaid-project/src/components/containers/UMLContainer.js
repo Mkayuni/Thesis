@@ -8,11 +8,17 @@ import {
   ThemeProvider,
   TextField,
   Button,
+  Select,     
+  MenuItem,   
+  Divider,    
+  ListSubheader, 
+  FormControl,
 } from '@mui/material';
 import ControlsComponent from '../ControlsComponent';
 import MermaidDiagram from '../mermaidDiagram/MermaidDiagram';
 import QuestionSetup from '../questionSetup/QuestionSetup';
 import theme from '../../theme';
+import { formatUMLType } from '../utils/mermaidUtils';
 
 // Styled Components
 const MainContainer = styled(Box)(({ theme }) => ({
@@ -151,7 +157,9 @@ const UMLContainer = ({
     const [methodParams, setMethodParams] = useState('');
     const [entityNameInput, setEntityNameInput] = useState('');
     const [attributeNameInput, setAttributeNameInput] = useState('');
-    const [attributeTypeInput, setAttributeTypeInput] = useState('');
+    const [attributeTypeInput, setAttributeTypeInput] = useState('String');
+    const [customTypeInput, setCustomTypeInput] = useState('');
+    
 
     const preventScroll = useCallback((e) => {
       // Check if event is inside the diagram area
@@ -229,18 +237,6 @@ const UMLContainer = ({
       hidePopup();
     };
 
-    // Handle attribute submission for the new popup
-    const handleAttributeSubmitNew = (entity) => {
-      if (!attributeNameInput.trim()) return;
-      
-      handleAddAttributeClick(entity, attributeNameInput, attributeTypeInput);
-      
-      // Reset form fields
-      setAttributeNameInput('');
-      setAttributeTypeInput('');
-      
-      hidePopup();
-    };
 
     // Handle entity submission
     const handleEntitySubmit = () => {
@@ -250,6 +246,45 @@ const UMLContainer = ({
       
       // Reset form fields
       setEntityNameInput('');
+      
+      hidePopup();
+    };
+
+    // Add this in your handleAttributeSubmitNew function:
+    const handleAttributeSubmitNew = (entity, finalType) => {
+      console.log('DEBUG - handleAttributeSubmitNew called with:', { entity, finalType });
+      console.log('DEBUG - attributeTypeInput:', attributeTypeInput);
+      console.log('DEBUG - customTypeInput:', customTypeInput);
+      
+      // Get the attribute name, ensuring it's a string
+      const attrName = typeof attributeNameInput === 'object' 
+        ? attributeNameInput.attributeName 
+        : String(attributeNameInput || '');
+        
+      console.log('DEBUG - attrName:', attrName);
+      
+      if (!attrName || attrName.trim() === '') {
+        console.log('DEBUG - Empty attribute name, returning');
+        return;
+      }
+      
+      // Determine the type based on selection
+      let typeToUse = finalType;
+      
+      if (attributeTypeInput === 'custom') {
+        typeToUse = customTypeInput;
+        console.log('DEBUG - Using custom type:', typeToUse);
+      }
+      
+      // Pass the type in the correct parameter position (4th parameter)
+      // The order should be: entity, attribute, key, type
+      console.log('DEBUG - Final type being passed:', typeToUse);
+      handleAddAttributeClick(entity, attrName, '', typeToUse);
+      
+      // Reset form fields
+      setAttributeNameInput('');
+      setAttributeTypeInput('String');
+      setCustomTypeInput('');
       
       hidePopup();
     };
@@ -370,7 +405,7 @@ const UMLContainer = ({
                 // Entity selection popup for methods
                 <>
                   <Typography variant="h6">
-                    Select Entity for Method
+                    Select Class for Method
                   </Typography>
                   
                   <Typography variant="body2" sx={{ mb: 2 }}>
@@ -428,7 +463,7 @@ const UMLContainer = ({
                   <Typography variant="body2" sx={{ mb: 2 }}>
                     {typeof popup.entityOrAttribute === 'object' 
                       ? `To Entity: ${popup.entityOrAttribute.entity}` 
-                      : `To Entity: ${popup.entityOrAttribute || 'Select Entity'}`}
+                      : `To Entity: ${popup.entityOrAttribute || 'Select Class'}`}
                   </Typography>
                   
                   <TextField
@@ -488,110 +523,255 @@ const UMLContainer = ({
                       Add Method
                     </Button>
                   </Box>
-                </>
-              ) : popup.type === 'attribute' ? (
-                
-                // Attribute popup form
-                <>
-                  <Typography variant="h6">
-                    Add Attribute
-                  </Typography>
-                  
-                  {popup.entities.map((entity) => (
-                    <Box key={entity} sx={{ mb: 2 }}>
-                      <Typography variant="body1" fontWeight="medium">
-                        Add to entity: {entity}
-                      </Typography>
-                      
-                      <TextField
-                        label="Attribute Name"
-                        fullWidth
-                        variant="outlined"
-                        value={attributeNameInput}
-                        onChange={(e) => setAttributeNameInput(e.target.value)}
-                        margin="dense"
-                      />
-                      
-                      <TextField
-                        label="Attribute Type"
-                        fullWidth
-                        variant="outlined"
-                        value={attributeTypeInput}
-                        onChange={(e) => setAttributeTypeInput(e.target.value)}
-                        margin="dense"
-                        placeholder="String, int, etc."
-                      />
-                      
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-                        <Button variant="outlined" onClick={hidePopup}>
-                          Cancel
-                        </Button>
+                      </>
+                ) : popup.type === 'attribute' ? (
+  // Compact attribute form with chip selection
+  <>
+    <Box 
+      sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        padding: 0,
+        margin: 0
+      }}
+    >
+      {/* Header with colored background */}
+      <Box 
+        sx={{ 
+          backgroundColor: '#3f51b5', 
+          color: 'white',
+          padding: 2,
+          borderTopLeftRadius: 4,
+          borderTopRightRadius: 4,
+          marginBottom: 2
+        }}
+      >
+        <Typography variant="h6" sx={{ fontWeight: 500 }}>
+          Add Attribute
+        </Typography>
+        <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>
+          {typeof popup.entityOrAttribute === 'object' 
+            ? `To: ${popup.entityOrAttribute.entity}` 
+            : `To: ${popup.entities[0]}`}
+        </Typography>
+      </Box>
+
+      {/* Form content */}
+      <Box sx={{ px: 2, pb: 2 }} id="attribute-form-container">
+        {/* Name field */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: '#555' }}>
+            Name
+          </Typography>
+          <TextField
+            fullWidth
+            variant="outlined"
+            size="small"
+            placeholder="Enter attribute name"
+            value={typeof popup.entityOrAttribute === 'object' 
+              ? popup.entityOrAttribute.attributeName || '' 
+              : attributeNameInput}
+            onChange={(e) => {
+              setAttributeNameInput(e.target.value);
+            }}
+            InputProps={{
+              sx: { 
+                borderRadius: 1,
+                backgroundColor: '#f5f8fa'
+              }
+            }}
+            autoFocus
+          />
+        </Box>
+
+        {/* Type selector as compact chips */}
+        <Box sx={{ mb: attributeTypeInput === 'custom' ? 1 : 2 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: '#555' }}>
+            Type
+          </Typography>
+          
+          <Box sx={{ 
+            border: '1px solid #e0e0e0', 
+            borderRadius: 1, 
+            padding: 1, 
+            backgroundColor: '#f5f8fa',
+            maxHeight: '100px',
+            overflowY: 'auto'
+          }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+              {/* Common types as small chips */}
+              {['String', 'Int', 'Float', 'Boolean', 'Date', 'List'].map((type) => (
+                <Box
+                  key={type}
+                  onClick={() => setAttributeTypeInput(type)}
+                  sx={{
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                    backgroundColor: attributeTypeInput === type ? '#3f51b5' : '#e0e0e0',
+                    color: attributeTypeInput === type ? 'white' : 'rgba(0,0,0,0.7)',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      backgroundColor: attributeTypeInput === type ? '#303f9f' : '#d5d5d5',
+                    }
+                  }}
+                >
+                  {type}
+                </Box>
+              ))}
+              <Box
+                onClick={() => setAttributeTypeInput('custom')}
+                sx={{
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
+                  backgroundColor: attributeTypeInput === 'custom' ? '#3f51b5' : '#e0e0e0',
+                  color: attributeTypeInput === 'custom' ? 'white' : 'rgba(0,0,0,0.7)',
+                  cursor: 'pointer',
+                  fontStyle: 'italic',
+                  '&:hover': {
+                    backgroundColor: attributeTypeInput === 'custom' ? '#303f9f' : '#d5d5d5',
+                  }
+                }}
+              >
+                Custom...
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+        
+        {/* Custom type input - shown conditionally */}
+        {attributeTypeInput === 'custom' && (
+          <Box sx={{ mb: 2, ml: 2 }}>
+            <TextField
+              label="Custom Type Name"
+              fullWidth
+              size="small"
+              variant="outlined"
+              value={customTypeInput || ''}
+              onChange={(e) => {
+                setCustomTypeInput(e.target.value);
+              }}
+              InputProps={{
+                sx: { 
+                  borderRadius: 1,
+                  backgroundColor: '#f5f8fa'
+                }
+              }}
+              autoFocus
+            />
+          </Box>
+        )}
+
+        {/* Action buttons */}
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            justifyContent: 'flex-end',
+            gap: 1,
+            mt: 2,
+            borderTop: '1px solid #eee',
+            pt: 2
+          }}
+        >
+          <Button 
+            variant="outlined" 
+            onClick={hidePopup}
+            sx={{ 
+              borderRadius: 1.5,
+              textTransform: 'none',
+              px: 2
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            disableElevation
+            color="primary"
+            onClick={() => {
+              const finalType = attributeTypeInput === 'custom' ? customTypeInput : attributeTypeInput;
+              
+              handleAttributeSubmitNew(
+                typeof popup.entityOrAttribute === 'object' 
+                  ? popup.entityOrAttribute.entity 
+                  : popup.entities[0],
+                finalType
+              );
+            }}
+            sx={{ 
+              borderRadius: 1.5,
+              textTransform: 'none',
+              px: 3,
+              backgroundColor: '#3f51b5',
+              '&:hover': {
+                backgroundColor: '#303f9f'
+              }
+            }}
+          >
+            Add Attribute
+          </Button>
+        </Box>
+      </Box>
+    </Box>
+  </>
+                    
+                ) : (
+                  // Entity popup form - keeping this for reference
+                  <>
+                    <Typography variant="h6">
+                      Add Class
+                    </Typography>
+                    
+                    <TextField
+                      label="Class Name"
+                      fullWidth
+                      variant="outlined"
+                      value={entityNameInput}
+                      onChange={(e) => setEntityNameInput(e.target.value)}
+                      margin="dense"
+                    />
+                    
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+                      <Button variant="outlined" onClick={hidePopup}>
+                        Cancel
+                      </Button>
+                      <Button 
+                        variant="contained" 
+                        color="primary"
+                        onClick={handleEntitySubmit}
+                      >
+                        Add Class
+                      </Button>
+                      {schema.size > 0 && (
                         <Button 
                           variant="contained" 
-                          color="primary"
-                          onClick={() => handleAttributeSubmitNew(entity)}
+                          color="secondary"
+                          onClick={() => {
+                            if (entityNameInput.trim()) {
+                              showSubPopup(entityNameInput, 'attribute');
+                            }
+                          }}
                         >
                           Add Attribute
                         </Button>
-                      </Box>
+                      )}
                     </Box>
-                  ))}
-                </>
-              ) : (
-                // Entity popup form
-                <>
-                  <Typography variant="h6">
-                    Add Entity
-                  </Typography>
-                  
-                  <TextField
-                    label="Entity Name"
-                    fullWidth
-                    variant="outlined"
-                    value={entityNameInput}
-                    onChange={(e) => setEntityNameInput(e.target.value)}
-                    margin="dense"
-                  />
-                  
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-                    <Button variant="outlined" onClick={hidePopup}>
-                      Cancel
-                    </Button>
-                    <Button 
-                      variant="contained" 
-                      color="primary"
-                      onClick={handleEntitySubmit}
-                    >
-                      Add Entity
-                    </Button>
-                    {schema.size > 0 && (
-                      <Button 
-                        variant="contained" 
-                        color="secondary"
-                        onClick={() => {
-                          if (entityNameInput.trim()) {
-                            showSubPopup(entityNameInput, 'attribute');
-                          }
-                        }}
-                      >
-                        Add Attribute to Existing
-                      </Button>
-                    )}
-                  </Box>
-                </>
-              )}
+                  </>
+                )}
             </FloatingPopup>
-          )}
-
+            )}
           {/* Sub-popup for selecting entities to add attribute to */}
           {subPopup.visible && subPopup.type === 'attribute' && (
-            <FloatingPopup>
+            <FloatingPopup style={{ zIndex: 2100 }}> {/* Higher z-index than the main popup */}
               <Typography variant="h6">
-                Select Entity for Attribute
+                Select Class for Attribute
               </Typography>
               
               <Typography variant="body2" sx={{ mb: 2 }}>
-                Choose an entity to add the attribute "{subPopup.entityOrAttribute}" to:
+                Choose a Class to add the attribute "{subPopup.entityOrAttribute}" to:
               </Typography>
               
               {subPopup.entities.map((entity) => (
@@ -601,8 +781,25 @@ const UMLContainer = ({
                   fullWidth
                   sx={{ mb: 1 }}
                   onClick={() => {
-                    handleAddAttributeClick(entity, subPopup.entityOrAttribute, attributeTypeInput);
+                    // First, close the current subpopup by hiding all popups
                     hidePopup();
+                    
+                    // Then use setTimeout to ensure the first popup is fully closed
+                    // before showing the new one
+                    setTimeout(() => {
+                      // Now set the attribute name and show the new popup
+                      setAttributeNameInput(subPopup.entityOrAttribute);
+                      showPopup(
+                        { target: document.activeElement },
+                        {
+                          entity: entity,
+                          attributeName: subPopup.entityOrAttribute
+                        },
+                        'attribute',
+                        schema,
+                        questionContainerRef
+                      );
+                    }, 50); // Small delay to ensure proper cleanup
                   }}
                 >
                   {entity}

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { formatUMLType } from '../utils/mermaidUtils';
 
 export const useEntityManagement = () => {
   // Initialize state for schema and relationships
@@ -36,7 +37,7 @@ export const useEntityManagement = () => {
   }, []);
 
   // Function to add a new attribute to an entity
-  const addAttribute = useCallback((entity, attribute, type = '', key = '') => {
+  const addAttribute = useCallback((entity, attribute, key = '', type = '') => {
     setSchema((prevSchema) => {
       const newSchema = new Map(prevSchema);
       const entityData = newSchema.get(entity);
@@ -45,8 +46,11 @@ export const useEntityManagement = () => {
         return prevSchema; // Avoid adding attributes to non-existent entities
       }
   
-      if (!type) {
-        console.warn(`Type is empty for Attribute: ${attribute} in Entity: ${entity}`); // Log warning for empty type
+      // Apply proper UML type formatting
+      const formattedType = formatUMLType(type);
+  
+      if (!formattedType) {
+        console.warn(`Type is empty for Attribute: ${attribute} in Entity: ${entity}`);
       }
   
       const attributes = Array.from(entityData.attribute.entries());
@@ -56,7 +60,7 @@ export const useEntityManagement = () => {
         attributes.splice(attributeIndex, 1);
       }
   
-      const newAttribute = { attribute, type, key, visibility: 'private' }; // Include type
+      const newAttribute = { attribute, type: formattedType, key, visibility: 'private' };
   
       if (key) {
         attributes.unshift([attribute, newAttribute]);
@@ -66,7 +70,7 @@ export const useEntityManagement = () => {
   
       entityData.attribute = new Map(attributes);
       newSchema.set(entity, entityData);
-      console.log(`Added Attribute: ${attribute} to Entity: ${entity}, Type: ${type}`); // Log added attribute
+      console.log(`Added Attribute: ${attribute} to Entity: ${entity}, Type: ${formattedType}`);
       return newSchema;
     });
   }, []);
