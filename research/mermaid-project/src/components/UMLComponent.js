@@ -127,11 +127,11 @@ const UMLComponent = () => {
       .catch((error) => console.error('Error fetching the question HTML:', error));
   };
 
-  const handleAddAttributeClick = (entity, attribute, key = '', type = '') => {
+  const handleAddAttributeClick = (entity, attribute, type = '', key = '') => {
     if (!type) {
       console.warn(`Type is empty for Attribute: ${attribute} in Entity: ${entity}`);
     }
-    addAttribute(entity, attribute, key, type);  // CORRECT ORDER
+    addAttribute(entity, attribute, type, key);
     hidePopup();
   };
 

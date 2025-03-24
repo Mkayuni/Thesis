@@ -4,7 +4,7 @@ import { styled } from '@mui/material/styles';
 import RelationshipManager from '../relationshipManager/RelationshipManager';
 import _ from 'lodash';
 import CodeWorkbench from '../utils/CodeWorkbench';
-import { formatUMLType } from '../utils/mermaidUtils';
+
 
 import { 
   renderMermaidDiagram, 
@@ -337,13 +337,10 @@ const MermaidDiagram = ({
   const handleAddAttribute = () => {
     if (activeElement) {
       const attrName = prompt('Enter attribute name:');
-      let attrType = prompt('Enter attribute type (optional):');
+      const attrType = prompt('Enter attribute type (optional):');
       
       if (attrName) {
-        // Format the type according to UML conventions
-        attrType = formatUMLType(attrType);
-        
-        addAttribute(activeElement, attrName, '', attrType);
+        addAttribute(activeElement, attrName, '', attrType || '');
         setNeedsRender(true);
       }
     }

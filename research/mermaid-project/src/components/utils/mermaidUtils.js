@@ -107,13 +107,16 @@ export const formatType = (type) => {
  * @returns {string} - The properly formatted UML type name
  */
 export const formatUMLType = (type) => {
-  if (!type || typeof type !== 'string') return 'String'; // Default type
+  // If type is completely missing, empty or not a string, return empty string instead of defaulting to String
+  if (!type || typeof type !== 'string') return '';
   
-  // Trim whitespace and normalize
+  // Trim whitespace
   const trimmedType = type.trim();
   
-  // Reuse the existing formatType function which already handles
-  // proper UML capitalization rules
+  // If trimmed type is empty, don't default to String
+  if (trimmedType === '') return '';
+  
+  // Call the existing formatType function which already handles UML capitalization
   return formatType(trimmedType);
 };
 
@@ -418,12 +421,13 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod, addMethodsF
         });
       }
       
-      // Add Interface to Schema
-      schemaMap.set(interfaceName, {
-        entity: interfaceName,
+      // Add Interface to Schema with normalized name
+      const normalizedInterfaceName = normalizeEntityName(interfaceName);
+      schemaMap.set(normalizedInterfaceName, {
+        entity: normalizedInterfaceName,
         attribute: new Map(),
         methods: methods,
-        parent: parentInterface,
+        parent: parentInterface ? normalizeEntityName(parentInterface) : null,
         isInterface: true // Mark as interface
       });
       
@@ -720,14 +724,17 @@ export const parseCodeToSchema = (sourceCode, syntaxType, addMethod, addMethodsF
         }
       }
   
-      // Add Entity to Schema
-      schemaMap.set(className, {
-        entity: className,
+
+      // Add Entity to Schema with normalized name
+      const normalizedClassName = normalizeEntityName(className);
+      schemaMap.set(normalizedClassName, {
+        entity: normalizedClassName,
         attribute: attributes,
         methods: methods,
-        parent: parentClass,
+        parent: parentClass ? normalizeEntityName(parentClass) : null,
       });
   
+
       // IMPORTANT: Add all methods to the entity using the provided addMethod function
       if (typeof addMethodsFromParsedCode === 'function' && methods.length > 0) {
         // Use the bulk add function if available

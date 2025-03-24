@@ -430,14 +430,18 @@ export const renderMermaidDiagram = async ({
             // Add both button systems
             
             // 1. Add custom icons to nodes (original style)
-            const nodes = svgElement.querySelectorAll('g[class^="node"]');
+            const nodes = svgElement.querySelectorAll('g[class^="node"], .classGroup');
             nodes.forEach((node) => {
               const nodeId = node.getAttribute('id');
               if (nodeId) {
                 const entityName = extractEntityName(nodeId);
-                const bbox = node.getBBox();
-                const iconsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                iconsGroup.classList.add('icons-group');
+                const normalizedEntityName = normalizeEntityName(entityName);
+                
+                // Only proceed if the entity exists in schema
+                if (schema.has(normalizedEntityName)) {
+                  const bbox = node.getBBox();
+                  const iconsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                  iconsGroup.classList.add('icons-group');
 
                 // Edit button
                 const editButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -457,17 +461,15 @@ deleteButton.style.display = 'none';
 deleteButton.textContent = '🗑️';
 deleteButton.addEventListener('click', (e) => {
   e.stopPropagation();
-  // Instead of directly calling handleEntityRemoval, set entity to remove
-  if (schema.has(entityName)) {
-    // Directly remove without callbacks to avoid circular dependencies
-    console.log(`Removing entity via button: ${entityName}`);
-    removeEntity(entityName);
+  // Use normalizeEntityName to ensure consistent format
+  const normalizedEntityName = normalizeEntityName(entityName);
+  if (schema.has(normalizedEntityName)) {
+    console.log(`Removing entity via button: ${normalizedEntityName}`);
+    removeEntity(normalizedEntityName);
     
     // Force immediate diagram cleanup
     setTimeout(() => {
       clearDiagram();
-      
-      // Set flag to trigger render in useEffect
       setNeedsRender(true);
     }, 10);
   }
@@ -483,7 +485,7 @@ minusButton.style.display = 'none';
 minusButton.textContent = '➖';
 minusButton.addEventListener('click', (e) => {
   e.stopPropagation();
-  // Handle attribute removal directly
+  // Ensure consistent normalization
   const normalizedEntityName = normalizeEntityName(entityName);
   const entity = schema.get(normalizedEntityName);
   if (entity && entity.attribute.size > 0) {
@@ -528,6 +530,7 @@ iconsGroup.appendChild(deleteButton);
 iconsGroup.appendChild(minusButton);
 iconsGroup.appendChild(relationshipButton);
 node.appendChild(iconsGroup);
+}
 }
 });
 

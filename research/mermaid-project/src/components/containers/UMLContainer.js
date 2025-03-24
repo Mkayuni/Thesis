@@ -251,43 +251,42 @@ const UMLContainer = ({
     };
 
     // Add this in your handleAttributeSubmitNew function:
-    const handleAttributeSubmitNew = (entity, finalType) => {
-      console.log('DEBUG - handleAttributeSubmitNew called with:', { entity, finalType });
-      console.log('DEBUG - attributeTypeInput:', attributeTypeInput);
-      console.log('DEBUG - customTypeInput:', customTypeInput);
-      
-      // Get the attribute name, ensuring it's a string
-      const attrName = typeof attributeNameInput === 'object' 
-        ? attributeNameInput.attributeName 
-        : String(attributeNameInput || '');
-        
-      console.log('DEBUG - attrName:', attrName);
-      
-      if (!attrName || attrName.trim() === '') {
-        console.log('DEBUG - Empty attribute name, returning');
-        return;
-      }
-      
-      // Determine the type based on selection
-      let typeToUse = finalType;
-      
-      if (attributeTypeInput === 'custom') {
-        typeToUse = customTypeInput;
-        console.log('DEBUG - Using custom type:', typeToUse);
-      }
-      
-      // Pass the type in the correct parameter position (4th parameter)
-      // The order should be: entity, attribute, key, type
-      console.log('DEBUG - Final type being passed:', typeToUse);
-      handleAddAttributeClick(entity, attrName, '', typeToUse);
-      
-      // Reset form fields
-      setAttributeNameInput('');
-      setAttributeTypeInput('String');
-      setCustomTypeInput('');
-      
-      hidePopup();
-    };
+const handleAttributeSubmitNew = (entity, finalType) => {
+  console.log('DEBUG - handleAttributeSubmitNew called with:', { entity, finalType });
+  console.log('DEBUG - attributeTypeInput:', attributeTypeInput);
+  console.log('DEBUG - customTypeInput:', customTypeInput);
+  
+  // Get the attribute name, ensuring it's a string
+  const attrName = typeof attributeNameInput === 'object' 
+    ? attributeNameInput.attributeName 
+    : String(attributeNameInput || '');
+    
+  console.log('DEBUG - attrName:', attrName);
+  
+  if (!attrName || attrName.trim() === '') {
+    console.log('DEBUG - Empty attribute name, returning');
+    return;
+  }
+  
+  // Determine the type based on selection
+  let typeToUse = finalType;
+  
+  if (attributeTypeInput === 'custom') {
+    typeToUse = customTypeInput;
+    console.log('DEBUG - Using custom type:', typeToUse);
+  }
+  
+  // Just pass the type directly to handleAddAttributeClick without any transformation
+  console.log('DEBUG - Final type being passed:', typeToUse);
+  handleAddAttributeClick(entity, attrName, typeToUse);
+  
+  // Reset form fields
+  setAttributeNameInput('');
+  setAttributeTypeInput('String');
+  setCustomTypeInput('');
+  
+  hidePopup();
+};
 
   return (
     <ThemeProvider theme={theme}>
@@ -405,7 +404,7 @@ const UMLContainer = ({
                 // Entity selection popup for methods
                 <>
                   <Typography variant="h6">
-                    Select Class for Method
+                    Select Entity for Method
                   </Typography>
                   
                   <Typography variant="body2" sx={{ mb: 2 }}>
@@ -463,7 +462,7 @@ const UMLContainer = ({
                   <Typography variant="body2" sx={{ mb: 2 }}>
                     {typeof popup.entityOrAttribute === 'object' 
                       ? `To Entity: ${popup.entityOrAttribute.entity}` 
-                      : `To Entity: ${popup.entityOrAttribute || 'Select Class'}`}
+                      : `To Entity: ${popup.entityOrAttribute || 'Select Entity'}`}
                   </Typography>
                   
                   <TextField
@@ -771,7 +770,7 @@ const UMLContainer = ({
               </Typography>
               
               <Typography variant="body2" sx={{ mb: 2 }}>
-                Choose a Class to add the attribute "{subPopup.entityOrAttribute}" to:
+                Choose a class to add the attribute "{subPopup.entityOrAttribute}" to:
               </Typography>
               
               {subPopup.entities.map((entity) => (
