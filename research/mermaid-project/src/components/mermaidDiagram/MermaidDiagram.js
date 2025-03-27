@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { Box, Tooltip, IconButton, Typography, Button } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import RelationshipManager from '../relationshipManager/RelationshipManager';
-import _ from 'lodash';
+import { debounce } from 'lodash';
 import CodeWorkbench from '../utils/CodeWorkbench';
 
 
@@ -55,6 +55,8 @@ const ActionBar = styled(Box)(({ theme }) => ({
   borderRadius: '4px',
   border: '1px solid #e0e0e0',
   zIndex: 1100,
+  // Add shadow for better visibility
+  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
 }));
 
 // Compact zoom control panel
@@ -91,6 +93,7 @@ const MermaidDiagram = ({
   const [showWorkbench, setShowWorkbench] = useState(false);
   const [needsRender, setNeedsRender] = useState(false);
   const [isWorkbenchFullscreen, setIsWorkbenchFullscreen] = useState(false);
+  const [visibleToolbarEntity, setVisibleToolbarEntity] = useState(null);
   
   // States for zoom and pan functionality
   const [scale, setScale] = useState(1);
@@ -106,15 +109,29 @@ const MermaidDiagram = ({
   // State for tracking click vs drag
   const [mouseDownTime, setMouseDownTime] = useState(0);
   const [isClick, setIsClick] = useState(true);
+  const [toolbarPositionType, setToolbarPositionType] = useState('fixed-top');
 
   // Clear diagram function - imported from utils but with local state ref
   const clearDiagram = useCallback(() => {
     clearMermaidDiagram(diagramRef, schema.size);
   }, [schema.size]);
 
+  // Function to hide all toolbars when clicking outside
+  // MOVED this function up before it's used in the dependencies array
+  const hideAllToolbars = useCallback(() => {
+    if (diagramRef.current) {
+      const allToolbars = diagramRef.current.querySelectorAll('.toolbar-group');
+      allToolbars.forEach(toolbar => {
+        toolbar.style.opacity = '0';
+        toolbar.style.pointerEvents = 'none';
+      });
+      setVisibleToolbarEntity(null);
+    }
+  }, []);
+
   // Render diagram function - imported but with local refs and state
   const debouncedRenderDiagram = useCallback(
-    _.debounce(async () => {
+    debounce(async () => {
       await renderMermaidDiagram({
         diagramRef,
         containerRef,
@@ -123,17 +140,22 @@ const MermaidDiagram = ({
         clearDiagram,
         removeEntity,
         removeAttribute,
+        addAttribute,  
+        addMethod, 
+        removeMethod,
         isPanning,
         scale,
         setSelectedEntity,
         setShowRelationshipManager,
         setActiveElement,
         setActionBarPosition,
-        setNeedsRender
+        setNeedsRender,
+        setVisibleToolbarEntity
       });
     }, 300), // 300ms debounce time
-    [schema, relationships, clearDiagram, removeEntity, removeAttribute, isPanning, scale]
+    [schema, relationships, clearDiagram, removeEntity, removeMethod, removeAttribute, isPanning, scale, hideAllToolbars]
   );
+  
 
   // When showing the workbench, set the associated question
   const handleOpenWorkbench = () => {
@@ -222,7 +244,7 @@ const MermaidDiagram = ({
     };
   }, []);
 
-  // Add an effect to hide action bar when clicking outside
+  // hide action bar when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -233,6 +255,7 @@ const MermaidDiagram = ({
         isClick // Only hide if it was a click, not a drag
       ) {
         setActiveElement(null);
+        hideAllToolbars();
       }
     };
     
@@ -240,7 +263,7 @@ const MermaidDiagram = ({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [activeElement, isClick]);
+  }, [activeElement, isClick, hideAllToolbars]);
 
   // Prevent default behaviour
   useEffect(() => {
@@ -321,6 +344,7 @@ const MermaidDiagram = ({
       
       if (!isClassElement) {
         setActiveElement(null);
+        hideAllToolbars();
       }
     }
   };
@@ -328,25 +352,36 @@ const MermaidDiagram = ({
   // Handler functions for action buttons
   const handleDeleteEntity = () => {
     if (activeElement) {
-      removeEntity(activeElement);
+      const entityName = typeof activeElement === 'object' && activeElement.entity 
+        ? activeElement.entity 
+        : activeElement;
+      
+      // Instead of using confirm, which triggers ESLint warning
+      // Option 1: Just remove the confirmation (simplest fix)
+      removeEntity(entityName);
       setActiveElement(null);
       setNeedsRender(true);
-    }
-  };
-  
-  const handleAddAttribute = () => {
-    if (activeElement) {
-      const attrName = prompt('Enter attribute name:');
-      const attrType = prompt('Enter attribute type (optional):');
       
-      if (attrName) {
-        addAttribute(activeElement, attrName, '', attrType || '');
-        setNeedsRender(true);
-      }
     }
   };
-  
-// Handler functions for action buttons
+
+const handleAddAttribute = () => {
+  if (activeElement) {
+    const entityName = typeof activeElement === 'object' && activeElement.entity 
+      ? activeElement.entity 
+      : activeElement;
+    
+    const attrName = prompt('Enter attribute name:');
+    const attrType = prompt('Enter attribute type (optional):');
+    
+    if (attrName) {
+      addAttribute(entityName, attrName, '', attrType || '');
+      setNeedsRender(true);
+    }
+  }
+};
+
+// Handler function for adding a method
 const handleAddMethod = () => {
   if (activeElement) {
     // If activeElement is a complex object with entity and method properties
@@ -372,7 +407,69 @@ const handleAddMethod = () => {
   }
 };
 
-// Add a new function for handling method editing/removal
+// Function for removing a method
+const handleRemoveMethod = () => {
+  if (activeElement) {
+    const entityName = typeof activeElement === 'object' && activeElement.entity 
+      ? activeElement.entity 
+      : activeElement;
+    
+    const entity = schema.get(entityName);
+    if (entity && entity.methods && entity.methods.length > 0) {
+      // Get all methods and let user select which one to remove
+      const methodNames = entity.methods.map(m => m.name);
+      if (methodNames.length === 1) {
+        // If only one method, remove it directly
+        removeMethod(entityName, methodNames[0]);
+      } else {
+        // Otherwise, let user choose
+        const methodToRemove = prompt(
+          `Enter the name of the method to remove:\n${methodNames.join(', ')}`,
+          methodNames[methodNames.length - 1]
+        );
+        if (methodToRemove && methodNames.includes(methodToRemove)) {
+          removeMethod(entityName, methodToRemove);
+        }
+      }
+      setNeedsRender(true);
+    } else {
+      alert('This entity has no methods to remove.');
+    }
+  }
+};
+
+// Function to handle removing an attribute
+const handleRemoveAttribute = () => {
+  if (activeElement) {
+    const entityName = typeof activeElement === 'object' && activeElement.entity 
+      ? activeElement.entity 
+      : activeElement;
+    
+    const entity = schema.get(entityName);
+    if (entity && entity.attribute && entity.attribute.size > 0) {
+      // Get all attributes and let user select which one to remove
+      const attributes = Array.from(entity.attribute.keys());
+      if (attributes.length === 1) {
+        // If only one attribute, remove it directly
+        removeAttribute(entityName, attributes[0]);
+      } else {
+        // Otherwise, let user choose
+        const attrToRemove = prompt(
+          `Enter the name of the attribute to remove:\n${attributes.join(', ')}`,
+          attributes[attributes.length - 1]
+        );
+        if (attrToRemove && attributes.includes(attrToRemove)) {
+          removeAttribute(entityName, attrToRemove);
+        }
+      }
+      setNeedsRender(true);
+    } else {
+      alert('This entity has no attributes to remove.');
+    }
+  }
+};
+
+// Handle method-specific actions (keep for backward compatibility)
 const handleMethodAction = () => {
   if (typeof activeElement === 'object' && activeElement.method && activeElement.entity) {
     const action = prompt(`What do you want to do with method ${activeElement.method}?`, 'remove');
@@ -384,33 +481,6 @@ const handleMethodAction = () => {
     }
   }
 };
-  
-  // Function to handle removing an attribute more safely
-  const handleRemoveAttribute = () => {
-    if (activeElement) {
-      const entity = schema.get(activeElement);
-      if (entity && entity.attribute && entity.attribute.size > 0) {
-        // Get all attributes and let user select which one to remove
-        const attributes = Array.from(entity.attribute.keys());
-        if (attributes.length === 1) {
-          // If only one attribute, remove it directly
-          removeAttribute(activeElement, attributes[0]);
-        } else {
-          // Otherwise, let user choose
-          const attrToRemove = prompt(
-            `Enter the name of the attribute to remove:\n${attributes.join(', ')}`,
-            attributes[attributes.length - 1]
-          );
-          if (attrToRemove && attributes.includes(attrToRemove)) {
-            removeAttribute(activeElement, attrToRemove);
-          }
-        }
-        setNeedsRender(true);
-      } else {
-        alert('This entity has no attributes to remove.');
-      }
-    }
-  };
   
   // Function to handle zooming to fit the diagram content
   const handleZoomToFit = () => {
@@ -543,109 +613,147 @@ const handleMethodAction = () => {
         }}
         onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
       >
-      {/* Action bar for the selected element */}
-        {activeElement && (
-          <ActionBar
-            sx={{
-              top: `${actionBarPosition.y}px`,
-              left: `${actionBarPosition.x}px`,
-            }}
-          >
-            {typeof activeElement === 'object' && activeElement.type === 'method' ? (
-              // Method-specific actions
-              <>
-                <Button 
-                  variant="contained" 
-                  size="small" 
-                  color="error"
-                  className="action-button"
-                  onClick={() => {
-                    if (activeElement.entity && activeElement.method) {
-                      removeMethod(activeElement.entity, activeElement.method);
-                      setActiveElement(null);
-                      setNeedsRender(true);
-                    }
-                  }}
-                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
-                >
-                  Del Method
-                </Button>
-                <Button 
-                  variant="contained" 
-                  size="small" 
-                  color="primary"
-                  className="action-button"
-                  onClick={() => {
-                    if (activeElement.entity) {
-                      setActiveElement(activeElement.entity);
-                    }
-                  }}
-                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
-                >
-                  Edit Entity
-                </Button>
-              </>
-            ) : (
-              // Entity actions (your existing buttons)
-              <>
-                <Button 
-                  variant="contained" 
-                  size="small" 
-                  color="error"
-                  className="action-button"
-                  onClick={handleDeleteEntity}
-                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
-                >
-                  Delete
-                </Button>
-                <Button 
-                  variant="contained" 
-                  size="small" 
-                  color="primary"
-                  className="action-button"
-                  onClick={handleAddAttribute}
-                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
-                >
-                  Add Attr
-                </Button>
-                <Button 
-                  variant="contained" 
-                  size="small" 
-                  color="secondary"
-                  className="action-button"
-                  onClick={handleRemoveAttribute}
-                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
-                >
-                  Del Attr
-                </Button>
-                <Button 
-                  variant="contained" 
-                  size="small" 
-                  color="info"
-                  className="action-button"
-                  onClick={handleAddMethod}
-                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
-                >
-                  Add Mthd
-                </Button>
-                <Button 
-                  variant="contained" 
-                  size="small" 
-                  color="warning"
-                  className="action-button"
-                  onClick={() => {
-                    setSelectedEntity(typeof activeElement === 'object' ? activeElement.entity : activeElement);
-                    setShowRelationshipManager(true);
-                  }}
-                  sx={{ fontSize: '0.7rem', py: 0.5, minWidth: '60px' }}
-                >
-                  Add Rel
-                </Button>
-              </>
-            )}
-          </ActionBar>
+     {/* Action bar for the selected element */}
+    {activeElement && (
+      <ActionBar
+        sx={{
+          top: '10px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          padding: '6px',
+          backgroundColor: 'white',
+          borderRadius: '4px',
+          border: '1px solid #d0d0d0',
+          boxShadow: '0 3px 6px rgba(0,0,0,0.16)',
+          zIndex: 1200
+        }}
+      >
+        {typeof activeElement === 'object' && activeElement.type === 'method' ? (
+          // Method-specific actions
+          <>
+            <Tooltip title="Delete Method" placement="bottom">
+              <Button 
+                variant="contained" 
+                size="small" 
+                color="error"
+                className="action-button"
+                onClick={() => {
+                  if (activeElement.entity && activeElement.method) {
+                    removeMethod(activeElement.entity, activeElement.method);
+                    setActiveElement(null);
+                    setNeedsRender(true);
+                  }
+                }}
+                sx={{ minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+              >
+                🗑️
+              </Button>
+            </Tooltip>
+            <Tooltip title="Edit Method" placement="bottom">
+              <Button 
+                variant="contained" 
+                size="small" 
+                color="primary"
+                className="action-button"
+                onClick={() => {
+                  if (activeElement.entity) {
+                    setActiveElement(activeElement.entity);
+                  }
+                }}
+                sx={{ minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+              >
+                ✏️
+              </Button>
+            </Tooltip>
+          </>
+        ) : (
+          // Entity actions - show toolbar buttons
+          <>
+          <Tooltip title="Inspect Entity" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={() => {/* Inspect action */}}
+              sx={{ bgcolor: '#f8f9fa', color: '#007bff', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              🔍
+            </Button>
+          </Tooltip>
+          <Tooltip title="Delete Entity" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={handleDeleteEntity}
+              sx={{ bgcolor: '#f8f9fa', color: '#dc3545', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              🗑️
+            </Button>
+          </Tooltip>
+          <Tooltip title="Add Attribute" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={handleAddAttribute}
+              sx={{ bgcolor: '#f8f9fa', color: '#28a745', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              ➕
+            </Button>
+          </Tooltip>
+          <Tooltip title="Remove Attribute" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={handleRemoveAttribute}
+              sx={{ bgcolor: '#f8f9fa', color: '#ff9800', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              ➖
+            </Button>
+          </Tooltip>
+          <Tooltip title="Add Method" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={handleAddMethod}
+              sx={{ bgcolor: '#f8f9fa', color: '#6610f2', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              📝
+            </Button>
+          </Tooltip>
+          <Tooltip title="Remove Method" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={handleRemoveMethod}
+              sx={{ bgcolor: '#f8f9fa', color: '#e83e8c', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              🧹
+            </Button>
+          </Tooltip>
+          <Tooltip title="Manage Relationships" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={() => {
+                setSelectedEntity(typeof activeElement === 'object' ? activeElement.entity : activeElement);
+                setShowRelationshipManager(true);
+              }}
+              sx={{ bgcolor: '#f8f9fa', color: '#17a2b8', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              🔗
+            </Button>
+          </Tooltip>
+        </>
         )}
-
+      </ActionBar>
+    )}
         {/* Zoom controls - only show if we have entities */}
         {schema.size > 0 && (
           <ZoomControls>
