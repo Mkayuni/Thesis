@@ -62,6 +62,13 @@ const CodeWorkbench = ({
     });
   };
 
+  const [gradeResults, setGradeResults] = useState({
+    visible: false,
+    score: 0,
+    feedback: '',
+    details: {}
+  });
+
   // Logic for test run
   const handleTestRun = () => {
     if (!workbenchData.code) {
@@ -163,46 +170,68 @@ const CodeWorkbench = ({
       console.log("Relationships prepared for submission:", Array.from(relationships.entries()));
     };
 
-  // Submission Logic
-  const handleSubmitForGrading = () => {
-    if (!workbenchData.questionId) {
-      alert("Please select a question before submitting");
-      return;
-    }
-    
-    // Prepare the submission data
-    const submissionData = {
-      questionId: workbenchData.questionId,
-      code: workbenchData.code,
-      schema: Array.from(schema.entries()), // Convert map to array for JSON
-      relationships: Array.from(relationships.entries())
+    // Submission Logic
+    const handleSubmitForGrading = () => {
+      if (!workbenchData.questionId) {
+        alert("Please select a question before submitting");
+        return;
+      }
+      
+      // Prepare the submission data
+      const submissionData = {
+        questionId: workbenchData.questionId,
+        code: workbenchData.code,
+        schema: Array.from(schema.entries()), // Convert map to array for JSON
+        relationships: Array.from(relationships.entries())
+      };
+      
+      // Send to your backend for grading
+      fetch('http://127.0.0.1:5000/api/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submissionData),
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log('Grading result:', data);
+        
+        // Extract grade information if available
+        if (data && data.grade) {
+          // Parse the score and feedback
+          const score = data.grade.score || 0;
+          const feedback = data.grade.feedback || '';
+          
+          // Show the floating grade panel
+          setGradeResults({
+            visible: true,
+            score: score,
+            feedback: feedback,
+            details: data.grade.details || {}
+          });
+          
+          // Also update console output
+          setWorkbenchData(prev => ({
+            ...prev,
+            consoleOutput: prev.consoleOutput + `<br><br><span style='color: #54a0ff'>Grading completed! See results panel.</span>`
+          }));
+        } else {
+          // Fallback to displaying raw data
+          setWorkbenchData(prev => ({
+            ...prev,
+            consoleOutput: prev.consoleOutput + `<br><br><span style='color: #54a0ff'>🔄 Grading Response: ${JSON.stringify(data)}</span>`
+          }));
+        }
+      })
+      .catch((error) => {
+        console.error('Error submitting for grading:', error);
+        setWorkbenchData(prev => ({
+          ...prev,
+          consoleOutput: prev.consoleOutput + "<br><br><span style='color: #ff6b6b'>❌ Error submitting for grading. Please try again.</span>"
+        }));
+      });
     };
-    
-    // Send to your backend for grading
-    fetch('http://127.0.0.1:5000/api/submit', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(submissionData),
-    })
-    .then(response => response.json())
-    .then(data => {
-      console.log('Grading result:', data);
-      // Handle the grading response, e.g., show feedback
-      setWorkbenchData(prev => ({
-        ...prev,
-        consoleOutput: prev.consoleOutput + `<br><br><span style='color: #54a0ff'>🔄 Grading Response: ${JSON.stringify(data)}</span>`
-      }));
-    })
-    .catch((error) => {
-      console.error('Error submitting for grading:', error);
-      setWorkbenchData(prev => ({
-        ...prev,
-        consoleOutput: prev.consoleOutput + "<br><br><span style='color: #ff6b6b'>❌ Error submitting for grading. Please try again.</span>"
-      }));
-    });
-  };
 
   // Validate code in component
   const validateCodeInComponent = (code, syntax) => {
@@ -556,72 +585,125 @@ const CodeWorkbench = ({
       />
       
       <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-        <Button
-          variant="contained"
-          color="primary"
-          size="small"
-          onClick={prepareDiagramSubmission}
-          sx={{ fontSize: '0.8rem' }}
-        >
-          Generate
-        </Button>
-        <Button
-          variant="contained"
-          color="secondary"
-          size="small"
-          onClick={handleUpdate}
-          disabled={!workbenchData.isCodeModified}
-          sx={{ fontSize: '0.8rem' }}
-        >
-          Update
-        </Button>
-        <Button
-          variant="contained"
-          color="success"
-          size="small"
-          onClick={handleTestRun}
-          sx={{ fontSize: '0.8rem' }}
-        >
-          Test Run
-        </Button>
-        <Button
-          variant="contained"
-          color="primary"
-          size="small"
-          onClick={handleSubmitForGrading}
-          disabled={!workbenchData.questionId || !workbenchData.code}
-          sx={{ fontSize: '0.8rem' }}
-        >
-          Submit for Grading
-        </Button>
+      <Button
+        variant="contained"
+        color="primary"
+        size="small"
+        onClick={prepareDiagramSubmission}
+        sx={{ fontSize: '0.8rem' }}
+      >
+        Generate
+      </Button>
+      <Button
+        variant="contained"
+        color="secondary"
+        size="small"
+        onClick={handleUpdate}
+        disabled={!workbenchData.isCodeModified}
+        sx={{ fontSize: '0.8rem' }}
+      >
+        Update
+      </Button>
+      <Button
+        variant="contained"
+        color="success"
+        size="small"
+        onClick={handleTestRun}
+        sx={{ fontSize: '0.8rem' }}
+      >
+        Test Run
+      </Button>
+      <Button
+        variant="contained"
+        color="primary"
+        size="small"
+        onClick={handleSubmitForGrading}
+        disabled={!workbenchData.questionId || !workbenchData.code}
+        sx={{ fontSize: '0.8rem' }}
+      >
+        Submit for Grading
+      </Button>
+    </Box>
+
+    {/* Console output */}
+    {workbenchData.consoleOutput && (
+      <Box 
+        sx={{ 
+          mt: 1, 
+          p: 1, 
+          backgroundColor: '#1e1e1e', 
+          color: '#f0f0f0',
+          fontFamily: 'monospace',
+          borderRadius: '4px',
+          whiteSpace: 'pre-wrap'
+        }}
+        dangerouslySetInnerHTML={{ __html: workbenchData.consoleOutput }}
+      />
+    )}
+
+    {/* Generated code display */}
+    {workbenchData.generatedCode && (
+      <Box sx={{ mt: 1, p: 1, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+        <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
+          {workbenchData.generatedCode}
+        </Typography>
       </Box>
-      
-      {/* Console output */}
-      {workbenchData.consoleOutput && (
-        <Box 
-          sx={{ 
-            mt: 1, 
-            p: 1, 
-            backgroundColor: '#1e1e1e', 
-            color: '#f0f0f0',
-            fontFamily: 'monospace',
-            borderRadius: '4px',
-            whiteSpace: 'pre-wrap'
-          }}
-          dangerouslySetInnerHTML={{ __html: workbenchData.consoleOutput }}
-        />
-      )}
-      
-      {/* Generated code display */}
-      {workbenchData.generatedCode && (
-        <Box sx={{ mt: 1, p: 1, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-          <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
-            {workbenchData.generatedCode}
+    )}
+
+    {/* Floating Grade Results Panel */}
+    {gradeResults.visible && (
+      <Box
+        sx={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '600px',
+          maxHeight: '80vh',
+          overflow: 'auto',
+          backgroundColor: '#1e1e1e',
+          color: '#f0f0f0',
+          borderRadius: '8px',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+          padding: '20px',
+          zIndex: 2000,
+        }}
+      >
+        {/* Close button */}
+        <IconButton
+          sx={{ position: 'absolute', top: 10, right: 10, color: 'white' }}
+          onClick={() => setGradeResults(prev => ({ ...prev, visible: false }))}
+        >
+          ✖️
+        </IconButton>
+        
+        {/* Grade header */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h6" sx={{ fontSize: '1.3rem', color: 'white' }}>
+            UML Diagram Assessment
+          </Typography>
+          <Box 
+            sx={{ 
+              backgroundColor: gradeResults.score > 70 ? '#2ecc71' : gradeResults.score > 50 ? '#f39c12' : '#e74c3c',
+              padding: '8px 16px',
+              borderRadius: '20px',
+              fontWeight: 'bold'
+            }}
+          >
+            {gradeResults.score}%
+          </Box>
+        </Box>
+        
+        {/* Feedback content */}
+        <Box sx={{ mt: 2, lineHeight: 1.6 }}>
+          <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+            {gradeResults.feedback}
           </Typography>
         </Box>
-      )}
+      </Box>
+    )}
     </Box>
-  );
-};
+    );
+    };
 
 export default CodeWorkbench;
