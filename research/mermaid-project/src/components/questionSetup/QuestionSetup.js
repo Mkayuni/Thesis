@@ -52,11 +52,14 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
       setQuestionHTML(parsedContent.questionHTML);
       setRequirementsHTML(parsedContent.requirementsHTML);
       
-      // Reset details visibility when question changes
-      setDetailsVisible(true); // Default to showing the question
+      // IMPORTANT: Don't automatically show the panel
+      // setDetailsVisible(true); // Comment out or remove this line
       
       // Set up window functions for click handling
       window.showPopup = (event, entityOrMethod, isEntity = false, type = 'entity') => {
+        // Set flag to prevent panel toggling
+        window.isHandlingPopupEvent = true;
+        
         // Prevent the default behavior
         event.preventDefault();
         event.stopPropagation();
@@ -84,6 +87,11 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
         
         // Mark that we're handling the event to prevent panel close
         wasInside.current = true;
+        
+        // Clear the flag after a short delay
+        setTimeout(() => {
+          window.isHandlingPopupEvent = false;
+        }, 300);
       };
       
       window.addEntityOrAttribute = (nameInER, event) => {
@@ -99,19 +107,26 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
         // Always prevent default behavior
         event.preventDefault();
         event.stopPropagation();
+  
+        // Add this global flag to prevent panel toggling
+        window.isAddingEntityOrAttribute = true;
         
         // Show internal popup for all entity/attribute clicks
         const type = extractedEntities.entities.has(nameInER) ? 'entity' : 'attribute';
         showInternalPopup(event, nameInER, type);
         
         // Pass the type but DO NOT set any default attribute type
-        // This will trigger the attribute form with the dropdown
         originalShowPopup(event, nameInER, type, schema, questionContainerRef);
         
         // Mark that we're handling the event to prevent panel close
         wasInside.current = true;
+        
+        // Clear the flag after a short delay
+        setTimeout(() => {
+          window.isAddingEntityOrAttribute = false;
+        }, 300);
       };
-      
+
       // Global click handler for managing panel visibility
       const handleGlobalClick = (e) => {
         // If we clicked inside our component earlier, reset the flag and don't close
@@ -397,16 +412,30 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
   }
 
   // Function to toggle the question details panel
-  const toggleQuestionDetails = () => {
-    setDetailsVisible(!detailsVisible);
+  const toggleQuestionDetails = (fromUserClick = true) => {
+    // Only toggle if this is from a direct user click or if explicitly required
+    if (fromUserClick) {
+      setDetailsVisible(!detailsVisible);
+    }
   };
 
   // Prevent panel from closing on link clicks
   const handlePanelClick = (e) => {
     e.stopPropagation();
+    e.preventDefault();
     // Mark that we're handling the event inside the panel
     wasInside.current = true;
-  };
+  
+    // Check if the click was on a class or method highlight
+  const isHighlight = e.target.classList.contains('class-highlight') ||
+  e.target.classList.contains('method-highlight') ||
+  e.target.classList.contains('entity-highlight');
+
+// If it's a highlight click, don't toggle the panel
+if (isHighlight) {
+return;
+}
+};
 
   return (
     <>
@@ -416,7 +445,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
           <div className="view-question-button-container">
             <button 
               className="action-button"
-              onClick={toggleQuestionDetails}
+              onClick={() => toggleQuestionDetails(true)}
             >
               {detailsVisible ? "Hide Question Details" : "View Question Details"}
             </button>

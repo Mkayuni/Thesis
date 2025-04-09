@@ -375,7 +375,7 @@ const handleAddAttribute = () => {
     const attrType = prompt('Enter attribute type (optional):');
     
     if (attrName) {
-      addAttribute(entityName, attrName, '', attrType || '');
+      addAttribute(entityName, attrName, attrType || '', '');
       setNeedsRender(true);
     }
   }
