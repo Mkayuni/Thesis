@@ -107,6 +107,62 @@ const CodeWorkbench = ({
     setPosition(prev => ({ ...prev, x: prev.x + 50 }));
   };
 
+  // Prepare for Submission
+    const prepareDiagramSubmission = () => {
+      // Generate a simple representation of the schema
+      let mermaidRepresentation = "classDiagram\n";
+      
+      // Add classes
+      schema.forEach((entity, entityName) => {
+        mermaidRepresentation += `class ${entityName} {\n`;
+        
+        // Add attributes
+        if (entity.attribute && entity.attribute.size > 0) {
+          entity.attribute.forEach((attr, attrName) => {
+            const type = attr.type || 'String';
+            mermaidRepresentation += `  -${attrName}: ${type}\n`;
+          });
+        }
+        
+        // Add methods
+        if (entity.methods && entity.methods.length > 0) {
+          entity.methods.forEach(method => {
+            const returnType = method.returnType || 'void';
+            const params = method.parameters ? method.parameters.join(', ') : '';
+            mermaidRepresentation += `  +${method.name}(${params}): ${returnType}\n`;
+          });
+        }
+        
+        mermaidRepresentation += "}\n";
+      });
+      
+      // Add relationships
+      relationships.forEach((rel, key) => {
+        if (rel.type === 'aggregation') {
+          mermaidRepresentation += `${rel.relationA} o-- "${rel.cardinalityA || '1'}" ${rel.relationB} : "${rel.label || 'Aggregation'}"\n`;
+        } else if (rel.type === 'composition') {
+          mermaidRepresentation += `${rel.relationA} *-- "${rel.cardinalityA || '1'}" ${rel.relationB} : "${rel.label || 'Composition'}"\n`;
+        } else if (rel.type === 'inheritance') {
+          mermaidRepresentation += `${rel.relationB} <|-- ${rel.relationA}\n`;
+        } else if (rel.type === 'implementation') {
+          mermaidRepresentation += `${rel.relationB} <|.. ${rel.relationA}\n`;
+        } else {
+          mermaidRepresentation += `${rel.relationA} -- ${rel.relationB} : ${rel.label || ''}\n`;
+        }
+      });
+      
+      setWorkbenchData({
+        ...workbenchData,
+        code: mermaidRepresentation,
+        schemaData: Array.from(schema.entries()),
+        relationshipsData: Array.from(relationships.entries()),
+        isFromDiagram: true
+      });
+      
+      console.log("Schema prepared for submission:", Array.from(schema.entries()));
+      console.log("Relationships prepared for submission:", Array.from(relationships.entries()));
+    };
+
   // Submission Logic
   const handleSubmitForGrading = () => {
     if (!workbenchData.questionId) {
@@ -504,6 +560,7 @@ const CodeWorkbench = ({
           variant="contained"
           color="primary"
           size="small"
+          onClick={prepareDiagramSubmission}
           sx={{ fontSize: '0.8rem' }}
         >
           Generate
