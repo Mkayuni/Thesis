@@ -1,0 +1,7 @@
+{
+  "questionId": "University",
+  "code": "public class Car {\r\n    private String model;\r\n    private Engine engine;\r\n\r\n    public Car(String model) {\r\n        this.model = model;\r\n        this.engine = new Engine(\"V8\");\r\n    }\r\n\r\n    public String getModel() {\r\n        return model;\r\n    }\r\n\r\n    public void setModel(String model) {\r\n        this.model = model;\r\n    }\r\n\r\n    public Engine getEngine() {\r\n        return engine;\r\n    }\r\n}\r\n\r\npublic class ElectricCar extends Car {\r\n    private double batteryCapacity;\r\n\r\n    public ElectricCar(String model, double batteryCapacity) {\r\n        super(model)\r\n        this.batteryCapacity = batteryCapacity;\r\n    }\r\n\r\n    public double getBatteryCapacity() {\r\n        return batteryCapacity\r\n    }\r\n\r\n    public void setBatteryCapacity(double batteryCapacity) {\r\n        this.batteryCapacity = batteryCapacity;\r\n    }\r\n\r\n    public void charge() {\r\n        System.out.println(\"Charging the electric car...\");\r\n    \r\n}\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n",
+  "schema": [],
+  "relationships": [],
+  "timestamp": 1741145122
+}

@@ -1,54 +1,76 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
-import mermaid from 'mermaid';
-import { Box, Tooltip, IconButton, Typography, Button, Select, MenuItem } from '@mui/material';
+import { Box, Tooltip, IconButton, Typography, Button } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import RelationshipManager from '../relationshipManager/RelationshipManager';
-import { SYNTAX_TYPES } from '../ui/ui';
-import Editor from '@monaco-editor/react';
-import {
-  normalizeEntityName,
-  extractEntityName,
-  schemaToMermaidSource,
-  parseCodeToSchema,
- // parseMermaidToCode,
-} from '../utils/mermaidUtils';
+import { debounce } from 'lodash';
+import CodeWorkbench from '../utils/CodeWorkbench';
 
-// Styled components for modern UI
+
+import { 
+  renderMermaidDiagram, 
+  clearMermaidDiagram, 
+  handleDiagramInteractions,
+} from '../utils/MermaidDiagramUtils';
+
+// Styled components - Remove all container styling
 const DiagramBox = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(3),
-  backgroundColor: '#f5f5f5',
-  borderRadius: '12px',
-  boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.1)',
-  overflow: 'auto',
+  padding: 0, // Remove padding
+  backgroundColor: 'transparent', // Make background transparent
+  borderRadius: 0,
+  overflow: 'hidden',
   width: '100%',
-  minHeight: '400px',
-  height: 'auto',
-  position: 'relative',
+  height: '100%',
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
   zIndex: 0,
-  border: '1px solid #e0e0e0',
+  border: 'none',
+  boxShadow: 'none',
+  display: 'flex',
+  flexDirection: 'column',
+  touchAction: 'none',
+  userSelect: 'none'
 }));
 
 const Toolbar = styled(Box)(({ theme }) => ({
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  padding: theme.spacing(2),
+  padding: theme.spacing(1),
   backgroundColor: '#ffffff',
-  borderRadius: '8px',
-  boxShadow: '0px 2px 10px rgba(0, 0, 0, 0.05)',
-  marginBottom: theme.spacing(2),
+  borderRadius: '4px',
+  marginBottom: theme.spacing(1),
+  border: '1px solid #e0e0e0',
 }));
 
-const WorkbenchBox = styled(Box)(({ theme }) => ({
+// Compact floating action buttons
+const ActionBar = styled(Box)(({ theme }) => ({
   position: 'absolute',
-  top: '60px',
-  right: '20px',
-  zIndex: 1000,
-  backgroundColor: '#ffffff',
-  borderRadius: '8px',
-  boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.1)',
-  padding: theme.spacing(2),
-  width: '600px',
+  display: 'flex',
+  gap: '4px',
+  backgroundColor: 'white',
+  padding: theme.spacing(0.5),
+  borderRadius: '4px',
+  border: '1px solid #e0e0e0',
+  zIndex: 1100,
+  // Add shadow for better visibility
+  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+}));
+
+// Compact zoom control panel
+const ZoomControls = styled(Box)(({ theme }) => ({
+  position: 'absolute',
+  bottom: '10px',
+  right: '10px',
+  zIndex: 1050,
+  display: 'flex',
+  gap: '4px',
+  backgroundColor: 'white',
+  padding: theme.spacing(0.5),
+  borderRadius: '4px',
+  border: '1px solid #e0e0e0',
 }));
 
 const MermaidDiagram = ({
@@ -61,301 +83,793 @@ const MermaidDiagram = ({
   addRelationship,
   removeRelationship,
   addMethod,
-  addMethodsFromParsedCode, // Add this new prop
-  removeMethod, // Optionally add this if you have it
+  addMethodsFromParsedCode,
+  removeMethod,
+  currentQuestion,
 }) => {
   const diagramRef = useRef(null);
+  const containerRef = useRef(null);
   const [showRelationshipManager, setShowRelationshipManager] = useState(false);
   const [showWorkbench, setShowWorkbench] = useState(false);
-  const [code, setCode] = useState('');
-  const [syntax, setSyntax] = useState(SYNTAX_TYPES.JAVA);
-  const [generatedCode, setGeneratedCode] = useState('');
-  const [isCodeModified, setIsCodeModified] = useState(false);
+  const [needsRender, setNeedsRender] = useState(false);
+  const [isWorkbenchFullscreen, setIsWorkbenchFullscreen] = useState(false);
+  const [visibleToolbarEntity, setVisibleToolbarEntity] = useState(null);
+  
+  // States for zoom and pan functionality
+  const [scale, setScale] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [startPanPos, setStartPanPos] = useState({ x: 0, y: 0 });
+  const [selectedEntity, setSelectedEntity] = useState(null);
+  
+  // State for tracking the active element and action bar
+  const [activeElement, setActiveElement] = useState(null);
+  const [actionBarPosition, setActionBarPosition] = useState({ x: 0, y: 0 });
+  
+  // State for tracking click vs drag
+  const [mouseDownTime, setMouseDownTime] = useState(0);
+  const [isClick, setIsClick] = useState(true);
+  const [toolbarPositionType, setToolbarPositionType] = useState('fixed-top');
 
-  // Helper function to remove the last attribute of an entity
-  const removeLastAttribute = useCallback(
-    (entityName) => {
-      const normalizedEntityName = normalizeEntityName(entityName);
-      const entity = schema.get(normalizedEntityName);
-      if (entity && entity.attribute.size > 0) {
-        const lastAttribute = Array.from(entity.attribute.keys()).pop();
-        if (lastAttribute) {
-          removeAttribute(normalizedEntityName, lastAttribute);
-        }
-      } else {
-        console.error(`Entity "${normalizedEntityName}" does not exist or has no attributes.`);
-      }
-    },
-    [schema, removeAttribute]
+  // Clear diagram function - imported from utils but with local state ref
+  const clearDiagram = useCallback(() => {
+    clearMermaidDiagram(diagramRef, schema.size);
+  }, [schema.size]);
+
+  // Function to hide all toolbars when clicking outside
+  // MOVED this function up before it's used in the dependencies array
+  const hideAllToolbars = useCallback(() => {
+    if (diagramRef.current) {
+      const allToolbars = diagramRef.current.querySelectorAll('.toolbar-group');
+      allToolbars.forEach(toolbar => {
+        toolbar.style.opacity = '0';
+        toolbar.style.pointerEvents = 'none';
+      });
+      setVisibleToolbarEntity(null);
+    }
+  }, []);
+
+  // Render diagram function - imported but with local refs and state
+  const debouncedRenderDiagram = useCallback(
+    debounce(async () => {
+      await renderMermaidDiagram({
+        diagramRef,
+        containerRef,
+        schema,
+        relationships,
+        clearDiagram,
+        removeEntity,
+        removeAttribute,
+        addAttribute,  
+        addMethod, 
+        removeMethod,
+        isPanning,
+        scale,
+        setSelectedEntity,
+        setShowRelationshipManager,
+        setActiveElement,
+        setActionBarPosition,
+        setNeedsRender,
+        setVisibleToolbarEntity
+      });
+    }, 300), // 300ms debounce time
+    [schema, relationships, clearDiagram, removeEntity, removeMethod, removeAttribute, isPanning, scale, hideAllToolbars]
   );
+  
 
-  // Render the Mermaid diagram
-  const renderDiagram = useCallback(async () => {
-    // Ensure createElementNS compatibility
-    if (typeof document.createElementNS !== 'function') {
-      document.createElementNS = (ns, tagName) => document.createElement(tagName);
-    }
+  // When showing the workbench, set the associated question
+  const handleOpenWorkbench = () => {
+    setShowWorkbench(true);
+  };
 
-    const source = `classDiagram\n${schemaToMermaidSource(schema, relationships)}`;
-    console.log('Mermaid source:', source);
+  // Toggle workbench fullscreen mode
+  const handleToggleWorkbenchFullscreen = () => {
+    setIsWorkbenchFullscreen(!isWorkbenchFullscreen);
+  };
 
-    // Initialize Mermaid (modern API)
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'base', // Use the 'base' theme for maximum customization
-      themeVariables: {
-        primaryColor: '#FFFFFF',       // White fill for nodes
-        primaryBorderColor: '#800080', // Black border for nodes
-        lineColor: '#800080',          // Default line color (can be overridden)
-        fontFamily: 'Arial, sans-serif',
-        textColor: '#000000',          // Black text for labels
-      },
-    });
-  
-    try {
-      // Ensure Mermaid has enough time to initialize
-      setTimeout(async () => {
-        if (diagramRef.current) {
-          const { svg } = await mermaid.render('umlDiagram', source);
-          console.log('Diagram element found:', diagramRef.current);
-          diagramRef.current.innerHTML = svg;
-  
-          // Access and customize the SVG
-          const svgElement = diagramRef.current.querySelector('svg');
-          if (svgElement) {
-            console.log('SVG element found:', svgElement);
-            svgElement.style.overflow = 'visible';
-            svgElement.setAttribute('viewBox', `-20 -20 ${svgElement.getBBox().width + 40} ${svgElement.getBBox().height + 40}`);
-            svgElement.style.padding = '20px';
-  
-            // Add custom icons to nodes
-            const nodes = svgElement.querySelectorAll('g[class^="node"]');
-            nodes.forEach((node) => {
-              const nodeId = node.getAttribute('id');
-              if (nodeId) {
-                console.log('Node found:', node);
-                const entityName = extractEntityName(nodeId);
-                const bbox = node.getBBox();
-                const iconsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                iconsGroup.classList.add('icons-group');
-  
-                // Edit button
-                const editButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                editButton.setAttribute('x', bbox.x + bbox.width + 15);
-                editButton.setAttribute('y', bbox.y + 15);
-                editButton.setAttribute('fill', '#007bff');
-                editButton.style.cursor = 'pointer';
-                editButton.textContent = '✏️';
-  
-                // Delete button
-                const deleteButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                deleteButton.setAttribute('x', bbox.x + bbox.width + 15);
-                deleteButton.setAttribute('y', bbox.y + 35);
-                deleteButton.setAttribute('fill', '#ff4d4d');
-                deleteButton.style.cursor = 'pointer';
-                deleteButton.style.display = 'none';
-                deleteButton.textContent = '🗑️';
-                deleteButton.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  if (schema.has(entityName)) {
-                    removeEntity(entityName);
-                  }
-                });
-  
-                // Minus button
-                const minusButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                minusButton.setAttribute('x', bbox.x + bbox.width + 15);
-                minusButton.setAttribute('y', bbox.y + 55);
-                minusButton.setAttribute('fill', '#4caf50');
-                minusButton.style.cursor = 'pointer';
-                minusButton.style.display = 'none';
-                minusButton.textContent = '➖';
-                minusButton.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  removeLastAttribute(entityName);
-                });
-  
-                // Relationship button
-                const relationshipButton = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                relationshipButton.setAttribute('x', bbox.x + bbox.width + 15);
-                relationshipButton.setAttribute('y', bbox.y + 75);
-                relationshipButton.setAttribute('fill', '#ff9800');
-                relationshipButton.style.cursor = 'pointer';
-                relationshipButton.style.display = 'none';
-                relationshipButton.textContent = '🔗';
-                relationshipButton.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  setShowRelationshipManager(true);
-                });
-  
-                // Toggle visibility of buttons on edit button click
-                editButton.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  deleteButton.style.display = deleteButton.style.display === 'none' ? 'block' : 'none';
-                  minusButton.style.display = minusButton.style.display === 'none' ? 'block' : 'none';
-                  relationshipButton.style.display = relationshipButton.style.display === 'none' ? 'block' : 'none';
-                });
-  
-                // Append buttons to the group
-                iconsGroup.appendChild(editButton);
-                iconsGroup.appendChild(deleteButton);
-                iconsGroup.appendChild(minusButton);
-                iconsGroup.appendChild(relationshipButton);
-                node.appendChild(iconsGroup);
-              }
-            });
-          }
-        }
-      }, 1); // Slight delay for Mermaid initialization
-    } catch (error) {
-      console.error('Error rendering Mermaid diagram:', error);
-    }
-  }, [schema, relationships, removeEntity]);
-  
-  // Re-render the diagram when schema or relationships change
+  // Custom function to remove container styles from SVG after it's rendered
   useEffect(() => {
-    if (schema.size !== 0) {
-      setTimeout(() => {
-        renderDiagram();
-      }, 0);
-    }
-  }, [schema, relationships, renderDiagram]);
-
-  
-  // In MermaidDiagram.js, update the syncJavaCodeWithSchema function:
-const syncJavaCodeWithSchema = (javaCode) => {
-  // First, parse the schema
-  const parsedSchema = parseCodeToSchema(javaCode, SYNTAX_TYPES.JAVA, addMethod, addMethodsFromParsedCode);
-  console.log("Parsed Schema:", parsedSchema);
-
-  // First pass: Create all entities and add attributes
-  parsedSchema.forEach((newEntity, entityName) => {
-    addEntity(entityName);
-    console.log(`First pass - Created entity: ${entityName}`);
+    const removeContainerStyling = () => {
+      if (diagramRef.current) {
+        const svgElement = diagramRef.current.querySelector('svg');
+        if (svgElement) {
+          // Remove any background, borders, or shadows from the SVG
+          svgElement.style.background = 'transparent';
+          svgElement.style.boxShadow = 'none';
+          svgElement.style.border = 'none';
+          svgElement.style.overflow = 'visible';
+          
+          // Remove container styling from all diagram elements
+          const rectangles = svgElement.querySelectorAll('rect');
+          rectangles.forEach(rect => {
+            if (rect.classList && !rect.classList.contains('label')) {
+              rect.setAttribute('filter', 'none');
+              rect.setAttribute('stroke-width', '1px');
+            }
+          });
+        }
+      }
+    };
     
-    // Add attributes
-    newEntity.attribute.forEach((attr, attrName) => {
-      addAttribute(entityName, attrName, attr.type);
-      console.log(`Added attribute: ${attrName} to ${entityName}`);
-    });
-  });
-  
-  // Second pass: Now that all entities exist, add methods
-  parsedSchema.forEach((newEntity, entityName) => {
-    if (newEntity.methods && newEntity.methods.length > 0) {
-      console.log(`Second pass - Adding ${newEntity.methods.length} methods to ${entityName}`);
-      addMethodsFromParsedCode(entityName, newEntity.methods);
+    // Add a mutation observer to watch for changes in the diagram container
+    if (diagramRef.current) {
+      const observer = new MutationObserver(() => {
+        removeContainerStyling();
+      });
+      
+      observer.observe(diagramRef.current, { 
+        childList: true,
+        subtree: true 
+      });
+      
+      return () => observer.disconnect();
     }
+  }, []);
+
+  // Update the effect to thoroughly clean up and re-render on schema changes
+  useEffect(() => {
+    // Only render if we have entities, without clearing first
+    if (schema.size > 0) {
+      debouncedRenderDiagram();
+      
+      return () => {
+        debouncedRenderDiagram.cancel(); // Cancel any pending debounced renders
+      };
+    } else {
+      clearDiagram(); // Only clear if no entities
+    }
+  }, [schema, relationships, debouncedRenderDiagram, clearDiagram]);
+
+  // Additional effect to handle rendering when needed (triggered by button clicks)
+  useEffect(() => {
+    if (needsRender) {
+      // Reset the flag
+      setNeedsRender(false);
+      
+      // Render the diagram if there are entities left
+      if (schema.size > 0) {
+        debouncedRenderDiagram();
+      }
+    }
+  }, [needsRender, schema.size, debouncedRenderDiagram]);
+
+  // Add this to MermaidDiagram.js component
+  useEffect(() => {
+    // Add class when component mounts
+    document.body.classList.add('diagram-active');
+    
+    // Remove class when component unmounts
+    return () => {
+      document.body.classList.remove('diagram-active');
+    };
+  }, []);
+
+  // hide action bar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        activeElement && 
+        containerRef.current && 
+        !event.target.closest('.action-button') &&
+        !event.target.closest('.classGroup') &&
+        isClick // Only hide if it was a click, not a drag
+      ) {
+        setActiveElement(null);
+        hideAllToolbars();
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeElement, isClick, hideAllToolbars]);
+
+  // Prevent default behaviour
+  useEffect(() => {
+    const preventArrowScroll = (e) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+    
+    window.addEventListener('keydown', preventArrowScroll);
+    return () => {
+      window.removeEventListener('keydown', preventArrowScroll);
+    };
+  }, []);
+
+  // Get touch and mouse handlers from utils
+  const { 
+    handleTouchStart, 
+    handleTouchMove, 
+    handleTouchEnd, 
+    handleWheel,
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp
+  } = handleDiagramInteractions({
+    schema,
+    scale,
+    setScale,
+    isPanning,
+    setIsPanning,
+    startPanPos,
+    setStartPanPos,
+    panOffset,
+    setPanOffset,
+    containerRef
   });
+
+  // Custom handlers to differentiate between clicks and drags
+  const handleContainerMouseDown = (e) => {
+    if (schema.size === 0) return;
+    
+    // Determine if this is a direct click on the container vs a diagram element
+    const isClassElement = e.target.closest('.classGroup') || 
+                          e.target.closest('.node') || 
+                          e.target.closest('.label') ||
+                          e.target.closest('.action-button');
+    
+    setMouseDownTime(Date.now());
+    setIsClick(true);
+    
+    if (!isClassElement || e.button === 1 || e.button === 2) {
+      // Only start panning if not clicking on a class element or using middle/right button
+      handleMouseDown(e);
+    }
+  };
+  
+  const handleContainerMouseMove = (e) => {
+    if (isPanning) {
+      // If we've moved while mouse is down, it's a drag, not a click
+      if (isClick && Date.now() - mouseDownTime > 100) {
+        setIsClick(false);
+      }
+      handleMouseMove(e);
+    }
+  };
+  
+  const handleContainerMouseUp = (e) => {
+    const wasDragging = !isClick;
+    handleMouseUp(e);
+    
+    // If this was a quick click and not a drag operation, process normal click behavior
+    if (isClick && Date.now() - mouseDownTime < 200) {
+      // This was a quick click on background - can deselect any selected entity
+      const isClassElement = e.target.closest('.classGroup') || 
+                            e.target.closest('.node') || 
+                            e.target.closest('.label') ||
+                            e.target.closest('.action-button');
+      
+      if (!isClassElement) {
+        setActiveElement(null);
+        hideAllToolbars();
+      }
+    }
+  };
+  
+  // Handler functions for action buttons
+  const handleDeleteEntity = () => {
+    if (activeElement) {
+      const entityName = typeof activeElement === 'object' && activeElement.entity 
+        ? activeElement.entity 
+        : activeElement;
+      
+      // Instead of using confirm, which triggers ESLint warning
+      // Option 1: Just remove the confirmation (simplest fix)
+      removeEntity(entityName);
+      setActiveElement(null);
+      setNeedsRender(true);
+      
+    }
+  };
+
+const handleAddAttribute = () => {
+  if (activeElement) {
+    const entityName = typeof activeElement === 'object' && activeElement.entity 
+      ? activeElement.entity 
+      : activeElement;
+    
+    const attrName = prompt('Enter attribute name:');
+    const attrType = prompt('Enter attribute type (optional):');
+    
+    if (attrName) {
+      addAttribute(entityName, attrName, '', attrType || '');
+      setNeedsRender(true);
+    }
+  }
 };
 
-  // Update the schema and re-render diagram
-  const handleUpdate = () => {
-      syncJavaCodeWithSchema(code); // Sync Java code with schema
-      setIsCodeModified(false); // Reset modification flag
-      renderDiagram(); // Re-render the diagram
+// Handler function for adding a method
+const handleAddMethod = () => {
+  if (activeElement) {
+    // If activeElement is a complex object with entity and method properties
+    const entityName = typeof activeElement === 'object' && activeElement.entity 
+      ? activeElement.entity 
+      : activeElement;
+    
+    const methodName = prompt('Enter method name:');
+    if (!methodName) return;
+    
+    const returnType = prompt('Enter return type (optional):');
+    const params = prompt('Enter parameters (optional, comma separated):');
+    
+    const method = {
+      name: methodName,
+      returnType: returnType || 'void',
+      parameters: params ? params.split(',').map(p => p.trim()) : [],
+      visibility: 'public'
+    };
+    
+    addMethod(entityName, method);
+    setNeedsRender(true);
+  }
+};
+
+// Function for removing a method
+const handleRemoveMethod = () => {
+  if (activeElement) {
+    const entityName = typeof activeElement === 'object' && activeElement.entity 
+      ? activeElement.entity 
+      : activeElement;
+    
+    const entity = schema.get(entityName);
+    if (entity && entity.methods && entity.methods.length > 0) {
+      // Get all methods and let user select which one to remove
+      const methodNames = entity.methods.map(m => m.name);
+      if (methodNames.length === 1) {
+        // If only one method, remove it directly
+        removeMethod(entityName, methodNames[0]);
+      } else {
+        // Otherwise, let user choose
+        const methodToRemove = prompt(
+          `Enter the name of the method to remove:\n${methodNames.join(', ')}`,
+          methodNames[methodNames.length - 1]
+        );
+        if (methodToRemove && methodNames.includes(methodToRemove)) {
+          removeMethod(entityName, methodToRemove);
+        }
+      }
+      setNeedsRender(true);
+    } else {
+      alert('This entity has no methods to remove.');
+    }
+  }
+};
+
+// Function to handle removing an attribute
+const handleRemoveAttribute = () => {
+  if (activeElement) {
+    const entityName = typeof activeElement === 'object' && activeElement.entity 
+      ? activeElement.entity 
+      : activeElement;
+    
+    const entity = schema.get(entityName);
+    if (entity && entity.attribute && entity.attribute.size > 0) {
+      // Get all attributes and let user select which one to remove
+      const attributes = Array.from(entity.attribute.keys());
+      if (attributes.length === 1) {
+        // If only one attribute, remove it directly
+        removeAttribute(entityName, attributes[0]);
+      } else {
+        // Otherwise, let user choose
+        const attrToRemove = prompt(
+          `Enter the name of the attribute to remove:\n${attributes.join(', ')}`,
+          attributes[attributes.length - 1]
+        );
+        if (attrToRemove && attributes.includes(attrToRemove)) {
+          removeAttribute(entityName, attrToRemove);
+        }
+      }
+      setNeedsRender(true);
+    } else {
+      alert('This entity has no attributes to remove.');
+    }
+  }
+};
+
+// Handle method-specific actions (keep for backward compatibility)
+const handleMethodAction = () => {
+  if (typeof activeElement === 'object' && activeElement.method && activeElement.entity) {
+    const action = prompt(`What do you want to do with method ${activeElement.method}?`, 'remove');
+    
+    if (action && action.toLowerCase() === 'remove') {
+      removeMethod(activeElement.entity, activeElement.method);
+      setActiveElement(null);
+      setNeedsRender(true);
+    }
+  }
+};
+  
+  // Function to handle zooming to fit the diagram content
+  const handleZoomToFit = () => {
+    if (schema.size === 0) return; // Don't zoom if no entities
+    
+    const svgElement = diagramRef.current?.querySelector('svg');
+    if (svgElement) {
+      const containerWidth = containerRef.current.clientWidth;
+      const containerHeight = containerRef.current.clientHeight;
+      const svgWidth = svgElement.getBBox().width;
+      const svgHeight = svgElement.getBBox().height;
+      
+      // Calculate the scale that would perfectly fit the SVG in the container
+      const scaleX = containerWidth / (svgWidth + 40);
+      const scaleY = containerHeight / (svgHeight + 40);
+      const newScale = Math.min(scaleX, scaleY, 1); // Don't scale beyond 100%
+      
+      setScale(newScale);
+      setPanOffset({ x: 0, y: 0 }); // Reset panning when fitting to view
+    }
+  };
+  
+  // Reset zoom and pan
+  const handleResetView = () => {
+    setScale(1);
+    setPanOffset({ x: 0, y: 0 });
   };
 
   return (
-    <Box>
+    <Box sx={{ 
+      height: '100%', 
+      display: 'flex',
+      flexDirection: 'column',
+      position: 'relative',
+      flex: 1,
+      minHeight: 0
+    }}>
       <Toolbar>
-        <Typography variant="h6" color="primary">
-          WorkBench
+        <Typography variant="h6" color="primary" sx={{ fontSize: '1rem' }}>
+          UML Diagram
         </Typography>
         <Box>
           <Tooltip title="Add Relationship">
-            <IconButton color="primary" onClick={() => setShowRelationshipManager(true)}>
+            <IconButton color="primary" size="small" onClick={() => setShowRelationshipManager(true)}>
               🔗
             </IconButton>
           </Tooltip>
           <Tooltip title="Open WorkBench">
-            <IconButton color="primary" onClick={() => setShowWorkbench(true)}>
+            <IconButton color="primary" size="small" onClick={handleOpenWorkbench}>
               🛠️
             </IconButton>
           </Tooltip>
+          {schema.size > 0 && (
+            <>
+              <Tooltip title="Fit to View">
+                <IconButton color="primary" size="small" onClick={handleZoomToFit}>
+                  🔍
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Reset View">
+                <IconButton color="primary" size="small" onClick={handleResetView}>
+                  🔄
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
         </Box>
       </Toolbar>
-      <DiagramBox ref={diagramRef} id="diagram" />
-      {showRelationshipManager && (
-        <Box
-          sx={{
+      
+      <DiagramBox
+        ref={containerRef}
+        className="diagram-area"
+        sx={{
+          cursor: isPanning ? 'grabbing' : (schema.size > 0 ? 'grab' : 'default'),
+          flex: 1,
+          position: 'relative',
+          minHeight: 0,
+          height: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'transparent', // Ensure transparent background
+          overflow: 'hidden',
+          overscrollBehavior: 'none', // Prevent scroll chaining
+          touchAction: 'none', // Disable default touch actions
+          userSelect: 'none', // Prevent text selection
+          scrollbarWidth: 'none', // Hide scrollbars in Firefox
+          msOverflowStyle: 'none', // Hide scrollbars in IE/Edge
+          WebkitOverflowScrolling: 'touch',
+          WebkitUserSelect: 'none',
+          MozUserSelect: 'none',
+          msUserSelect: 'none',
+          // Fix for iOS and macOS trackpads
+          '&, & *': {
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'none',
+            scrollBehavior: 'auto'
+          },
+          '&::-webkit-scrollbar': {
+            display: 'none' // Hide scrollbars in Chrome/Safari
+          }
+        }}
+        onKeyDown={(e) => {
+          // Prevent arrow keys from scrolling the viewport
+          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+          }
+        }}
+        tabIndex="0" // Allows the div to receive key events
+        onWheel={(e) => {
+          e.preventDefault(); // Explicitly prevent default
+          e.stopPropagation(); // Prevent event propagation
+          if (schema.size > 0) handleWheel(e);
+        }}
+        onMouseDown={schema.size > 0 ? handleContainerMouseDown : null}
+        onMouseMove={schema.size > 0 ? handleContainerMouseMove : null}
+        onMouseUp={handleContainerMouseUp}
+        onMouseLeave={handleContainerMouseUp}
+        onTouchStart={(e) => {
+          e.stopPropagation();
+          handleTouchStart(e);
+        }}
+        onTouchMove={(e) => {
+          e.preventDefault(); // Explicitly prevent default
+          e.stopPropagation();
+          handleTouchMove(e);
+        }}
+        onTouchEnd={(e) => {
+          e.stopPropagation();
+          handleTouchEnd(e);
+        }}
+        onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
+      >
+     {/* Action bar for the selected element */}
+    {activeElement && (
+      <ActionBar
+        sx={{
+          top: '10px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          padding: '6px',
+          backgroundColor: 'white',
+          borderRadius: '4px',
+          border: '1px solid #d0d0d0',
+          boxShadow: '0 3px 6px rgba(0,0,0,0.16)',
+          zIndex: 1200
+        }}
+      >
+        {typeof activeElement === 'object' && activeElement.type === 'method' ? (
+          // Method-specific actions
+          <>
+            <Tooltip title="Delete Method" placement="bottom">
+              <Button 
+                variant="contained" 
+                size="small" 
+                color="error"
+                className="action-button"
+                onClick={() => {
+                  if (activeElement.entity && activeElement.method) {
+                    removeMethod(activeElement.entity, activeElement.method);
+                    setActiveElement(null);
+                    setNeedsRender(true);
+                  }
+                }}
+                sx={{ minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+              >
+                🗑️
+              </Button>
+            </Tooltip>
+            <Tooltip title="Edit Method" placement="bottom">
+              <Button 
+                variant="contained" 
+                size="small" 
+                color="primary"
+                className="action-button"
+                onClick={() => {
+                  if (activeElement.entity) {
+                    setActiveElement(activeElement.entity);
+                  }
+                }}
+                sx={{ minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+              >
+                ✏️
+              </Button>
+            </Tooltip>
+          </>
+        ) : (
+          // Entity actions - show toolbar buttons
+          <>
+          <Tooltip title="Inspect Entity" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={() => {/* Inspect action */}}
+              sx={{ bgcolor: '#f8f9fa', color: '#007bff', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              🔍
+            </Button>
+          </Tooltip>
+          <Tooltip title="Delete Entity" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={handleDeleteEntity}
+              sx={{ bgcolor: '#f8f9fa', color: '#dc3545', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              🗑️
+            </Button>
+          </Tooltip>
+          <Tooltip title="Add Attribute" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={handleAddAttribute}
+              sx={{ bgcolor: '#f8f9fa', color: '#28a745', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              ➕
+            </Button>
+          </Tooltip>
+          <Tooltip title="Remove Attribute" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={handleRemoveAttribute}
+              sx={{ bgcolor: '#f8f9fa', color: '#ff9800', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              ➖
+            </Button>
+          </Tooltip>
+          <Tooltip title="Add Method" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={handleAddMethod}
+              sx={{ bgcolor: '#f8f9fa', color: '#6610f2', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              📝
+            </Button>
+          </Tooltip>
+          <Tooltip title="Remove Method" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={handleRemoveMethod}
+              sx={{ bgcolor: '#f8f9fa', color: '#e83e8c', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              🧹
+            </Button>
+          </Tooltip>
+          <Tooltip title="Manage Relationships" arrow>
+            <Button 
+              variant="contained" 
+              size="small" 
+              className="action-button"
+              onClick={() => {
+                setSelectedEntity(typeof activeElement === 'object' ? activeElement.entity : activeElement);
+                setShowRelationshipManager(true);
+              }}
+              sx={{ bgcolor: '#f8f9fa', color: '#17a2b8', minWidth: 'auto', width: '36px', height: '36px', p: 0, m: 0.5 }}
+            >
+              🔗
+            </Button>
+          </Tooltip>
+        </>
+        )}
+      </ActionBar>
+    )}
+        {/* Zoom controls - only show if we have entities */}
+        {schema.size > 0 && (
+          <ZoomControls>
+            <Button 
+              variant="contained" 
+              size="small" 
+              onClick={() => setScale(Math.min(scale * 1.2, 3))}
+              sx={{ minWidth: '30px', py: 0 }}
+            >
+              +
+            </Button>
+            <Button 
+              variant="contained" 
+              size="small"
+              onClick={() => setScale(Math.max(scale * 0.8, 0.3))}
+              sx={{ minWidth: '30px', py: 0 }}
+            >
+              -
+            </Button>
+            <Typography variant="body2" sx={{ mx: 1, alignSelf: 'center', fontSize: '0.75rem' }}>
+              {Math.round(scale * 100)}%
+            </Typography>
+          </ZoomControls>
+        )}
+
+        {/* Diagram container with zoom and pan */}
+        <div 
+          style={{
+            transform: schema.size > 0 ? `scale(${scale}) translate(${panOffset.x}px, ${panOffset.y}px)` : 'none',
+            transformOrigin: 'center center',
+            transition: isPanning ? 'none' : 'transform 0.1s',
+            height: '100%',
+            width: '100%',
             position: 'absolute',
-            top: '60px',
-            right: '20px',
-            zIndex: 1000,
+            top: 0,
+            left: 0,
+            right: 0, 
+            bottom: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            cursor: isPanning ? 'grabbing' : 'grab',
+            background: 'transparent',
+            border: 'none',
+            boxShadow: 'none',
+            padding: 0,
+            margin: 0,
+            overscrollBehavior: 'none', 
+            touchAction: 'none', 
+            userSelect: 'none' 
           }}
         >
-          <RelationshipManager
+          <div 
+            ref={diagramRef} 
+            id="diagram" 
+            style={{ 
+              height: '100%', 
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: 'transparent', // Changed to transparent
+              boxShadow: 'none',
+              border: 'none',
+              padding: 0,
+              margin: 0
+            }} 
+          />
+        </div>
+
+        {/* Relationship Manager */}
+        {showRelationshipManager && (
+          <Box
+            sx={{
+              position: 'fixed',
+              top: '80px',
+              right: '30px',
+              zIndex: 1200,
+              maxHeight: '80vh',
+              overflow: 'auto',
+              backgroundColor: 'white',
+              padding: '10px',
+              border: '1px solid #e0e0e0',
+              borderRadius: '4px'
+            }}
+          >
+            <RelationshipManager
+              schema={schema}
+              relationships={relationships}
+              addRelationship={addRelationship}
+              removeRelationship={removeRelationship}
+              onClose={() => {
+                setShowRelationshipManager(false);
+                setSelectedEntity(null);
+              }}
+              selectedEntity={selectedEntity}
+            />
+          </Box>
+        )}
+
+        {/* Workbench */}
+        {showWorkbench && (
+          <CodeWorkbench 
             schema={schema}
             relationships={relationships}
-            addRelationship={addRelationship}
-            removeRelationship={removeRelationship}
-            onClose={() => setShowRelationshipManager(false)}
+            addEntity={addEntity}
+            addAttribute={addAttribute}
+            addMethod={addMethod}
+            addMethodsFromParsedCode={addMethodsFromParsedCode}
+            currentQuestion={currentQuestion}
+            onClose={() => setShowWorkbench(false)}
+            isFullscreen={isWorkbenchFullscreen}
+            onToggleFullscreen={handleToggleWorkbenchFullscreen}
           />
-        </Box>
-      )}
-      {showWorkbench && (
-        <WorkbenchBox>
-          <Typography variant="h6" gutterBottom>
-            WorkBench
-          </Typography>
-          <Select
-            value={syntax}
-            onChange={(e) => setSyntax(e.target.value)}
-            fullWidth
-            sx={{ mb: 2 }}
-          >
-            <MenuItem value={SYNTAX_TYPES.JAVA}>Java</MenuItem>
-            <MenuItem value={SYNTAX_TYPES.PYTHON}>Python</MenuItem>
-          </Select>
-          <Editor
-            height="300px"
-            language={syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
-            theme="vs-light"
-            value={code}
-            onChange={(value) => {
-              setCode(value);
-              setIsCodeModified(true); // Enable the Update button when code is modified
-            }}
-            options={{
-              automaticLayout: true,
-              padding: { top: 10, bottom: 10 },
-            }}
-          />
-          <Button
-            variant="contained"
-            color="primary"
-           // onClick={handleGenerate}
-            sx={{ mr: 2, mt: 2 }}
-          >
-            Generate
-          </Button>
-          <Button
-            variant="contained"
-            color="secondary"
-            onClick={handleUpdate}
-            disabled={!isCodeModified}
-            sx={{ mt: 2, mr: 2 }}
-          >
-            Update
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            onClick={() => setShowWorkbench(false)}
-            sx={{ mt: 2 }}
-          >
-            Close
-          </Button>
-          {generatedCode && (
-            <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-              <Typography variant="body1" component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
-                {generatedCode}
-              </Typography>
-            </Box>
-          )}
-        </WorkbenchBox>
-      )}
+        )}
+      </DiagramBox>
     </Box>
   );
 };

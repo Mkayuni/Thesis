@@ -1,0 +1,258 @@
+{
+  "questionId": "Fish Store",
+  "code": "// Interfaces\r\ninterface Cleanable {\r\n    void clean();\r\n}\r\n\r\ninterface Swimmable {\r\n    void swim();\r\n}\r\n\r\n// Tank Class\r\nclass Tank implements Cleanable {\r\n    private int number;\r\n    private float volume;\r\n    private List<Fish> fishList;\r\n    \r\n    public Tank(int number, float volume) {\r\n        this.number = number;\r\n        this.volume = volume;\r\n        this.fishList = new ArrayList<>();\r\n    }\r\n    \r\n    public void addFish(Fish fish) {\r\n        fishList.add(fish);\r\n    }\r\n    \r\n    public void removeFish(String fishName) {\r\n        fishList.removeIf(fish -> fish.getName().equals(fishName));\r\n    }\r\n    \r\n    public List<Fish> getFishList() {\r\n        return fishList;\r\n    }\r\n    \r\n    // Added the required cleanTank method\r\n    public void cleanTank() {\r\n        System.out.println(\"Cleaning tank \" + number);\r\n        // You can reuse the clean method if desired\r\n        clean();\r\n    }\r\n    \r\n    @Override\r\n    public void clean() {\r\n        System.out.println(\"Performing basic cleaning on tank \" + number);\r\n    }\r\n}\r\n\r\n// Fish Class\r\nclass Fish implements Swimmable {\r\n    private String name;\r\n    private float weight;\r\n    private Species species;\r\n    private List<Event> events;\r\n    \r\n    public Fish(String name, float weight, Species species) {\r\n        this.name = name;\r\n        this.weight = weight;\r\n        this.species = species;\r\n        this.events = new ArrayList<>();\r\n    }\r\n    \r\n    public void updateWeight(float newWeight) {\r\n        this.weight = newWeight;\r\n        System.out.println(name + \"'s weight updated to \" + newWeight);\r\n    }\r\n    \r\n    public Species getSpecies() {\r\n        return species;\r\n    }\r\n    \r\n    public void addEvent(Event event) {\r\n        events.add(event);\r\n    }\r\n    \r\n    public List<Event> getEventHistory() {\r\n        return events;\r\n    }\r\n    \r\n    @Override\r\n    public void swim() {\r\n        System.out.println(name + \" is swimming.\");\r\n    }\r\n}\r\n\r\n// Species Class\r\nclass Species {\r\n    private String name;\r\n    private String preferredFood;\r\n    \r\n    public Species(String name, String preferredFood) {\r\n        this.name = name;\r\n        this.preferredFood = preferredFood;\r\n    }\r\n    \r\n    public String getPreferredFood() {\r\n        return preferredFood;\r\n    }\r\n    \r\n    public void setPreferredFood(String preferredFood) {\r\n        this.preferredFood = preferredFood;\r\n    }\r\n}\r\n\r\n// Event Class\r\nclass Event {\r\n    private Date date;\r\n    private String note;\r\n    \r\n    public Event(Date date, String note) {\r\n        this.date = date;\r\n        this.note = note;\r\n    }\r\n    \r\n    public Date getDate() {\r\n        return date;\r\n    }\r\n    \r\n    public void setNote(String note) {\r\n        this.note = note;\r\n    }\r\n    \r\n    public String getNote() {\r\n        return note;\r\n    }\r\n}",
+  "schema": [
+    [
+      "Cleanable",
+      {
+        "entity": "Cleanable",
+        "attribute": {},
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "clean",
+            "parameters": [],
+            "methodType": "abstract"
+          }
+        ]
+      }
+    ],
+    [
+      "Swimmable",
+      {
+        "entity": "Swimmable",
+        "attribute": {},
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "swim",
+            "parameters": [],
+            "methodType": "abstract"
+          }
+        ]
+      }
+    ],
+    [
+      "Tank",
+      {
+        "entity": "Tank",
+        "attribute": {},
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "addFish",
+            "parameters": [
+              "fish: Fish"
+            ],
+            "methodType": "regular"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "removeFish",
+            "parameters": [
+              "fishName: String"
+            ],
+            "methodType": "regular"
+          },
+          {
+            "visibility": "public",
+            "returnType": "List<Fish>",
+            "name": "getFishList",
+            "parameters": [],
+            "methodType": "getter",
+            "propertyName": "fishList"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "cleanTank",
+            "parameters": [],
+            "methodType": "regular"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "clean",
+            "parameters": [],
+            "methodType": "regular"
+          }
+        ]
+      }
+    ],
+    [
+      "Fish",
+      {
+        "entity": "Fish",
+        "attribute": {},
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "updateWeight",
+            "parameters": [
+              "newWeight: float"
+            ],
+            "methodType": "regular"
+          },
+          {
+            "visibility": "public",
+            "returnType": "Species",
+            "name": "getSpecies",
+            "parameters": [],
+            "methodType": "getter",
+            "propertyName": "species"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "addEvent",
+            "parameters": [
+              "event: Event"
+            ],
+            "methodType": "regular"
+          },
+          {
+            "visibility": "public",
+            "returnType": "List<Event>",
+            "name": "getEventHistory",
+            "parameters": [],
+            "methodType": "getter",
+            "propertyName": "eventHistory"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "swim",
+            "parameters": [],
+            "methodType": "regular"
+          }
+        ]
+      }
+    ],
+    [
+      "Species",
+      {
+        "entity": "Species",
+        "attribute": {},
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "String",
+            "name": "getPreferredFood",
+            "parameters": [],
+            "methodType": "getter",
+            "propertyName": "preferredFood"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "setPreferredFood",
+            "parameters": [
+              "preferredFood: String"
+            ],
+            "methodType": "setter",
+            "propertyName": "preferredFood"
+          }
+        ]
+      }
+    ],
+    [
+      "Event",
+      {
+        "entity": "Event",
+        "attribute": {},
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "Date",
+            "name": "getDate",
+            "parameters": [],
+            "methodType": "getter",
+            "propertyName": "date"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "setNote",
+            "parameters": [
+              "note: String"
+            ],
+            "methodType": "setter",
+            "propertyName": "note"
+          },
+          {
+            "visibility": "public",
+            "returnType": "String",
+            "name": "getNote",
+            "parameters": [],
+            "methodType": "getter",
+            "propertyName": "note"
+          }
+        ]
+      }
+    ]
+  ],
+  "relationships": [
+    [
+      "Tank-implements-Cleanable",
+      {
+        "id": "Tank-implements-Cleanable",
+        "type": "implementation",
+        "relationA": "Tank",
+        "relationB": "Cleanable",
+        "label": "implements"
+      }
+    ],
+    [
+      "Fish-implements-Swimmable",
+      {
+        "id": "Fish-implements-Swimmable",
+        "type": "implementation",
+        "relationA": "Fish",
+        "relationB": "Swimmable",
+        "label": "implements"
+      }
+    ],
+    [
+      "Fish-extends-Tank",
+      {
+        "id": "Fish-extends-Tank",
+        "type": "aggregation",
+        "relationA": "Tank",
+        "relationB": "Fish",
+        "cardinalityA": "0..*",
+        "cardinalityB": "1",
+        "label": "Aggregation"
+      }
+    ],
+    [
+      "Species-extends-Fish",
+      {
+        "id": "Species-extends-Fish",
+        "type": "aggregation",
+        "relationA": "Fish",
+        "relationB": "Species",
+        "cardinalityA": "1",
+        "cardinalityB": "1",
+        "label": "Aggregation"
+      }
+    ],
+    [
+      "Event-extends-Fish",
+      {
+        "id": "Event-extends-Fish",
+        "type": "composition",
+        "relationA": "Fish",
+        "relationB": "Event",
+        "cardinalityA": "0..*",
+        "cardinalityB": "1",
+        "label": "Composition"
+      }
+    ]
+  ],
+  "timestamp": 1741371805
+}
