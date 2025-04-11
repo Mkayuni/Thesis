@@ -1,6 +1,76 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { questionStyles } from './QuestionStyles';
 
+// Helper function to parse method signatures
+const parseMethodSignature = (methodSignature) => {
+  if (!methodSignature) return { name: '', parameters: [], returnType: 'void' };
+  
+  // Extract return type if present (after "::")
+  let returnType = 'void';
+  let signatureWithoutReturn = methodSignature;
+  
+  if (methodSignature.includes('::')) {
+    const parts = methodSignature.split('::');
+    signatureWithoutReturn = parts[0].trim();
+    returnType = parts[1].trim();
+  }
+  
+  // Check for visibility prefix (-, #, +)
+  let visibility = "public"; // Default
+  if (signatureWithoutReturn.startsWith('-')) {
+    visibility = "private";
+    signatureWithoutReturn = signatureWithoutReturn.substring(1).trim();
+  } else if (signatureWithoutReturn.startsWith('#')) {
+    visibility = "protected";
+    signatureWithoutReturn = signatureWithoutReturn.substring(1).trim();
+  } else if (signatureWithoutReturn.startsWith('+')) {
+    visibility = "public";
+    signatureWithoutReturn = signatureWithoutReturn.substring(1).trim();
+  }
+  
+  // Find opening parenthesis for parameters
+  const openParenIndex = signatureWithoutReturn.indexOf('(');
+  
+  // If no parameters, return just the method name
+  if (openParenIndex === -1) {
+    return {
+      name: signatureWithoutReturn.trim(),
+      parameters: [],
+      returnType,
+      visibility
+    };
+  }
+  
+  // Find the matching closing parenthesis
+  const closeParenIndex = signatureWithoutReturn.lastIndexOf(')');
+  
+  if (closeParenIndex === -1 || closeParenIndex < openParenIndex) {
+    // Invalid signature format
+    return {
+      name: signatureWithoutReturn.trim(),
+      parameters: [],
+      returnType,
+      visibility
+    };
+  }
+  
+  // Extract method name and parameters
+  const name = signatureWithoutReturn.substring(0, openParenIndex).trim();
+  const paramsText = signatureWithoutReturn.substring(openParenIndex + 1, closeParenIndex).trim();
+  
+  // Parse parameters
+  const parameters = paramsText ? 
+    paramsText.split(',').map(param => param.trim()).filter(p => p) : 
+    [];
+  
+  return {
+    name,
+    parameters,
+    returnType,
+    visibility
+  };
+};
+
 const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPopup, schema, questionContainerRef }) => {
   const [hasQuestion, setHasQuestion] = useState(false);
   const [questionHTML, setQuestionHTML] = useState('');
@@ -72,11 +142,17 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
         
         // For method form, we need to show a special popup to select which entity the method belongs to
         if (type === 'method') {
-          // Create a custom object to hold both the method name and a flag indicating
-          // this is a method selection that should trigger the entity selection popup
+          // Parse the method to extract name, parameters, return type and visibility
+          const parsedMethod = parseMethodSignature(entityOrMethod);
+          
+          // Create a custom object with all the parsed method data
           const methodData = {
-            methodName: entityOrMethod,
-            needsEntitySelection: true
+            methodName: parsedMethod.name,
+            parameters: parsedMethod.parameters,
+            returnType: parsedMethod.returnType,
+            visibility: parsedMethod.visibility,
+            needsEntitySelection: true,
+            originalSignature: entityOrMethod // Keep the original for reference
           };
           
           // Show popup with method selection data
@@ -256,7 +332,9 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
       const highlightedCode = codeContent.replace(
         /<method>(.*?)<\/method>/g, 
         (match, methodName) => {
-          return `<span class="method-highlight" onclick="window.showPopup(event, '${methodName}', false, 'method')">${methodName}</span>`;
+          // Encode any quotes to prevent issues with the onclick attribute
+          const safeMethodName = methodName.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+          return `<span class="method-highlight" onclick="window.showPopup(event, '${safeMethodName}', false, 'method')">${methodName}</span>`;
         }
       );
       return `<div class="code-block">${highlightedCode}</div>`;
@@ -266,7 +344,9 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
     html = html.replace(
       /<method>(.*?)<\/method>/g, 
       (match, methodName) => {
-        return `<span class="method-highlight" onclick="window.showPopup(event, '${methodName}', false, 'method')">${methodName}</span>`;
+        // Encode any quotes to prevent issues with the onclick attribute  
+        const safeMethodName = methodName.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        return `<span class="method-highlight" onclick="window.showPopup(event, '${safeMethodName}', false, 'method')">${methodName}</span>`;
       }
     );
     

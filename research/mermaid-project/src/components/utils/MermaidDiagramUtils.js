@@ -251,7 +251,7 @@ export const syncJavaCodeWithSchema = (
     
     // Add attributes
     newEntity.attribute.forEach((attr, attrName) => {
-      addAttribute(entityName, attrName, attr.type);
+      addAttribute(entityName, attrName, attr.type, '');
       console.log(`Added attribute: ${attrName} to ${entityName}`);
     });
   });

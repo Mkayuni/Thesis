@@ -151,14 +151,52 @@ export const schemaToMermaidSource = (schema, relationships) => {
       
       if (schemaItem.methods && Array.isArray(schemaItem.methods)) {
         schemaItem.methods.forEach(method => {
-          const parameters = method.parameters || [];
-          const paramList = Array.isArray(parameters) 
-              ? parameters.join(", ")
-              : '';
+          // Check if method name contains parameters
+          let methodName = method.name || "";
+          let extractedParams = [];
           
+          // If the method name contains parameters, extract them
+          if (methodName.includes('(')) {
+            const openParenIndex = methodName.indexOf('(');
+            const closeParenIndex = methodName.lastIndexOf(')');
+            
+            if (closeParenIndex > openParenIndex) {
+              // Extract the actual method name (without parameters)
+              const actualName = methodName.substring(0, openParenIndex).trim();
+              
+              // Extract parameters from the method name
+              const paramsText = methodName.substring(openParenIndex + 1, closeParenIndex).trim();
+              
+              // Parse parameters if they exist
+              if (paramsText) {
+                extractedParams = paramsText.split(',').map(p => p.trim()).filter(p => p);
+              }
+              
+              // Update method name to be just the name (no parameters)
+              methodName = actualName;
+            }
+          }
+          
+          // Use either the extracted parameters or the method.parameters property
+          const parameters = extractedParams.length > 0 ? 
+            extractedParams : 
+            (method.parameters || []);
+          
+          // Filter out any empty parameters
+          const validParams = parameters.filter(p => 
+            p !== null && p !== undefined && 
+            (typeof p !== 'string' || p.trim() !== '')
+          );
+          
+          // Join parameters with commas
+          const paramList = validParams.length > 0 ? validParams.join(", ") : "";
+          
+          // Add return type
           const returnType = method.returnType ? `: ${formatType(method.returnType)}` : ": void";
           
-          const methodSignature = `  +${method.name}(${paramList})${returnType}`;
+          // Interface methods are always public
+          const methodSignature = `  +${methodName}(${paramList})${returnType}`;
+          
           methodLines.push(methodSignature);
         });
       }
@@ -229,30 +267,45 @@ export const schemaToMermaidSource = (schema, relationships) => {
         console.warn(`No methods array found for ${className}`);
       }
 
-      // Process regular methods
       if (schemaItem.methods && Array.isArray(schemaItem.methods)) {
         schemaItem.methods.forEach((method) => {
-          // Set default visibility if not specified
+          // Check if method name already contains parameters (like "addFish(Fish fish)")
+          let methodName = method.name;
+          let actualParameters = method.parameters || [];
+          
+          // If method name contains parentheses, extract the actual method name and parameters
+          if (methodName.includes('(')) {
+            const parenIndex = methodName.indexOf('(');
+            const closingIndex = methodName.lastIndexOf(')');
+            
+            if (closingIndex > parenIndex) {
+              // Extract parameters from the method name
+              const paramsString = methodName.substring(parenIndex + 1, closingIndex);
+              
+              // Only use these parameters if the method.parameters array is empty
+              if (!actualParameters.length && paramsString) {
+                actualParameters = paramsString.split(',').map(p => p.trim());
+              }
+              
+              // Update method name to remove parameters
+              methodName = methodName.substring(0, parenIndex);
+            }
+          }
+          
+          // Rest of your existing method processing code
           const visibility = method.visibility || "public";
           const visibilitySymbol = visibility === "private" ? "-" : visibility === "protected" ? "#" : "+";
           
-          // Format parameters properly
-          const parameters = method.parameters || [];
-          const paramList = Array.isArray(parameters) 
-            ? parameters.map((param) => {
-              if (param.includes(":")) return param;
-              if (method.methodType === "setter" && method.propertyName) {
-                return `${method.propertyName}: ${method.returnType}`;
-              }
-              return param;
-            }).join(", ")
-            : '';
+          // Use actualParameters instead of method.parameters
+          const paramList = actualParameters.length > 0 ? 
+            actualParameters.filter(p => p && p.trim && p.trim() !== '').join(", ") : 
+            '';
           
-          // Add return type
           const returnType = method.returnType ? `: ${formatType(method.returnType)}` : ": void";
           
-          const methodSignature = `  ${visibilitySymbol}${method.name}(${paramList})${returnType}`;
-
+          // Use cleaned methodName
+          const methodSignature = `  ${visibilitySymbol}${methodName}(${paramList})${returnType}`;
+      
           if (!methods.has(methodSignature)) {
             methods.add(methodSignature);
             methodLines.push(methodSignature);

@@ -159,6 +159,7 @@ const UMLContainer = ({
     const [attributeNameInput, setAttributeNameInput] = useState('');
     const [attributeTypeInput, setAttributeTypeInput] = useState('String');
     const [customTypeInput, setCustomTypeInput] = useState('');
+    const [methodVisibility, setMethodVisibility] = useState('public');
     
 
     const preventScroll = useCallback((e) => {
@@ -204,9 +205,12 @@ const UMLContainer = ({
               const methodData = entity.methods.find(m => m.name === popup.entityOrAttribute.method);
               if (methodData) {
                 setMethodReturnType(methodData.returnType || '');
-                setMethodParams(methodData.parameters?.join(', ') || '');
+                setMethodVisibility(methodData.visibility || 'public'); // Set visibility from method data
               }
             }
+          } else {
+            // For new methods, default to public
+            setMethodVisibility('public');
           }
         }
       }
@@ -223,8 +227,8 @@ const UMLContainer = ({
       const method = {
         name: methodName,
         returnType: methodReturnType || 'void',
-        parameters: methodParams ? methodParams.split(',').map(p => p.trim()) : [],
-        visibility: 'public'
+        // parameters: methodParams ? methodParams.split(',').map(p => p.trim()) : [],
+        visibility: methodVisibility // Use the selected visibility
       };
       
       addMethod(entityName, method);
@@ -232,7 +236,7 @@ const UMLContainer = ({
       // Reset form fields
       setMethodName('');
       setMethodReturnType('');
-      setMethodParams('');
+      setMethodVisibility('public'); // Reset visibility
       
       hidePopup();
     };
@@ -404,11 +408,11 @@ const handleAttributeSubmitNew = (entity, finalType) => {
                 // Entity selection popup for methods
                 <>
                   <Typography variant="h6">
-                    Select Entity for Method
+                    Select Class for Method
                   </Typography>
                   
                   <Typography variant="body2" sx={{ mb: 2 }}>
-                    Choose an entity to add the method "{popup.entityOrAttribute.methodName}" to:
+                    Choose a class to add the method "{popup.entityOrAttribute.methodName}" to:
                   </Typography>
                   
                   {Array.from(schema.keys()).map((entity) => (
@@ -483,45 +487,114 @@ const handleAttributeSubmitNew = (entity, finalType) => {
                     margin="dense"
                     placeholder="void"
                   />
-                  
-                  <TextField
-                    label="Parameters (comma separated)"
-                    fullWidth
-                    variant="outlined"
-                    value={methodParams}
-                    onChange={(e) => setMethodParams(e.target.value)}
-                    margin="dense"
-                    placeholder="param1: type, param2: type"
-                  />
-                  
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-                    <Button variant="outlined" onClick={hidePopup}>
-                      Cancel
-                    </Button>
-                    <Button 
-                      variant="contained" 
-                      color="primary"
-                      onClick={() => {
-                        // Get the entity from the popup data
-                        const entityName = typeof popup.entityOrAttribute === 'object' 
-                          ? popup.entityOrAttribute.entity 
-                          : popup.entityOrAttribute;
-                          
-                        // Create the method object
-                        const method = {
-                          name: methodName || (popup.entityOrAttribute?.method || ''),
-                          returnType: methodReturnType || 'void',
-                          parameters: methodParams,
-                          visibility: 'public'
-                        };
-                        
-                        // Add the method to the entity
-                        handleMethodSubmit();
-                      }}
-                    >
-                      Add Method
-                    </Button>
-                  </Box>
+
+             {/* Method visibility as chips - similar to type selection */}
+<Box sx={{ mb: 2 }}>
+  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: '#555' }}>
+    Visibility
+  </Typography>
+  
+  <Box sx={{ 
+    border: '1px solid #e0e0e0', 
+    borderRadius: 1, 
+    padding: 1, 
+    backgroundColor: '#f5f8fa',
+  }}>
+    <Box sx={{ display: 'flex', gap: 1 }}>
+      {/* Visibility options as clickable chips */}
+      <Box
+        onClick={() => setMethodVisibility('public')}
+        sx={{
+          padding: '4px 10px',
+          borderRadius: '12px',
+          fontSize: '0.9rem',
+          fontWeight: 500,
+          backgroundColor: methodVisibility === 'public' ? '#3f51b5' : '#e0e0e0',
+          color: methodVisibility === 'public' ? 'white' : 'rgba(0,0,0,0.7)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          '&:hover': {
+            backgroundColor: methodVisibility === 'public' ? '#303f9f' : '#d5d5d5',
+          }
+        }}
+      >
+        <span style={{ fontWeight: 'bold' }}>+</span> Public
+      </Box>
+      
+      <Box
+        onClick={() => setMethodVisibility('protected')}
+        sx={{
+          padding: '4px 10px',
+          borderRadius: '12px',
+          fontSize: '0.9rem',
+          fontWeight: 500,
+          backgroundColor: methodVisibility === 'protected' ? '#3f51b5' : '#e0e0e0',
+          color: methodVisibility === 'protected' ? 'white' : 'rgba(0,0,0,0.7)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          '&:hover': {
+            backgroundColor: methodVisibility === 'protected' ? '#303f9f' : '#d5d5d5',
+          }
+        }}
+      >
+        <span style={{ fontWeight: 'bold' }}>#</span> Protected
+      </Box>
+      
+      <Box
+        onClick={() => setMethodVisibility('private')}
+        sx={{
+          padding: '4px 10px',
+          borderRadius: '12px',
+          fontSize: '0.9rem',
+          fontWeight: 500,
+          backgroundColor: methodVisibility === 'private' ? '#3f51b5' : '#e0e0e0',
+          color: methodVisibility === 'private' ? 'white' : 'rgba(0,0,0,0.7)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          '&:hover': {
+            backgroundColor: methodVisibility === 'private' ? '#303f9f' : '#d5d5d5',
+          }
+        }}
+      >
+        <span style={{ fontWeight: 'bold' }}>-</span> Private
+      </Box>
+    </Box>
+  </Box>
+</Box>
+
+<Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+  <Button variant="outlined" onClick={hidePopup}>
+    Cancel
+  </Button>
+  <Button 
+    variant="contained" 
+    color="primary"
+    onClick={() => {
+      // Get the entity from the popup data
+      const entityName = typeof popup.entityOrAttribute === 'object' 
+        ? popup.entityOrAttribute.entity 
+        : popup.entityOrAttribute;
+        
+      // Create the method object
+      const method = {
+        name: methodName || (popup.entityOrAttribute?.method || ''),
+        returnType: methodReturnType || 'void',
+        visibility: methodVisibility // Use the selected visibility
+      };
+      
+      // Add the method to the entity
+      handleMethodSubmit();
+    }}
+  >
+    Add Method
+  </Button>
+</Box>
                       </>
                 ) : popup.type === 'attribute' ? (
   // Compact attribute form with chip selection

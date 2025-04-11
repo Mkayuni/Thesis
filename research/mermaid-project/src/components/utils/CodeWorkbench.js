@@ -3,6 +3,7 @@ import { Box, Typography, IconButton, Button, Select, MenuItem } from '@mui/mate
 import MonacoEditorWrapper from '../monacoWrapper/MonacoEditorWrapper';
 import { SYNTAX_TYPES } from '../ui/ui';
 import { syncJavaCodeWithSchema } from '../utils/MermaidDiagramUtils';
+import UMLAssessmentDisplay from '../utils/UMLAssessmentDisplay';
 
 const CodeWorkbench = ({
   schema,
@@ -170,68 +171,112 @@ const CodeWorkbench = ({
       console.log("Relationships prepared for submission:", Array.from(relationships.entries()));
     };
 
-    // Submission Logic
-    const handleSubmitForGrading = () => {
-      if (!workbenchData.questionId) {
-        alert("Please select a question before submitting");
-        return;
-      }
-      
-      // Prepare the submission data
-      const submissionData = {
-        questionId: workbenchData.questionId,
-        code: workbenchData.code,
-        schema: Array.from(schema.entries()), // Convert map to array for JSON
-        relationships: Array.from(relationships.entries())
-      };
-      
-      // Send to your backend for grading
-      fetch('http://127.0.0.1:5000/api/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submissionData),
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Grading result:', data);
-        
-        // Extract grade information if available
-        if (data && data.grade) {
-          // Parse the score and feedback
-          const score = data.grade.score || 0;
-          const feedback = data.grade.feedback || '';
-          
-          // Show the floating grade panel
-          setGradeResults({
-            visible: true,
-            score: score,
-            feedback: feedback,
-            details: data.grade.details || {}
-          });
-          
-          // Also update console output
-          setWorkbenchData(prev => ({
-            ...prev,
-            consoleOutput: prev.consoleOutput + `<br><br><span style='color: #54a0ff'>Grading completed! See results panel.</span>`
-          }));
-        } else {
-          // Fallback to displaying raw data
-          setWorkbenchData(prev => ({
-            ...prev,
-            consoleOutput: prev.consoleOutput + `<br><br><span style='color: #54a0ff'>🔄 Grading Response: ${JSON.stringify(data)}</span>`
-          }));
-        }
-      })
-      .catch((error) => {
-        console.error('Error submitting for grading:', error);
-        setWorkbenchData(prev => ({
-          ...prev,
-          consoleOutput: prev.consoleOutput + "<br><br><span style='color: #ff6b6b'>❌ Error submitting for grading. Please try again.</span>"
-        }));
-      });
+   // Fixed handleSubmitForGrading function
+const handleSubmitForGrading = () => {
+  if (!workbenchData.questionId) {
+    alert("Please select a question before submitting");
+    return;
+  }
+
+  // In handleSubmitForGrading function, add these logs right before creating submissionData
+  console.log("PRE-SUBMISSION SCHEMA DEBUG:");
+  schema.forEach((entity, entityName) => {
+    console.log(`Entity: ${entityName}`);
+    console.log(`Attributes: ${entity.attribute ? entity.attribute.size : 0}`);
+    if (entity.attribute && entity.attribute.size > 0) {
+      console.log("Attribute entries:", Array.from(entity.attribute.entries()));
+    }
+  });
+
+  // Pick the first entity to examine its structure
+  if (schema.size > 0) {
+    const firstEntityKey = Array.from(schema.keys())[0];
+    const firstEntity = schema.get(firstEntityKey);
+    console.log("FIRST ENTITY STRUCTURE:", firstEntity);
+    console.log("ATTRIBUTES TYPE:", Object.prototype.toString.call(firstEntity.attribute));
+    console.log("ATTRIBUTES KEYS:", firstEntity.attribute ? Array.from(firstEntity.attribute.keys()) : "No attributes");
+  }
+
+  // Try creating a clean copy of schema with properly serialized attributes
+  const cleanSchema = Array.from(schema.entries()).map(([entityName, entity]) => {
+    // Create a clean entity object
+    const cleanEntity = {
+      entity: entity.entity,
+      attribute: {},  // Object instead of Map
+      methods: entity.methods || []
     };
+    
+    // Convert attribute Map to a simple object
+    if (entity.attribute && entity.attribute.size > 0) {
+      entity.attribute.forEach((attr, attrName) => {
+        cleanEntity.attribute[attrName] = attr;
+      });
+    }
+    
+    return [entityName, cleanEntity];
+  });
+
+  // Prepare the submission data with the clean schema
+  const submissionData = {
+    questionId: workbenchData.questionId,
+    code: workbenchData.code,
+    schema: cleanSchema, // Use the clean schema that properly includes attributes
+    relationships: Array.from(relationships.entries())
+  };
+  
+  // Debug serialization
+  const serializedData = JSON.stringify(submissionData);
+  console.log("SERIALIZED DATA (first 500 chars):", serializedData.substring(0, 500) + "...");
+  const parsedBack = JSON.parse(serializedData);
+  console.log("PARSED BACK SCHEMA (first entity):", parsedBack.schema[0]);
+  
+  // Send to your backend for grading
+  fetch('http://127.0.0.1:5000/api/submit', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(submissionData),
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log('Grading result:', data);
+    
+    // Extract grade information if available
+    if (data && data.grade) {
+      // Parse the score and feedback
+      const score = data.grade.score || 0;
+      const feedback = data.grade.feedback || '';
+      
+      // Show the floating grade panel with our new component
+      setGradeResults({
+        visible: true,
+        score: score,
+        feedback: feedback,
+        details: data.grade.details || {}
+      });
+      
+      // Also update console output
+      setWorkbenchData(prev => ({
+        ...prev,
+        consoleOutput: prev.consoleOutput + `<br><br><span style='color: #54a0ff'>Grading completed! See results panel.</span>`
+      }));
+    } else {
+      // Fallback to displaying raw data
+      setWorkbenchData(prev => ({
+        ...prev,
+        consoleOutput: prev.consoleOutput + `<br><br><span style='color: #54a0ff'>🔄 Grading Response: ${JSON.stringify(data)}</span>`
+      }));
+    }
+  })
+  .catch((error) => {
+    console.error('Error submitting for grading:', error);
+    setWorkbenchData(prev => ({
+      ...prev,
+      consoleOutput: prev.consoleOutput + "<br><br><span style='color: #ff6b6b'>❌ Error submitting for grading. Please try again.</span>"
+    }));
+  });
+};
 
   // Validate code in component
   const validateCodeInComponent = (code, syntax) => {
@@ -650,7 +695,7 @@ const CodeWorkbench = ({
       </Box>
     )}
 
-    {/* Floating Grade Results Panel */}
+    {/* Floating Grade Results Panel with improved visibility */}
     {gradeResults.visible && (
       <Box
         sx={{
@@ -658,48 +703,40 @@ const CodeWorkbench = ({
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: '600px',
-          maxHeight: '80vh',
+          width: '800px',
+          maxHeight: '85vh',
           overflow: 'auto',
-          backgroundColor: '#1e1e1e',
-          color: '#f0f0f0',
+          backgroundColor: '#1a1a1a', // Slightly darker background
+          color: '#ffffff',
           borderRadius: '8px',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-          padding: '20px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+          padding: '0',
           zIndex: 2000,
         }}
       >
-        {/* Close button */}
+        {/* Close button - moved to upper right with better visibility */}
         <IconButton
-          sx={{ position: 'absolute', top: 10, right: 10, color: 'white' }}
+          sx={{ 
+            position: 'absolute', 
+            top: 10, 
+            right: 10, 
+            color: 'white',
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            zIndex: 2100,
+            '&:hover': {
+              backgroundColor: 'rgba(255,255,255,0.2)',
+            }
+          }}
           onClick={() => setGradeResults(prev => ({ ...prev, visible: false }))}
         >
           ✖️
         </IconButton>
         
-        {/* Grade header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h6" sx={{ fontSize: '1.3rem', color: 'white' }}>
-            UML Diagram Assessment
-          </Typography>
-          <Box 
-            sx={{ 
-              backgroundColor: gradeResults.score > 70 ? '#2ecc71' : gradeResults.score > 50 ? '#f39c12' : '#e74c3c',
-              padding: '8px 16px',
-              borderRadius: '20px',
-              fontWeight: 'bold'
-            }}
-          >
-            {gradeResults.score}%
-          </Box>
-        </Box>
-        
-        {/* Feedback content */}
-        <Box sx={{ mt: 2, lineHeight: 1.6 }}>
-          <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-            {gradeResults.feedback}
-          </Typography>
-        </Box>
+        {/* Use our custom UML Assessment Component with improved visibility */}
+        <UMLAssessmentDisplay assessmentData={{
+          score: gradeResults.score,
+          feedback: gradeResults.feedback
+        }} />
       </Box>
     )}
     </Box>
