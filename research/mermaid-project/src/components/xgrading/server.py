@@ -5,10 +5,14 @@ import re
 import json
 import time
 from bs4 import BeautifulSoup
+from validate import setup_validation_routes
 
 
 app = Flask(__name__)
 CORS(app)
+
+# Set up validation routes
+setup_validation_routes(app)
 
 @app.route('/api/diagram', methods=['GET'])
 def get_diagram():

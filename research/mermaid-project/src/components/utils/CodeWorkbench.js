@@ -39,6 +39,26 @@ const CodeWorkbench = ({
 
   // Add position state for vertical adjustment
   const [position, setPosition] = useState({ x: 30, y: 80 }); // Default right:30px, top:80px
+  const [editorInstance, setEditorInstance] = useState(null);
+  const [monacoInstance, setMonacoInstance] = useState(null);
+  const [editorValidationTimeout, setEditorValidationTimeout] = useState(null);
+
+  // Add the movement functions here
+  const moveUp = () => {
+    setPosition(prev => ({ ...prev, y: prev.y - 50 }));
+  };
+
+  const moveDown = () => {
+    setPosition(prev => ({ ...prev, y: prev.y + 50 }));
+  };
+
+  const moveLeft = () => {
+    setPosition(prev => ({ ...prev, x: prev.x - 50 }));
+  };
+
+  const moveRight = () => {
+    setPosition(prev => ({ ...prev, x: prev.x + 50 }));
+  };
 
    
     // For local Storage
@@ -81,94 +101,173 @@ const CodeWorkbench = ({
     details: {}
   });
 
-  // Logic for test run
-  const handleTestRun = () => {
-    if (!workbenchData.code) {
+  // Add this function to your React component
+const handleGenerate = () => {
+  try {
+    // Get the current Mermaid source from the editor or generate it from schema
+    const mermaidSource = workbenchData.code.trim() || prepareDiagramSubmission();
+    
+    if (!mermaidSource) {
       setWorkbenchData({
         ...workbenchData,
-        consoleOutput: "<span style='color: #ff6b6b'>❌ Error: No code to validate.</span>"
+        consoleOutput: "<span style='color: #ff6b6b'> Error: No Mermaid diagram to convert.</span>"
       });
       return;
     }
+    
+    // Convert to code based on selected syntax
+    let generatedCode;
+    if (workbenchData.syntax === SYNTAX_TYPES.JAVA) {
+      generatedCode = convertMermaidToJava(mermaidSource);
+    } else {
+      generatedCode = convertMermaidToPython(mermaidSource);
+    }
+    
+    // Update the editor with the generated code
+    if (generatedCode) {
+      setWorkbenchData({
+        ...workbenchData,
+        code: generatedCode,
+        consoleOutput: "<span style='color: #1dd1a1'>✅ Code generated successfully!</span>"
+      });
+    } else {
+      setWorkbenchData({
+        ...workbenchData,
+        consoleOutput: "<span style='color: #ff6b6b'> Failed to generate code from diagram.</span>"
+      });
+    }
+  } catch (error) {
+    console.error('Error generating code:', error);
+    setWorkbenchData({
+      ...workbenchData,
+      consoleOutput: `<span style='color: #ff6b6b'> Error: ${error.message}</span>`
+    });
+  }
+};
+
+  // Logic for test run
+const handleTestRun = () => {
+  if (!workbenchData.code) {
+    setWorkbenchData({
+      ...workbenchData,
+      consoleOutput: "<span style='color: #ff6b6b'>❌ Error: No code to validate.</span>"
+    });
+    return;
+  }
+
+  // Show a loading message
+  setWorkbenchData({
+    ...workbenchData,
+    consoleOutput: "<span style='color: #54a0ff'>🔄 Validating code...</span>"
+  });
   
-    // Run validation logic
-    const results = validateCodeInComponent(workbenchData.code, workbenchData.syntax);
+  // Determine the endpoint based on the syntax
+  const endpoint = workbenchData.syntax === SYNTAX_TYPES.JAVA 
+    ? 'http://127.0.0.1:5000/api/validate/java'
+    : 'http://127.0.0.1:5000/api/validate/python';
+  
+  // Call the backend validation service
+  fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      code: workbenchData.code,
+    }),
+  })
+  .then(response => response.json())
+  .then(data => {
+    // Format errors for display
+    const messages = data.errors.map(error => {
+      let color;
+      let icon;
+      
+      switch(error.severity) {
+        case 'error':
+          color = '#ff6b6b';
+          icon = '❌';
+          break;
+        case 'warning':
+          color = '#feca57';
+          icon = '⚠️';
+          break;
+        case 'info':
+          color = '#54a0ff';
+          icon = 'ℹ️';
+          break;
+        default:
+          color = '#f0f0f0';
+          icon = '';
+      }
+      
+      return `<span style="color: ${color}">${icon} Line ${error.line}: ${error.message}</span>`;
+    });
     
     // Update the console output with results
     setWorkbenchData({
       ...workbenchData,
-      consoleOutput: results.messages.join('<br>')
+      consoleOutput: messages.join('<br>')
     });
     
-    if (results.isValid) {
-      // If validation passed, add success message
+    // If validation succeeded, add success message
+    if (data.success) {
       setWorkbenchData(prev => ({
         ...prev,
-        consoleOutput: prev.consoleOutput + "<br><br><span style='color: #1dd1a1'>✅ Code structure looks good! Ready to submit.</span>"
+        consoleOutput: prev.consoleOutput + 
+          "<br><br><span style='color: #1dd1a1'>✅ Code structure looks good! Ready to submit.</span>"
       }));
     }
-  };
-
-  // Position adjustment handlers
-  const moveUp = () => {
-    setPosition(prev => ({ ...prev, y: prev.y - 50 }));
-  };
-
-  const moveDown = () => {
-    setPosition(prev => ({ ...prev, y: prev.y + 50 }));
-  };
-
-  const moveLeft = () => {
-    setPosition(prev => ({ ...prev, x: prev.x - 50 }));
-  };
-
-  const moveRight = () => {
-    setPosition(prev => ({ ...prev, x: prev.x + 50 }));
-  };
-
-
-  const handleGenerate = () => {
-    try {
-      // Get the current Mermaid source from the editor or generate it from schema
-      const mermaidSource = workbenchData.code.trim() || prepareDiagramSubmission();
+    
+    // Add markers to the editor if we have a reference to it
+    if (editorInstance && monacoInstance) {
+      const model = editorInstance.getModel();
+      if (!model) return;
       
-      if (!mermaidSource) {
-        setWorkbenchData({
-          ...workbenchData,
-          consoleOutput: "<span style='color: #ff6b6b'>❌ Error: No Mermaid diagram to convert.</span>"
-        });
-        return;
-      }
+      // Clear previous markers
+      monacoInstance.editor.setModelMarkers(model, 'backend-validation', []);
       
-      // Convert to code based on selected syntax
-      let generatedCode;
-      if (workbenchData.syntax === SYNTAX_TYPES.JAVA) {
-        generatedCode = convertMermaidToJava(mermaidSource);
-      } else {
-        generatedCode = convertMermaidToPython(mermaidSource);
-      }
+      // Add new markers
+      const markers = data.errors.map(err => ({
+        severity: 
+          err.severity === 'error' ? monacoInstance.MarkerSeverity.Error : 
+          err.severity === 'warning' ? monacoInstance.MarkerSeverity.Warning : 
+          monacoInstance.MarkerSeverity.Info,
+        message: err.message,
+        startLineNumber: err.line,
+        startColumn: 1,
+        endLineNumber: err.line,
+        endColumn: model.getLineMaxColumn(err.line) || 1
+      }));
       
-      // Update the editor with the generated code
-      if (generatedCode) {
-        setWorkbenchData({
-          ...workbenchData,
-          code: generatedCode,
-          consoleOutput: "<span style='color: #1dd1a1'>✅ Code generated successfully!</span>"
-        });
-      } else {
-        setWorkbenchData({
-          ...workbenchData,
-          consoleOutput: "<span style='color: #ff6b6b'>❌ Failed to generate code from diagram.</span>"
-        });
-      }
-    } catch (error) {
-      console.error('Error generating code:', error);
-      setWorkbenchData({
-        ...workbenchData,
-        consoleOutput: `<span style='color: #ff6b6b'>❌ Error: ${error.message}</span>`
-      });
+      monacoInstance.editor.setModelMarkers(model, 'backend-validation', markers);
     }
-  };
+  })
+  .catch((error) => {
+    console.error('Error validating code:', error);
+    setWorkbenchData({
+      ...workbenchData,
+      consoleOutput: `<span style='color: #ff6b6b'>❌ Error connecting to validation service: ${error.message}</span>`
+    });
+  });
+};
+
+// Add a function to clear errors
+const clearErrors = () => {
+  // Clear console output
+  setWorkbenchData(prev => ({
+    ...prev,
+    consoleOutput: ''
+  }));
+  
+  // Clear markers from editor if available
+  if (editorInstance && monacoInstance) {
+    const model = editorInstance.getModel();
+    if (model) {
+      monacoInstance.editor.setModelMarkers(model, 'backend-validation', []);
+    }
+  }
+};
 
   // Updated prepareDiagramSubmission function
 const prepareDiagramSubmission = () => {
@@ -663,41 +762,134 @@ const handleSubmitForGrading = () => {
             
       {/* Fixed height container for the editor */}
       <MonacoEditorWrapper
-        height={isFullscreen ? "calc(100vh - 120px)" : "300px"}
-        language={workbenchData.syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
-        theme="vs-light"
-        value={workbenchData.code}
-        onChange={(value) => {
-          setWorkbenchData(prev => ({...prev, code: value, isCodeModified: true}));
-        }}
-        options={{
-          automaticLayout: true,
-          padding: { top: 10, bottom: 10 },
-        }}
-        onMount={(editor, monaco) => {
-          // Configure language support
-          if (!monaco.languages.getLanguages().some(lang => lang.id === 'java')) {
-            monaco.languages.register({ id: 'java' });
-          }
+      height={isFullscreen ? "calc(100vh - 120px)" : "300px"}
+      language={workbenchData.syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
+      theme="vs-light"
+      value={workbenchData.code}
+      onChange={(value) => {
+        setWorkbenchData(prev => ({...prev, code: value, isCodeModified: true}));
+      }}
+      options={{
+        automaticLayout: true,
+        padding: { top: 10, bottom: 10 },
+      }}
+      onKeyDown={(e) => {
+        // Make sure the event doesn't bubble up
+        e.stopPropagation();
+      }}
+      onMount={(editor, monaco) => {
+        // Store references to editor and monaco
+        setEditorInstance(editor);
+        setMonacoInstance(monaco);
+
+        // Add keyboard event handler to the editor DOM node
+      const editorDomNode = editor.getDomNode();
+      if (editorDomNode) {
+        editorDomNode.addEventListener('keydown', (e) => {
+          e.stopPropagation();
+        });
+      }
+        
+        // Configure language support
+        if (!monaco.languages.getLanguages().some(lang => lang.id === 'java')) {
+          monaco.languages.register({ id: 'java' });
+        }
+        
+        if (!monaco.languages.getLanguages().some(lang => lang.id === 'python')) {
+          monaco.languages.register({ id: 'python' });
+        }
+
+        // Add custom handler for backspace
+    editor.onKeyDown((e) => {
+      // If backspace is pressed
+      if (e.keyCode === monaco.KeyCode.Backspace) {
+        const selection = editor.getSelection();
+        
+        // If there's a selection, let Monaco handle it
+        if (!selection.isEmpty()) {
+          return;
+        }
+        
+        const position = selection.getPosition();
+        const model = editor.getModel();
+        
+        // If at beginning of file, nothing to do
+        if (position.lineNumber === 1 && position.column === 1) {
+          return;
+        }
+        
+        // If at beginning of line, join with previous line
+        if (position.column === 1) {
+          const prevLineNumber = position.lineNumber - 1;
+          const prevLineLength = model.getLineLength(prevLineNumber);
           
-          if (!monaco.languages.getLanguages().some(lang => lang.id === 'python')) {
-            monaco.languages.register({ id: 'python' });
-          }
+          // Create a selection from end of previous line to start of current line
+          const range = new monaco.Range(
+            prevLineNumber, prevLineLength + 1,
+            position.lineNumber, position.column
+          );
           
-          // Set up a listener for model changes to check for errors
-          editor.onDidChangeModelContent(() => {
-            setTimeout(() => {
+          // Replace the selection with empty string
+          const operation = {
+            range: range,
+            text: ''
+          };
+          
+          // Execute the edit
+          editor.executeEdits('backspace-handler', [operation]);
+          
+          // Move cursor to end of previous line
+          editor.setPosition({
+            lineNumber: prevLineNumber,
+            column: prevLineLength + 1
+          });
+          
+          // Prevent default backspace
+          e.preventDefault();
+        }
+      }
+    });
+        
+        // Set up live validation with backend
+        let validationTimeout = null;
+        editor.onDidChangeModelContent(() => {
+          // Use a debounce mechanism to avoid too many requests
+          clearTimeout(validationTimeout);
+          validationTimeout = setTimeout(() => {
+            // Get current code
+            const code = editor.getValue();
+            if (!code.trim()) {
+              // Clear markers if code is empty
+              monaco.editor.setModelMarkers(editor.getModel(), 'backend-validation', []);
+              return;
+            }
+            
+            // Determine endpoint based on syntax
+            const endpoint = workbenchData.syntax === SYNTAX_TYPES.JAVA 
+              ? 'http://127.0.0.1:5000/api/validate/java'
+              : 'http://127.0.0.1:5000/api/validate/python';
+            
+            // Call the backend validation API
+            fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code }),
+            })
+            .then(response => response.json())
+            .then(data => {
+              // Add markers to the editor
               const model = editor.getModel();
               if (!model) return;
               
-              // Run custom validation
-              const { isValid, messages, errors } = validateCodeInComponent(editor.getValue(), workbenchData.syntax);
+              // Clear previous markers
+              monaco.editor.setModelMarkers(model, 'backend-validation', []);
               
-              // Add diagnostic markers based on our custom validation
-              const markers = errors.map(err => ({
-                severity: err.severity === 'error' ? monaco.MarkerSeverity.Error : 
-                        err.severity === 'warning' ? monaco.MarkerSeverity.Warning : 
-                        monaco.MarkerSeverity.Info,
+              // Add new markers
+              const markers = data.errors.map(err => ({
+                severity: 
+                  err.severity === 'error' ? monaco.MarkerSeverity.Error : 
+                  err.severity === 'warning' ? monaco.MarkerSeverity.Warning : 
+                  monaco.MarkerSeverity.Info,
                 message: err.message,
                 startLineNumber: err.line,
                 startColumn: 1,
@@ -705,62 +897,67 @@ const handleSubmitForGrading = () => {
                 endColumn: model.getLineMaxColumn(err.line) || 1
               }));
               
-              // Set markers on the model
-              monaco.editor.setModelMarkers(model, 'custom-validation', markers);
-              
-              // Update the console output with error messages
-              if (messages.length > 0) {
-                setWorkbenchData(prev => ({
-                  ...prev,
-                  consoleOutput: messages.join('<br>')
-                }));
-              }
-            }, 300); // Small delay to ensure Monaco has processed the changes
-          });
-        }}
-      />
-      
-      <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-      <Button
+              monaco.editor.setModelMarkers(model, 'backend-validation', markers);
+            })
+            .catch(error => {
+              console.error('Error validating code:', error);
+            });
+          }, 1000); // 1 second delay after typing stops
+        });
+      }}
+    />
+
+    <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+    <Button
       variant="contained"
       color="primary"
       size="small"
-      onClick={handleGenerate}  // Change this line
+      onClick={handleGenerate}
       sx={{ fontSize: '0.8rem' }}
     >
       Generate
     </Button>
-      <Button
-        variant="contained"
-        color="secondary"
-        size="small"
-        onClick={handleUpdate}
-        disabled={!workbenchData.isCodeModified}
-        sx={{ fontSize: '0.8rem' }}
-      >
-        Update
-      </Button>
-      <Button
-        variant="contained"
-        color="success"
-        size="small"
-        onClick={handleTestRun}
-        sx={{ fontSize: '0.8rem' }}
-      >
-        Test Run
-      </Button>
-      <Button
-        variant="contained"
-        color="primary"
-        size="small"
-        onClick={handleSubmitForGrading}
-        disabled={!workbenchData.questionId || !workbenchData.code}
-        sx={{ fontSize: '0.8rem' }}
-      >
-        Submit for Grading
-      </Button>
-    </Box>
-
+    <Button
+      variant="contained"
+      color="secondary"
+      size="small"
+      onClick={handleUpdate}
+      disabled={!workbenchData.isCodeModified}
+      sx={{ fontSize: '0.8rem' }}
+    >
+      Update
+    </Button>
+    <Button
+      variant="contained"
+      color="success"
+      size="small"
+      onClick={handleTestRun}
+      sx={{ fontSize: '0.8rem' }}
+    >
+      Test Run
+    </Button>
+    <Button
+      variant="contained"
+      color="primary"
+      size="small"
+      onClick={handleSubmitForGrading}
+      disabled={!workbenchData.questionId || !workbenchData.code}
+      sx={{ fontSize: '0.8rem' }}
+    >
+      Submit for Grading
+    </Button>
+    {/* Added Clear Errors button */}
+    <Button
+      variant="contained"
+      color="error"
+      size="small"
+      onClick={clearErrors}
+      disabled={!workbenchData.consoleOutput}
+      sx={{ fontSize: '0.8rem' }}
+    >
+      Clear Errors
+    </Button>
+  </Box>  
     {/* Console output */}
     {workbenchData.consoleOutput && (
       <Box 
