@@ -233,9 +233,12 @@ export const syncJavaCodeWithSchema = (
   addAttribute, 
   addMethod, 
   addMethodsFromParsedCode,
-  questionId = null
+  questionId = null,
+  schema,
+  removeAttribute,
+  removeEntity
 ) => {
-     // Log the association for tracking purposes
+  // Log the association for tracking purposes
   if (questionId) {
     console.log(`Parsing code for question: ${questionId}`);
   }
@@ -244,25 +247,83 @@ export const syncJavaCodeWithSchema = (
   const parsedSchema = parseCodeToSchema(javaCode, syntaxType, addMethod, addMethodsFromParsedCode);
   console.log("Parsed Schema:", parsedSchema);
 
-  // First pass: Create all entities and add attributes
-  parsedSchema.forEach((newEntity, entityName) => {
-    addEntity(entityName);
-    console.log(`First pass - Created entity: ${entityName}`);
+  // Check if this is an empty update (code generated from diagram with no attributes)
+  const isEmptyUpdate = parsedSchema.size > 0 && 
+    Array.from(parsedSchema.values()).every(entity => entity.attribute.size === 0);
+  
+  // If it's an empty update, don't remove existing attributes
+  if (isEmptyUpdate) {
+    console.log("Detected empty update - preserving existing attributes");
     
-    // Add attributes
+    // Just update methods since attributes should be preserved
+    parsedSchema.forEach((newEntity, entityName) => {
+      // Ensure entity exists
+      addEntity(entityName);
+      
+      // Update methods
+      if (newEntity.methods && newEntity.methods.length > 0) {
+        addMethodsFromParsedCode(entityName, newEntity.methods);
+      } else {
+        // Clear methods if there are none in the parsed code
+        const existingEntity = schema.get(entityName);
+        if (existingEntity && existingEntity.methods && existingEntity.methods.length > 0) {
+          addMethodsFromParsedCode(entityName, []);
+          console.log(`Cleared all methods for ${entityName}`);
+        }
+      }
+    });
+    
+    return;
+  }
+
+  // Normal update (with attributes) - proceed with full sync
+  // First pass: Create all entities and add/update attributes
+  parsedSchema.forEach((newEntity, entityName) => {
+    // Add entity (will ignore if already exists)
+    addEntity(entityName);
+    console.log(`First pass - Created/Updated entity: ${entityName}`);
+    
+    // Get existing attributes for this entity
+    const existingEntity = schema.get(entityName);
+    const existingAttributes = existingEntity ? 
+      Array.from(existingEntity.attribute.keys()) : [];
+    
+    // Track which attributes we're keeping
+    const newAttributes = [];
+    
+    // Add/update attributes from parsed code
     newEntity.attribute.forEach((attr, attrName) => {
+      newAttributes.push(attrName);
+      // This will overwrite any existing attribute with the same name
       addAttribute(entityName, attrName, attr.type, '');
-      console.log(`Added attribute: ${attrName} to ${entityName}`);
+      console.log(`Added/Updated attribute: ${attrName} to ${entityName}`);
+    });
+    
+    // Remove attributes that no longer exist in the code
+    existingAttributes.forEach(attrName => {
+      if (!newAttributes.includes(attrName)) {
+        removeAttribute(entityName, attrName);
+        console.log(`Removed attribute: ${attrName} from ${entityName}`);
+      }
     });
   });
   
-  // Second pass: Now that all entities exist, add methods
+  // Second pass: Update methods for all entities
   parsedSchema.forEach((newEntity, entityName) => {
     if (newEntity.methods && newEntity.methods.length > 0) {
-      console.log(`Second pass - Adding ${newEntity.methods.length} methods to ${entityName}`);
+      console.log(`Second pass - Updating all methods for ${entityName}`);
+      // This call should replace all existing methods with the new list
       addMethodsFromParsedCode(entityName, newEntity.methods);
+    } else {
+      // Clear methods if there are none in the parsed code
+      const existingEntity = schema.get(entityName);
+      if (existingEntity && existingEntity.methods && existingEntity.methods.length > 0) {
+        addMethodsFromParsedCode(entityName, []);
+        console.log(`Cleared all methods for ${entityName}`);
+      }
     }
   });
+  
   // If you'd like to store this association, you could do something like:
   if (questionId) {
     // Store in localStorage for persistence

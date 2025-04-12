@@ -1,4 +1,5 @@
 // ui.js - Advanced Workbench for Mermaid Diagram Generation
+import { convertMermaidToJava, convertMermaidToPython } from './mermaidCodeGenerator';
 
 // Import Monaco Editor
 import * as monaco from 'monaco-editor';
@@ -195,13 +196,26 @@ const handleGenerate = (codeEditor) => {
         return;
     }
 
-    const generatedCode = parseMermaidToCode(mermaidSource, currentSyntax);
+    try {
+        // Use the imported converter functions based on selected syntax
+        let generatedCode;
+        if (currentSyntax === SYNTAX_TYPES.JAVA) {
+            generatedCode = convertMermaidToJava(mermaidSource);
+        } else {
+            generatedCode = convertMermaidToPython(mermaidSource);
+        }
 
-    if (generatedCode) {
-        codeEditor.setValue(generatedCode);
-        outputLog.textContent = 'Classes generated successfully!';
-    } else {
-        outputLog.textContent = 'Failed to generate classes.';
+        if (generatedCode) {
+            codeEditor.setValue(generatedCode);
+            outputLog.textContent = 'Classes generated successfully!';
+            appendToConsole('success', 'Code generation complete!');
+        } else {
+            outputLog.textContent = 'Failed to generate classes.';
+            appendToConsole('error', 'Failed to generate code from diagram.');
+        }
+    } catch (error) {
+        outputLog.textContent = `Error: ${error.message}`;
+        appendToConsole('error', `Error during code generation: ${error.message}`);
     }
 };
 
@@ -424,68 +438,5 @@ const appendToConsole = (type, message) => {
     consoleOutput.scrollTop = consoleOutput.scrollHeight; // Auto-scroll to the bottom
 };
 
-// Parse Mermaid diagram and generate code
-export const parseMermaidToCode = (mermaidSource, syntax) => {
-    const classRegex = /class\s+(\w+)\s*\{([^}]*)\}/g;
-    const relationshipRegex = /(\w+)"([^"]+)"--"([^"]+)"(\w+)/g;
-
-    let code = '';
-    let match;
-
-    while ((match = classRegex.exec(mermaidSource)) !== null) {
-        const [, className, classContent] = match;
-        code += generateClassCode(className, classContent, syntax) + '\n\n';
-    }
-
-    while ((match = relationshipRegex.exec(mermaidSource)) !== null) {
-        const [, classA, cardinalityA, cardinalityB, classB] = match;
-        code += `// Relationship: ${classA} "${cardinalityA}" -- "${cardinalityB}" ${classB}\n`;
-    }
-
-    return code.trim();
-};
-
-// Generate class code based on syntax
-const generateClassCode = (className, classContent, syntax) => {
-    const attributeRegex = /(?:\s*[-+#]?\s*)(\w+)\s*:\s*([\w<>]*)?/g;
-    let attributes = [];
-    let match;
-
-    while ((match = attributeRegex.exec(classContent)) !== null) {
-        let [, attributeName, attributeType] = match;
-
-        if (!attributeType || attributeType.trim() === '') {
-            attributeType = syntax === SYNTAX_TYPES.JAVA ? 'Object' : 'Any';
-        }
-
-        attributes.push({ name: attributeName, type: attributeType });
-    }
-
-    return syntax === SYNTAX_TYPES.JAVA ? generateJavaClass(className, attributes) : generatePythonClass(className, attributes);
-};
-
-// Generate Java class
-const generateJavaClass = (className, attributes) => {
-    let code = `public class ${className} {\n`;
-
-    attributes.forEach(({ name, type }) => {
-        code += `    private ${type} ${name};\n`;
-    });
-
-    code += '}';
-    return code;
-};
-
-// Generate Python class
-const generatePythonClass = (className, attributes) => {
-    let code = `class ${className}:\n    def __init__(self):\n`;
-
-    attributes.forEach(({ name }) => {
-        code += `        self._${name} = None\n`;
-    });
-
-    return code;
-};
-
 // Export the initWorkbench function for use in the Mermaid diagram code
-export default { initWorkbench, parseMermaidToCode };
+export default { initWorkbench };

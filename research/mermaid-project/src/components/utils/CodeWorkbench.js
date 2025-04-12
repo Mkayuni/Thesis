@@ -4,6 +4,8 @@ import MonacoEditorWrapper from '../monacoWrapper/MonacoEditorWrapper';
 import { SYNTAX_TYPES } from '../ui/ui';
 import { syncJavaCodeWithSchema } from '../utils/MermaidDiagramUtils';
 import UMLAssessmentDisplay from '../utils/UMLAssessmentDisplay';
+import { convertMermaidToJava, convertMermaidToPython } from '../utils/mermaidCodeGenerator';
+
 
 const CodeWorkbench = ({
   schema,
@@ -12,6 +14,8 @@ const CodeWorkbench = ({
   addAttribute,
   addMethod,
   addMethodsFromParsedCode,
+  removeAttribute, 
+  removeEntity,    
   currentQuestion,
   onClose,
   isFullscreen,
@@ -46,6 +50,10 @@ const CodeWorkbench = ({
     }, [workbenchData.code, workbenchData.questionId]);
 
   // Update the schema and re-render diagram
+
+  const removeAttributeFunc = removeAttribute;
+  const removeEntityFunc = removeEntity;
+
   const handleUpdate = () => {
     syncJavaCodeWithSchema(
       workbenchData.code, 
@@ -54,7 +62,10 @@ const CodeWorkbench = ({
       addAttribute, 
       addMethod, 
       addMethodsFromParsedCode,
-      workbenchData.questionId // Pass the question ID to link it with the code
+      workbenchData.questionId,
+      schema,
+      removeAttributeFunc, 
+      removeEntityFunc 
     );
     
     setWorkbenchData({
@@ -115,61 +126,141 @@ const CodeWorkbench = ({
     setPosition(prev => ({ ...prev, x: prev.x + 50 }));
   };
 
-  // Prepare for Submission
-    const prepareDiagramSubmission = () => {
-      // Generate a simple representation of the schema
-      let mermaidRepresentation = "classDiagram\n";
+
+  const handleGenerate = () => {
+    try {
+      // Get the current Mermaid source from the editor or generate it from schema
+      const mermaidSource = workbenchData.code.trim() || prepareDiagramSubmission();
       
-      // Add classes
-      schema.forEach((entity, entityName) => {
-        mermaidRepresentation += `class ${entityName} {\n`;
-        
-        // Add attributes
-        if (entity.attribute && entity.attribute.size > 0) {
-          entity.attribute.forEach((attr, attrName) => {
-            const type = attr.type || 'String';
-            mermaidRepresentation += `  -${attrName}: ${type}\n`;
-          });
-        }
-        
-        // Add methods
-        if (entity.methods && entity.methods.length > 0) {
-          entity.methods.forEach(method => {
-            const returnType = method.returnType || 'void';
-            const params = method.parameters ? method.parameters.join(', ') : '';
-            mermaidRepresentation += `  +${method.name}(${params}): ${returnType}\n`;
-          });
-        }
-        
-        mermaidRepresentation += "}\n";
-      });
+      if (!mermaidSource) {
+        setWorkbenchData({
+          ...workbenchData,
+          consoleOutput: "<span style='color: #ff6b6b'>❌ Error: No Mermaid diagram to convert.</span>"
+        });
+        return;
+      }
       
-      // Add relationships
-      relationships.forEach((rel, key) => {
-        if (rel.type === 'aggregation') {
-          mermaidRepresentation += `${rel.relationA} o-- "${rel.cardinalityA || '1'}" ${rel.relationB} : "${rel.label || 'Aggregation'}"\n`;
-        } else if (rel.type === 'composition') {
-          mermaidRepresentation += `${rel.relationA} *-- "${rel.cardinalityA || '1'}" ${rel.relationB} : "${rel.label || 'Composition'}"\n`;
-        } else if (rel.type === 'inheritance') {
-          mermaidRepresentation += `${rel.relationB} <|-- ${rel.relationA}\n`;
-        } else if (rel.type === 'implementation') {
-          mermaidRepresentation += `${rel.relationB} <|.. ${rel.relationA}\n`;
-        } else {
-          mermaidRepresentation += `${rel.relationA} -- ${rel.relationB} : ${rel.label || ''}\n`;
-        }
-      });
+      // Convert to code based on selected syntax
+      let generatedCode;
+      if (workbenchData.syntax === SYNTAX_TYPES.JAVA) {
+        generatedCode = convertMermaidToJava(mermaidSource);
+      } else {
+        generatedCode = convertMermaidToPython(mermaidSource);
+      }
       
+      // Update the editor with the generated code
+      if (generatedCode) {
+        setWorkbenchData({
+          ...workbenchData,
+          code: generatedCode,
+          consoleOutput: "<span style='color: #1dd1a1'>✅ Code generated successfully!</span>"
+        });
+      } else {
+        setWorkbenchData({
+          ...workbenchData,
+          consoleOutput: "<span style='color: #ff6b6b'>❌ Failed to generate code from diagram.</span>"
+        });
+      }
+    } catch (error) {
+      console.error('Error generating code:', error);
       setWorkbenchData({
         ...workbenchData,
-        code: mermaidRepresentation,
-        schemaData: Array.from(schema.entries()),
-        relationshipsData: Array.from(relationships.entries()),
-        isFromDiagram: true
+        consoleOutput: `<span style='color: #ff6b6b'>❌ Error: ${error.message}</span>`
       });
-      
-      console.log("Schema prepared for submission:", Array.from(schema.entries()));
-      console.log("Relationships prepared for submission:", Array.from(relationships.entries()));
-    };
+    }
+  };
+
+  // Updated prepareDiagramSubmission function
+const prepareDiagramSubmission = () => {
+  // Generate a simple representation of the schema
+  let mermaidRepresentation = "classDiagram\n";
+  
+  // Add classes
+  schema.forEach((entity, entityName) => {
+    mermaidRepresentation += `class ${entityName} {\n`;
+    
+    // Add attributes
+    if (entity.attribute && entity.attribute.size > 0) {
+      entity.attribute.forEach((attr, attrName) => {
+        const type = attr.type || 'String';
+        mermaidRepresentation += `  -${attrName}: ${type}\n`;
+      });
+    }
+    
+    // Add methods
+    if (entity.methods && entity.methods.length > 0) {
+      entity.methods.forEach(method => {
+        const returnType = method.returnType || 'void';
+        const params = method.parameters ? method.parameters.join(', ') : '';
+        mermaidRepresentation += `  +${method.name}(${params}): ${returnType}\n`;
+      });
+    }
+    
+    mermaidRepresentation += "}\n";
+  });
+  
+  // Add relationships
+  relationships.forEach((rel, key) => {
+    if (rel.type === 'aggregation') {
+      mermaidRepresentation += `${rel.relationA} o-- "${rel.cardinalityA || '1'}" ${rel.relationB} : "${rel.label || 'Aggregation'}"\n`;
+    } else if (rel.type === 'composition') {
+      mermaidRepresentation += `${rel.relationA} *-- "${rel.cardinalityA || '1'}" ${rel.relationB} : "${rel.label || 'Composition'}"\n`;
+    } else if (rel.type === 'inheritance') {
+      mermaidRepresentation += `${rel.relationB} <|-- ${rel.relationA}\n`;
+    } else if (rel.type === 'implementation') {
+      mermaidRepresentation += `${rel.relationB} <|.. ${rel.relationA}\n`;
+    } else {
+      mermaidRepresentation += `${rel.relationA} -- ${rel.relationB} : ${rel.label || ''}\n`;
+    }
+  });
+  
+  // Set the Mermaid representation in the editor
+  setWorkbenchData({
+    ...workbenchData,
+    code: mermaidRepresentation,
+    schemaData: Array.from(schema.entries()),
+    relationshipsData: Array.from(relationships.entries()),
+    isFromDiagram: true
+  });
+  
+  // Now generate the code from the Mermaid representation
+  try {
+    let generatedCode;
+    
+    // Convert to code based on selected syntax
+    if (workbenchData.syntax === SYNTAX_TYPES.JAVA) {
+      generatedCode = convertMermaidToJava(mermaidRepresentation);
+    } else {
+      generatedCode = convertMermaidToPython(mermaidRepresentation);
+    }
+    
+    // If code generation was successful, display it
+    if (generatedCode) {
+      // Wait a moment to ensure the Mermaid diagram is displayed first
+      setTimeout(() => {
+        setWorkbenchData(prev => ({
+          ...prev,
+          code: generatedCode,
+          consoleOutput: "<span style='color: #1dd1a1'>✅ Code generated successfully!</span>"
+        }));
+      }, 500);
+    } else {
+      setWorkbenchData(prev => ({
+        ...prev,
+        consoleOutput: "<span style='color: #ff6b6b'>❌ Failed to generate code from diagram.</span>"
+      }));
+    }
+  } catch (error) {
+    console.error('Error generating code:', error);
+    setWorkbenchData(prev => ({
+      ...prev,
+      consoleOutput: `<span style='color: #ff6b6b'>❌ Error: ${error.message}</span>`
+    }));
+  }
+  
+  console.log("Schema prepared for submission:", Array.from(schema.entries()));
+  console.log("Relationships prepared for submission:", Array.from(relationships.entries()));
+};
 
    // Fixed handleSubmitForGrading function
 const handleSubmitForGrading = () => {
@@ -631,14 +722,14 @@ const handleSubmitForGrading = () => {
       
       <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
       <Button
-        variant="contained"
-        color="primary"
-        size="small"
-        onClick={prepareDiagramSubmission}
-        sx={{ fontSize: '0.8rem' }}
-      >
-        Generate
-      </Button>
+      variant="contained"
+      color="primary"
+      size="small"
+      onClick={handleGenerate}  // Change this line
+      sx={{ fontSize: '0.8rem' }}
+    >
+      Generate
+    </Button>
       <Button
         variant="contained"
         color="secondary"

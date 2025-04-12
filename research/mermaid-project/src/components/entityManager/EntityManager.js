@@ -157,12 +157,27 @@ export const useEntityManagement = () => {
 
   // Function to handle methods from parsed code
   const addMethodsFromParsedCode = useCallback((className, methodsList) => {
-    if (Array.isArray(methodsList)) {
-      methodsList.forEach(method => {
-        addMethod(className, method);
-      });
-    }
-  }, [addMethod]);
+    setSchema((prevSchema) => {
+      const newSchema = new Map(prevSchema);
+      const entityData = newSchema.get(className);
+      if (!entityData) {
+        return prevSchema;
+      }
+      
+      // Replace all methods with the new list
+      entityData.methods = methodsList.map(method => ({
+        visibility: method.visibility || 'public',
+        returnType: method.returnType || 'void',
+        name: method.name,
+        parameters: method.parameters || [],
+        methodType: method.methodType || 'regular',
+        propertyName: method.propertyName
+      }));
+      
+      newSchema.set(className, entityData);
+      return newSchema;
+    });
+  }, []);
 
   // Function to remove a method from an entity
   const removeMethod = useCallback((entity, methodName) => {

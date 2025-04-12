@@ -4,8 +4,9 @@ import mermaid from 'mermaid';
 import './mermaid.css';
 import { usePopup } from './utils/usePopup';
 import { useEntityManagement } from './entityManager/EntityManager';
-const UMLContainer = React.lazy(() => import('./containers/UMLContainer'));
+import { syncJavaCodeWithSchema } from './utils/MermaidDiagramUtils';
 
+const UMLContainer = React.lazy(() => import('./containers/UMLContainer'));
 const UMLComponent = () => {
   const {
     schema,
@@ -136,11 +137,30 @@ const UMLComponent = () => {
   };
 
   // Updated syncJavaCodeWithSchema function
-  const syncCodeWithSchema = (codeString, className, methodsList) => {
-    // If you need to process code and extract methods to add to schema
-    if (methodsList && Array.isArray(methodsList) && className) {
-      addMethodsFromParsedCode(className, methodsList);
-    }
+  const syncCodeWithSchema = (
+    codeString, 
+    syntaxType, 
+    addEntityFunc, 
+    addAttributeFunc, 
+    addMethodFunc, 
+    addMethodsFromParsedCodeFunc,
+    questionId = null,
+    schemaState = null,
+    removeAttributeFunc = null,
+    removeEntityFunc = null
+  ) => {
+    return syncJavaCodeWithSchema(
+      codeString,
+      syntaxType,
+      addEntityFunc,
+      addAttributeFunc,
+      addMethodFunc,
+      addMethodsFromParsedCodeFunc,
+      questionId,
+      schemaState,
+      removeAttributeFunc,
+      removeEntityFunc
+    );
   };
   
   const handleAddMethodClick = (entity, methodDetails) => {

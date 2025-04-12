@@ -1,0 +1,271 @@
+{
+  "questionId": "Fish Store",
+  "code": "classDiagram\nclass tank {\n  -number: int\n  -volume: float\n  -fishList: List<Fish>\n  +addFish(fish: Fish): void\n  +removeFish(fishName: String): void\n  +getFishList(): List<Fish>\n  +cleanTank(): void\n  +clean(): void\n}\nclass cleanable {\n  +clean(): void\n}\nclass swimmable {\n  +swim(): void\n}\nclass fish {\n  -name: String\n  -weight: float\n  -species: Species\n  -events: List<Event>\n  +updateWeight(newWeight: float): void\n  +getSpecies(): Species\n  +addEvent(event: Event): void\n  +getEventHistory(): List<Event>\n  +swim(): void\n}\nclass species {\n  -name: String\n  -preferredFood: String\n  +getPreferredFood(): String\n  +setPreferredFood(preferredFood: String): void\n}\nclass event {\n  -date: Date\n  -note: String\n  +getDate(): Date\n  +setNote(note: String): void\n  +getNote(): String\n}\n",
+  "schema": [
+    [
+      "tank",
+      {
+        "entity": "tank",
+        "attribute": {
+          "number": {
+            "attribute": "number",
+            "type": "int",
+            "key": "",
+            "visibility": "private"
+          },
+          "volume": {
+            "attribute": "volume",
+            "type": "float",
+            "key": "",
+            "visibility": "private"
+          },
+          "fishList": {
+            "attribute": "fishList",
+            "type": "List<Fish>",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "addFish",
+            "parameters": [
+              "fish: Fish"
+            ],
+            "methodType": "regular"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "removeFish",
+            "parameters": [
+              "fishName: String"
+            ],
+            "methodType": "regular"
+          },
+          {
+            "visibility": "public",
+            "returnType": "List<Fish>",
+            "name": "getFishList",
+            "parameters": [],
+            "methodType": "getter",
+            "propertyName": "fishList"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "cleanTank",
+            "parameters": [],
+            "methodType": "regular"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "clean",
+            "parameters": [],
+            "methodType": "regular"
+          }
+        ]
+      }
+    ],
+    [
+      "cleanable",
+      {
+        "entity": "cleanable",
+        "attribute": {},
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "clean",
+            "parameters": [],
+            "methodType": "abstract"
+          }
+        ]
+      }
+    ],
+    [
+      "swimmable",
+      {
+        "entity": "swimmable",
+        "attribute": {},
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "swim",
+            "parameters": [],
+            "methodType": "abstract"
+          }
+        ]
+      }
+    ],
+    [
+      "fish",
+      {
+        "entity": "fish",
+        "attribute": {
+          "name": {
+            "attribute": "name",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          },
+          "weight": {
+            "attribute": "weight",
+            "type": "float",
+            "key": "",
+            "visibility": "private"
+          },
+          "species": {
+            "attribute": "species",
+            "type": "Species",
+            "key": "",
+            "visibility": "private"
+          },
+          "events": {
+            "attribute": "events",
+            "type": "List<Event>",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "updateWeight",
+            "parameters": [
+              "newWeight: float"
+            ],
+            "methodType": "regular"
+          },
+          {
+            "visibility": "public",
+            "returnType": "Species",
+            "name": "getSpecies",
+            "parameters": [],
+            "methodType": "getter",
+            "propertyName": "species"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "addEvent",
+            "parameters": [
+              "event: Event"
+            ],
+            "methodType": "regular"
+          },
+          {
+            "visibility": "public",
+            "returnType": "List<Event>",
+            "name": "getEventHistory",
+            "parameters": [],
+            "methodType": "getter",
+            "propertyName": "eventHistory"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "swim",
+            "parameters": [],
+            "methodType": "regular"
+          }
+        ]
+      }
+    ],
+    [
+      "species",
+      {
+        "entity": "species",
+        "attribute": {
+          "name": {
+            "attribute": "name",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          },
+          "preferredFood": {
+            "attribute": "preferredFood",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "String",
+            "name": "getPreferredFood",
+            "parameters": [],
+            "methodType": "getter",
+            "propertyName": "preferredFood"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "setPreferredFood",
+            "parameters": [
+              "preferredFood: String"
+            ],
+            "methodType": "setter",
+            "propertyName": "preferredFood"
+          }
+        ]
+      }
+    ],
+    [
+      "event",
+      {
+        "entity": "event",
+        "attribute": {
+          "date": {
+            "attribute": "date",
+            "type": "Date",
+            "key": "",
+            "visibility": "private"
+          },
+          "note": {
+            "attribute": "note",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "Date",
+            "name": "getDate",
+            "parameters": [],
+            "methodType": "getter",
+            "propertyName": "date"
+          },
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "setNote",
+            "parameters": [
+              "note: String"
+            ],
+            "methodType": "setter",
+            "propertyName": "note"
+          },
+          {
+            "visibility": "public",
+            "returnType": "String",
+            "name": "getNote",
+            "parameters": [],
+            "methodType": "getter",
+            "propertyName": "note"
+          }
+        ]
+      }
+    ]
+  ],
+  "relationships": [],
+  "timestamp": 1744407929
+}

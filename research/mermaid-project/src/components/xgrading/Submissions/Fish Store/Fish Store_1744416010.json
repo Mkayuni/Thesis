@@ -1,0 +1,37 @@
+{
+  "questionId": "Fish Store",
+  "code": "from typing import List, Optional, Any\nfrom dataclasses import dataclass\nfrom datetime import date, datetime\n\n@dataclass\nclass tank:\n    species: str = None\n    name: str = None\n\n    def addFish(self) -> None:\n        pass\n\n",
+  "schema": [
+    [
+      "tank",
+      {
+        "entity": "tank",
+        "attribute": {
+          "species": {
+            "attribute": "species",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          },
+          "name": {
+            "attribute": "name",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "addFish",
+            "parameters": [],
+            "methodType": "regular"
+          }
+        ]
+      }
+    ]
+  ],
+  "relationships": [],
+  "timestamp": 1744416010
+}

@@ -879,6 +879,8 @@ const handleMethodAction = () => {
             addAttribute={addAttribute}
             addMethod={addMethod}
             addMethodsFromParsedCode={addMethodsFromParsedCode}
+            removeAttribute={removeAttribute} 
+            removeEntity={removeEntity}       
             currentQuestion={currentQuestion}
             onClose={() => setShowWorkbench(false)}
             isFullscreen={isWorkbenchFullscreen}
