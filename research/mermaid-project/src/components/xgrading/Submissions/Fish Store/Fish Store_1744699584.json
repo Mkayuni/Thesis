@@ -1,0 +1,38 @@
+{
+  "questionId": "Fish Store",
+  "code": "public class tank {\n    private Int volume;\n\n}\n\npublic class fish {\n    private string name;\n\n}",
+  "schema": [
+    [
+      "tank",
+      {
+        "entity": "tank",
+        "attribute": {
+          "volume": {
+            "attribute": "volume",
+            "type": "Int",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": []
+      }
+    ],
+    [
+      "fish",
+      {
+        "entity": "fish",
+        "attribute": {
+          "name": {
+            "attribute": "name",
+            "type": "string",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "timestamp": 1744699584
+}

@@ -1,0 +1,51 @@
+{
+  "questionId": "Fish Store",
+  "code": "public class Species {\n    public { Species(Object String name, Object String preferredFood) {\n        return null;\n    }\n\n}\n\npublic class Event {\n    public { Event(Object Date date, Object String note) {\n        return null;\n    }\n\n}",
+  "schema": [
+    [
+      "fish",
+      {
+        "entity": "fish",
+        "attribute": {
+          "species": {
+            "attribute": "species",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": []
+      }
+    ],
+    [
+      "tank",
+      {
+        "entity": "tank",
+        "attribute": {
+          "number": {
+            "attribute": "number",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": []
+      }
+    ]
+  ],
+  "relationships": [
+    [
+      "fish-extends-tank",
+      {
+        "id": "fish-extends-tank",
+        "type": "aggregation",
+        "relationA": "tank",
+        "relationB": "fish",
+        "cardinalityA": "0..*",
+        "cardinalityB": "1",
+        "label": "Aggregation"
+      }
+    ]
+  ],
+  "timestamp": 1744692170
+}
