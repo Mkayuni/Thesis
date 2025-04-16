@@ -1,6 +1,76 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { questionStyles } from './QuestionStyles';
 
+// Helper function to parse method signatures
+const parseMethodSignature = (methodSignature) => {
+  if (!methodSignature) return { name: '', parameters: [], returnType: 'void' };
+  
+  // Extract return type if present (after "::")
+  let returnType = 'void';
+  let signatureWithoutReturn = methodSignature;
+  
+  if (methodSignature.includes('::')) {
+    const parts = methodSignature.split('::');
+    signatureWithoutReturn = parts[0].trim();
+    returnType = parts[1].trim();
+  }
+  
+  // Check for visibility prefix (-, #, +)
+  let visibility = "public"; // Default
+  if (signatureWithoutReturn.startsWith('-')) {
+    visibility = "private";
+    signatureWithoutReturn = signatureWithoutReturn.substring(1).trim();
+  } else if (signatureWithoutReturn.startsWith('#')) {
+    visibility = "protected";
+    signatureWithoutReturn = signatureWithoutReturn.substring(1).trim();
+  } else if (signatureWithoutReturn.startsWith('+')) {
+    visibility = "public";
+    signatureWithoutReturn = signatureWithoutReturn.substring(1).trim();
+  }
+  
+  // Find opening parenthesis for parameters
+  const openParenIndex = signatureWithoutReturn.indexOf('(');
+  
+  // If no parameters, return just the method name
+  if (openParenIndex === -1) {
+    return {
+      name: signatureWithoutReturn.trim(),
+      parameters: [],
+      returnType,
+      visibility
+    };
+  }
+  
+  // Find the matching closing parenthesis
+  const closeParenIndex = signatureWithoutReturn.lastIndexOf(')');
+  
+  if (closeParenIndex === -1 || closeParenIndex < openParenIndex) {
+    // Invalid signature format
+    return {
+      name: signatureWithoutReturn.trim(),
+      parameters: [],
+      returnType,
+      visibility
+    };
+  }
+  
+  // Extract method name and parameters
+  const name = signatureWithoutReturn.substring(0, openParenIndex).trim();
+  const paramsText = signatureWithoutReturn.substring(openParenIndex + 1, closeParenIndex).trim();
+  
+  // Parse parameters
+  const parameters = paramsText ? 
+    paramsText.split(',').map(param => param.trim()).filter(p => p) : 
+    [];
+  
+  return {
+    name,
+    parameters,
+    returnType,
+    visibility
+  };
+};
+
 const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPopup, schema, questionContainerRef }) => {
   const [hasQuestion, setHasQuestion] = useState(false);
   const [questionHTML, setQuestionHTML] = useState('');
@@ -52,11 +122,14 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
       setQuestionHTML(parsedContent.questionHTML);
       setRequirementsHTML(parsedContent.requirementsHTML);
       
-      // Reset details visibility when question changes
-      setDetailsVisible(true); // Default to showing the question
+      // IMPORTANT: Don't automatically show the panel
+      // setDetailsVisible(true); // Comment out or remove this line
       
       // Set up window functions for click handling
       window.showPopup = (event, entityOrMethod, isEntity = false, type = 'entity') => {
+        // Set flag to prevent panel toggling
+        window.isHandlingPopupEvent = true;
+        
         // Prevent the default behavior
         event.preventDefault();
         event.stopPropagation();
@@ -69,11 +142,17 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
         
         // For method form, we need to show a special popup to select which entity the method belongs to
         if (type === 'method') {
-          // Create a custom object to hold both the method name and a flag indicating
-          // this is a method selection that should trigger the entity selection popup
+          // Parse the method to extract name, parameters, return type and visibility
+          const parsedMethod = parseMethodSignature(entityOrMethod);
+          
+          // Create a custom object with all the parsed method data
           const methodData = {
-            methodName: entityOrMethod,
-            needsEntitySelection: true
+            methodName: parsedMethod.name,
+            parameters: parsedMethod.parameters,
+            returnType: parsedMethod.returnType,
+            visibility: parsedMethod.visibility,
+            needsEntitySelection: true,
+            originalSignature: entityOrMethod // Keep the original for reference
           };
           
           // Show popup with method selection data
@@ -84,6 +163,11 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
         
         // Mark that we're handling the event to prevent panel close
         wasInside.current = true;
+        
+        // Clear the flag after a short delay
+        setTimeout(() => {
+          window.isHandlingPopupEvent = false;
+        }, 300);
       };
       
       window.addEntityOrAttribute = (nameInER, event) => {
@@ -99,19 +183,26 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
         // Always prevent default behavior
         event.preventDefault();
         event.stopPropagation();
+  
+        // Add this global flag to prevent panel toggling
+        window.isAddingEntityOrAttribute = true;
         
         // Show internal popup for all entity/attribute clicks
         const type = extractedEntities.entities.has(nameInER) ? 'entity' : 'attribute';
         showInternalPopup(event, nameInER, type);
         
         // Pass the type but DO NOT set any default attribute type
-        // This will trigger the attribute form with the dropdown
         originalShowPopup(event, nameInER, type, schema, questionContainerRef);
         
         // Mark that we're handling the event to prevent panel close
         wasInside.current = true;
+        
+        // Clear the flag after a short delay
+        setTimeout(() => {
+          window.isAddingEntityOrAttribute = false;
+        }, 300);
       };
-      
+
       // Global click handler for managing panel visibility
       const handleGlobalClick = (e) => {
         // If we clicked inside our component earlier, reset the flag and don't close
@@ -241,7 +332,9 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
       const highlightedCode = codeContent.replace(
         /<method>(.*?)<\/method>/g, 
         (match, methodName) => {
-          return `<span class="method-highlight" onclick="window.showPopup(event, '${methodName}', false, 'method')">${methodName}</span>`;
+          // Encode any quotes to prevent issues with the onclick attribute
+          const safeMethodName = methodName.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+          return `<span class="method-highlight" onclick="window.showPopup(event, '${safeMethodName}', false, 'method')">${methodName}</span>`;
         }
       );
       return `<div class="code-block">${highlightedCode}</div>`;
@@ -251,7 +344,9 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
     html = html.replace(
       /<method>(.*?)<\/method>/g, 
       (match, methodName) => {
-        return `<span class="method-highlight" onclick="window.showPopup(event, '${methodName}', false, 'method')">${methodName}</span>`;
+        // Encode any quotes to prevent issues with the onclick attribute  
+        const safeMethodName = methodName.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        return `<span class="method-highlight" onclick="window.showPopup(event, '${safeMethodName}', false, 'method')">${methodName}</span>`;
       }
     );
     
@@ -397,16 +492,30 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
   }
 
   // Function to toggle the question details panel
-  const toggleQuestionDetails = () => {
-    setDetailsVisible(!detailsVisible);
+  const toggleQuestionDetails = (fromUserClick = true) => {
+    // Only toggle if this is from a direct user click or if explicitly required
+    if (fromUserClick) {
+      setDetailsVisible(!detailsVisible);
+    }
   };
 
   // Prevent panel from closing on link clicks
   const handlePanelClick = (e) => {
     e.stopPropagation();
+    e.preventDefault();
     // Mark that we're handling the event inside the panel
     wasInside.current = true;
-  };
+  
+    // Check if the click was on a class or method highlight
+  const isHighlight = e.target.classList.contains('class-highlight') ||
+  e.target.classList.contains('method-highlight') ||
+  e.target.classList.contains('entity-highlight');
+
+// If it's a highlight click, don't toggle the panel
+if (isHighlight) {
+return;
+}
+};
 
   return (
     <>
@@ -416,7 +525,7 @@ const QuestionSetup = ({ questionMarkdown, setSchema, showPopup: originalShowPop
           <div className="view-question-button-container">
             <button 
               className="action-button"
-              onClick={toggleQuestionDetails}
+              onClick={() => toggleQuestionDetails(true)}
             >
               {detailsVisible ? "Hide Question Details" : "View Question Details"}
             </button>

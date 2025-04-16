@@ -1,0 +1,46 @@
+{
+  "questionId": "Fish Store",
+  "code": "public class tank {\n    private int volume;\n\n}\n\npublic class fish {\n    private string name;\n\n    public void addFish() {\n    }\n\n}",
+  "schema": [
+    [
+      "tank",
+      {
+        "entity": "tank",
+        "attribute": {
+          "volume": {
+            "attribute": "volume",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": []
+      }
+    ],
+    [
+      "fish",
+      {
+        "entity": "fish",
+        "attribute": {
+          "name": {
+            "attribute": "name",
+            "type": "string",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": [
+          {
+            "visibility": "public",
+            "returnType": "void",
+            "name": "addFish",
+            "parameters": [],
+            "methodType": "regular"
+          }
+        ]
+      }
+    ]
+  ],
+  "relationships": [],
+  "timestamp": 1744729106
+}

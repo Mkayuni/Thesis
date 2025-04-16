@@ -3,6 +3,9 @@ import { Box, Typography, IconButton, Button, Select, MenuItem } from '@mui/mate
 import MonacoEditorWrapper from '../monacoWrapper/MonacoEditorWrapper';
 import { SYNTAX_TYPES } from '../ui/ui';
 import { syncJavaCodeWithSchema } from '../utils/MermaidDiagramUtils';
+import UMLAssessmentDisplay from '../utils/UMLAssessmentDisplay';
+import { convertMermaidToJava, convertMermaidToPython } from '../utils/mermaidCodeGenerator';
+
 
 const CodeWorkbench = ({
   schema,
@@ -11,6 +14,8 @@ const CodeWorkbench = ({
   addAttribute,
   addMethod,
   addMethodsFromParsedCode,
+  removeAttribute, 
+  removeEntity,    
   currentQuestion,
   onClose,
   isFullscreen,
@@ -34,70 +39,11 @@ const CodeWorkbench = ({
 
   // Add position state for vertical adjustment
   const [position, setPosition] = useState({ x: 30, y: 80 }); // Default right:30px, top:80px
+  const [editorInstance, setEditorInstance] = useState(null);
+  const [monacoInstance, setMonacoInstance] = useState(null);
+  const [editorValidationTimeout, setEditorValidationTimeout] = useState(null);
 
-   
-    // For local Storage
-    useEffect(() => {
-        // Save code to localStorage whenever it changes
-        if (workbenchData.questionId && workbenchData.code) {
-        localStorage.setItem(`workbench_code_${workbenchData.questionId}`, workbenchData.code);
-        }
-    }, [workbenchData.code, workbenchData.questionId]);
-
-  // Update the schema and re-render diagram
-  const handleUpdate = () => {
-    syncJavaCodeWithSchema(
-      workbenchData.code, 
-      workbenchData.syntax, 
-      addEntity, 
-      addAttribute, 
-      addMethod, 
-      addMethodsFromParsedCode,
-      workbenchData.questionId // Pass the question ID to link it with the code
-    );
-    
-    setWorkbenchData({
-      ...workbenchData,
-      isCodeModified: false
-    });
-  };
-
-  const [gradeResults, setGradeResults] = useState({
-    visible: false,
-    score: 0,
-    feedback: '',
-    details: {}
-  });
-
-  // Logic for test run
-  const handleTestRun = () => {
-    if (!workbenchData.code) {
-      setWorkbenchData({
-        ...workbenchData,
-        consoleOutput: "<span style='color: #ff6b6b'>❌ Error: No code to validate.</span>"
-      });
-      return;
-    }
-  
-    // Run validation logic
-    const results = validateCodeInComponent(workbenchData.code, workbenchData.syntax);
-    
-    // Update the console output with results
-    setWorkbenchData({
-      ...workbenchData,
-      consoleOutput: results.messages.join('<br>')
-    });
-    
-    if (results.isValid) {
-      // If validation passed, add success message
-      setWorkbenchData(prev => ({
-        ...prev,
-        consoleOutput: prev.consoleOutput + "<br><br><span style='color: #1dd1a1'>✅ Code structure looks good! Ready to submit.</span>"
-      }));
-    }
-  };
-
-  // Position adjustment handlers
+  // Add the movement functions here
   const moveUp = () => {
     setPosition(prev => ({ ...prev, y: prev.y - 50 }));
   };
@@ -114,124 +60,413 @@ const CodeWorkbench = ({
     setPosition(prev => ({ ...prev, x: prev.x + 50 }));
   };
 
-  // Prepare for Submission
-    const prepareDiagramSubmission = () => {
-      // Generate a simple representation of the schema
-      let mermaidRepresentation = "classDiagram\n";
-      
-      // Add classes
-      schema.forEach((entity, entityName) => {
-        mermaidRepresentation += `class ${entityName} {\n`;
-        
-        // Add attributes
-        if (entity.attribute && entity.attribute.size > 0) {
-          entity.attribute.forEach((attr, attrName) => {
-            const type = attr.type || 'String';
-            mermaidRepresentation += `  -${attrName}: ${type}\n`;
-          });
+   
+    // For local Storage
+    useEffect(() => {
+        // Save code to localStorage whenever it changes
+        if (workbenchData.questionId && workbenchData.code) {
+        localStorage.setItem(`workbench_code_${workbenchData.questionId}`, workbenchData.code);
         }
-        
-        // Add methods
-        if (entity.methods && entity.methods.length > 0) {
-          entity.methods.forEach(method => {
-            const returnType = method.returnType || 'void';
-            const params = method.parameters ? method.parameters.join(', ') : '';
-            mermaidRepresentation += `  +${method.name}(${params}): ${returnType}\n`;
-          });
-        }
-        
-        mermaidRepresentation += "}\n";
-      });
-      
-      // Add relationships
-      relationships.forEach((rel, key) => {
-        if (rel.type === 'aggregation') {
-          mermaidRepresentation += `${rel.relationA} o-- "${rel.cardinalityA || '1'}" ${rel.relationB} : "${rel.label || 'Aggregation'}"\n`;
-        } else if (rel.type === 'composition') {
-          mermaidRepresentation += `${rel.relationA} *-- "${rel.cardinalityA || '1'}" ${rel.relationB} : "${rel.label || 'Composition'}"\n`;
-        } else if (rel.type === 'inheritance') {
-          mermaidRepresentation += `${rel.relationB} <|-- ${rel.relationA}\n`;
-        } else if (rel.type === 'implementation') {
-          mermaidRepresentation += `${rel.relationB} <|.. ${rel.relationA}\n`;
-        } else {
-          mermaidRepresentation += `${rel.relationA} -- ${rel.relationB} : ${rel.label || ''}\n`;
-        }
-      });
-      
+    }, [workbenchData.code, workbenchData.questionId]);
+
+  // Update the schema and re-render diagram
+
+  const removeAttributeFunc = removeAttribute;
+  const removeEntityFunc = removeEntity;
+
+  const handleUpdate = () => {
+    syncJavaCodeWithSchema(
+      workbenchData.code, 
+      workbenchData.syntax, 
+      addEntity, 
+      addAttribute, 
+      addMethod, 
+      addMethodsFromParsedCode,
+      workbenchData.questionId,
+      schema,
+      removeAttributeFunc, 
+      removeEntityFunc 
+    );
+    
+    setWorkbenchData({
+      ...workbenchData,
+      isCodeModified: false
+    });
+  };
+
+  const [gradeResults, setGradeResults] = useState({
+    visible: false,
+    score: 0,
+    feedback: '',
+    details: {}
+  });
+
+  // Add this function to your React component
+const handleGenerate = () => {
+  try {
+    // Get the current Mermaid source from the editor or generate it from schema
+    const mermaidSource = workbenchData.code.trim() || prepareDiagramSubmission();
+    
+    if (!mermaidSource) {
       setWorkbenchData({
         ...workbenchData,
-        code: mermaidRepresentation,
-        schemaData: Array.from(schema.entries()),
-        relationshipsData: Array.from(relationships.entries()),
-        isFromDiagram: true
+        consoleOutput: "<span style='color: #ff6b6b'> Error: No Mermaid diagram to convert.</span>"
       });
-      
-      console.log("Schema prepared for submission:", Array.from(schema.entries()));
-      console.log("Relationships prepared for submission:", Array.from(relationships.entries()));
-    };
+      return;
+    }
+    
+    // Convert to code based on selected syntax
+    let generatedCode;
+    if (workbenchData.syntax === SYNTAX_TYPES.JAVA) {
+      generatedCode = convertMermaidToJava(mermaidSource);
+    } else {
+      generatedCode = convertMermaidToPython(mermaidSource);
+    }
+    
+    // Update the editor with the generated code
+    if (generatedCode) {
+      setWorkbenchData({
+        ...workbenchData,
+        code: generatedCode,
+        consoleOutput: "<span style='color: #1dd1a1'>✅ Code generated successfully!</span>"
+      });
+    } else {
+      setWorkbenchData({
+        ...workbenchData,
+        consoleOutput: "<span style='color: #ff6b6b'> Failed to generate code from diagram.</span>"
+      });
+    }
+  } catch (error) {
+    console.error('Error generating code:', error);
+    setWorkbenchData({
+      ...workbenchData,
+      consoleOutput: `<span style='color: #ff6b6b'> Error: ${error.message}</span>`
+    });
+  }
+};
 
-    // Submission Logic
-    const handleSubmitForGrading = () => {
-      if (!workbenchData.questionId) {
-        alert("Please select a question before submitting");
-        return;
+  // Logic for test run
+const handleTestRun = () => {
+  if (!workbenchData.code) {
+    setWorkbenchData({
+      ...workbenchData,
+      consoleOutput: "<span style='color: #ff6b6b'>❌ Error: No code to validate.</span>"
+    });
+    return;
+  }
+
+  // Show a loading message
+  setWorkbenchData({
+    ...workbenchData,
+    consoleOutput: "<span style='color: #54a0ff'>🔄 Validating code...</span>"
+  });
+  
+  // Determine the endpoint based on the syntax
+  const endpoint = workbenchData.syntax === SYNTAX_TYPES.JAVA 
+    ? 'http://127.0.0.1:5000/api/validate/java'
+    : 'http://127.0.0.1:5000/api/validate/python';
+  
+  // Call the backend validation service
+  fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      code: workbenchData.code,
+    }),
+  })
+  .then(response => response.json())
+  .then(data => {
+    // Format errors for display
+    const messages = data.errors.map(error => {
+      let color;
+      let icon;
+      
+      switch(error.severity) {
+        case 'error':
+          color = '#ff6b6b';
+          icon = '❌';
+          break;
+        case 'warning':
+          color = '#feca57';
+          icon = '⚠️';
+          break;
+        case 'info':
+          color = '#54a0ff';
+          icon = 'ℹ️';
+          break;
+        default:
+          color = '#f0f0f0';
+          icon = '';
       }
       
-      // Prepare the submission data
-      const submissionData = {
-        questionId: workbenchData.questionId,
-        code: workbenchData.code,
-        schema: Array.from(schema.entries()), // Convert map to array for JSON
-        relationships: Array.from(relationships.entries())
-      };
+      return `<span style="color: ${color}">${icon} Line ${error.line}: ${error.message}</span>`;
+    });
+    
+    // Update the console output with results
+    setWorkbenchData({
+      ...workbenchData,
+      consoleOutput: messages.join('<br>')
+    });
+    
+    // If validation succeeded, add success message
+    if (data.success) {
+      setWorkbenchData(prev => ({
+        ...prev,
+        consoleOutput: prev.consoleOutput + 
+          "<br><br><span style='color: #1dd1a1'>✅ Code structure looks good! Ready to submit.</span>"
+      }));
+    }
+    
+    // Add markers to the editor if we have a reference to it
+    if (editorInstance && monacoInstance) {
+      const model = editorInstance.getModel();
+      if (!model) return;
       
-      // Send to your backend for grading
-      fetch('http://127.0.0.1:5000/api/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submissionData),
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Grading result:', data);
-        
-        // Extract grade information if available
-        if (data && data.grade) {
-          // Parse the score and feedback
-          const score = data.grade.score || 0;
-          const feedback = data.grade.feedback || '';
-          
-          // Show the floating grade panel
-          setGradeResults({
-            visible: true,
-            score: score,
-            feedback: feedback,
-            details: data.grade.details || {}
-          });
-          
-          // Also update console output
-          setWorkbenchData(prev => ({
-            ...prev,
-            consoleOutput: prev.consoleOutput + `<br><br><span style='color: #54a0ff'>Grading completed! See results panel.</span>`
-          }));
-        } else {
-          // Fallback to displaying raw data
-          setWorkbenchData(prev => ({
-            ...prev,
-            consoleOutput: prev.consoleOutput + `<br><br><span style='color: #54a0ff'>🔄 Grading Response: ${JSON.stringify(data)}</span>`
-          }));
-        }
-      })
-      .catch((error) => {
-        console.error('Error submitting for grading:', error);
+      // Clear previous markers
+      monacoInstance.editor.setModelMarkers(model, 'backend-validation', []);
+      
+      // Add new markers
+      const markers = data.errors.map(err => ({
+        severity: 
+          err.severity === 'error' ? monacoInstance.MarkerSeverity.Error : 
+          err.severity === 'warning' ? monacoInstance.MarkerSeverity.Warning : 
+          monacoInstance.MarkerSeverity.Info,
+        message: err.message,
+        startLineNumber: err.line,
+        startColumn: 1,
+        endLineNumber: err.line,
+        endColumn: model.getLineMaxColumn(err.line) || 1
+      }));
+      
+      monacoInstance.editor.setModelMarkers(model, 'backend-validation', markers);
+    }
+  })
+  .catch((error) => {
+    console.error('Error validating code:', error);
+    setWorkbenchData({
+      ...workbenchData,
+      consoleOutput: `<span style='color: #ff6b6b'>❌ Error connecting to validation service: ${error.message}</span>`
+    });
+  });
+};
+
+// Add a function to clear errors
+const clearErrors = () => {
+  // Clear console output
+  setWorkbenchData(prev => ({
+    ...prev,
+    consoleOutput: ''
+  }));
+  
+  // Clear markers from editor if available
+  if (editorInstance && monacoInstance) {
+    const model = editorInstance.getModel();
+    if (model) {
+      monacoInstance.editor.setModelMarkers(model, 'backend-validation', []);
+    }
+  }
+};
+
+  // Updated prepareDiagramSubmission function
+const prepareDiagramSubmission = () => {
+  // Generate a simple representation of the schema
+  let mermaidRepresentation = "classDiagram\n";
+  
+  // Add classes
+  schema.forEach((entity, entityName) => {
+    mermaidRepresentation += `class ${entityName} {\n`;
+    
+    // Add attributes
+    if (entity.attribute && entity.attribute.size > 0) {
+      entity.attribute.forEach((attr, attrName) => {
+        const type = attr.type || 'String';
+        mermaidRepresentation += `  -${attrName}: ${type}\n`;
+      });
+    }
+    
+    // Add methods
+    if (entity.methods && entity.methods.length > 0) {
+      entity.methods.forEach(method => {
+        const returnType = method.returnType || 'void';
+        const params = method.parameters ? method.parameters.join(', ') : '';
+        mermaidRepresentation += `  +${method.name}(${params}): ${returnType}\n`;
+      });
+    }
+    
+    mermaidRepresentation += "}\n";
+  });
+  
+  // Add relationships
+  relationships.forEach((rel, key) => {
+    if (rel.type === 'aggregation') {
+      mermaidRepresentation += `${rel.relationA} o-- "${rel.cardinalityA || '1'}" ${rel.relationB} : "${rel.label || 'Aggregation'}"\n`;
+    } else if (rel.type === 'composition') {
+      mermaidRepresentation += `${rel.relationA} *-- "${rel.cardinalityA || '1'}" ${rel.relationB} : "${rel.label || 'Composition'}"\n`;
+    } else if (rel.type === 'inheritance') {
+      mermaidRepresentation += `${rel.relationB} <|-- ${rel.relationA}\n`;
+    } else if (rel.type === 'implementation') {
+      mermaidRepresentation += `${rel.relationB} <|.. ${rel.relationA}\n`;
+    } else {
+      mermaidRepresentation += `${rel.relationA} -- ${rel.relationB} : ${rel.label || ''}\n`;
+    }
+  });
+  
+  // Set the Mermaid representation in the editor
+  setWorkbenchData({
+    ...workbenchData,
+    code: mermaidRepresentation,
+    schemaData: Array.from(schema.entries()),
+    relationshipsData: Array.from(relationships.entries()),
+    isFromDiagram: true
+  });
+  
+  // Now generate the code from the Mermaid representation
+  try {
+    let generatedCode;
+    
+    // Convert to code based on selected syntax
+    if (workbenchData.syntax === SYNTAX_TYPES.JAVA) {
+      generatedCode = convertMermaidToJava(mermaidRepresentation);
+    } else {
+      generatedCode = convertMermaidToPython(mermaidRepresentation);
+    }
+    
+    // If code generation was successful, display it
+    if (generatedCode) {
+      // Wait a moment to ensure the Mermaid diagram is displayed first
+      setTimeout(() => {
         setWorkbenchData(prev => ({
           ...prev,
-          consoleOutput: prev.consoleOutput + "<br><br><span style='color: #ff6b6b'>❌ Error submitting for grading. Please try again.</span>"
+          code: generatedCode,
+          consoleOutput: "<span style='color: #1dd1a1'>✅ Code generated successfully!</span>"
         }));
-      });
+      }, 500);
+    } else {
+      setWorkbenchData(prev => ({
+        ...prev,
+        consoleOutput: "<span style='color: #ff6b6b'>❌ Failed to generate code from diagram.</span>"
+      }));
+    }
+  } catch (error) {
+    console.error('Error generating code:', error);
+    setWorkbenchData(prev => ({
+      ...prev,
+      consoleOutput: `<span style='color: #ff6b6b'>❌ Error: ${error.message}</span>`
+    }));
+  }
+  
+  console.log("Schema prepared for submission:", Array.from(schema.entries()));
+  console.log("Relationships prepared for submission:", Array.from(relationships.entries()));
+};
+
+   // Fixed handleSubmitForGrading function
+const handleSubmitForGrading = () => {
+  if (!workbenchData.questionId) {
+    alert("Please select a question before submitting");
+    return;
+  }
+
+  // In handleSubmitForGrading function, add these logs right before creating submissionData
+  console.log("PRE-SUBMISSION SCHEMA DEBUG:");
+  schema.forEach((entity, entityName) => {
+    console.log(`Entity: ${entityName}`);
+    console.log(`Attributes: ${entity.attribute ? entity.attribute.size : 0}`);
+    if (entity.attribute && entity.attribute.size > 0) {
+      console.log("Attribute entries:", Array.from(entity.attribute.entries()));
+    }
+  });
+
+  // Pick the first entity to examine its structure
+  if (schema.size > 0) {
+    const firstEntityKey = Array.from(schema.keys())[0];
+    const firstEntity = schema.get(firstEntityKey);
+    console.log("FIRST ENTITY STRUCTURE:", firstEntity);
+    console.log("ATTRIBUTES TYPE:", Object.prototype.toString.call(firstEntity.attribute));
+    console.log("ATTRIBUTES KEYS:", firstEntity.attribute ? Array.from(firstEntity.attribute.keys()) : "No attributes");
+  }
+
+  // Try creating a clean copy of schema with properly serialized attributes
+  const cleanSchema = Array.from(schema.entries()).map(([entityName, entity]) => {
+    // Create a clean entity object
+    const cleanEntity = {
+      entity: entity.entity,
+      attribute: {},  // Object instead of Map
+      methods: entity.methods || []
     };
+    
+    // Convert attribute Map to a simple object
+    if (entity.attribute && entity.attribute.size > 0) {
+      entity.attribute.forEach((attr, attrName) => {
+        cleanEntity.attribute[attrName] = attr;
+      });
+    }
+    
+    return [entityName, cleanEntity];
+  });
+
+  // Prepare the submission data with the clean schema
+  const submissionData = {
+    questionId: workbenchData.questionId,
+    code: workbenchData.code,
+    schema: cleanSchema, // Use the clean schema that properly includes attributes
+    relationships: Array.from(relationships.entries())
+  };
+  
+  // Debug serialization
+  const serializedData = JSON.stringify(submissionData);
+  console.log("SERIALIZED DATA (first 500 chars):", serializedData.substring(0, 500) + "...");
+  const parsedBack = JSON.parse(serializedData);
+  console.log("PARSED BACK SCHEMA (first entity):", parsedBack.schema[0]);
+  
+  // Send to your backend for grading
+  fetch('http://127.0.0.1:5000/api/submit', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(submissionData),
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log('Grading result:', data);
+    
+    // Extract grade information if available
+    if (data && data.grade) {
+      // Parse the score and feedback
+      const score = data.grade.score || 0;
+      const feedback = data.grade.feedback || '';
+      
+      // Show the floating grade panel with our new component
+      setGradeResults({
+        visible: true,
+        score: score,
+        feedback: feedback,
+        details: data.grade.details || {}
+      });
+      
+      // Also update console output
+      setWorkbenchData(prev => ({
+        ...prev,
+        consoleOutput: prev.consoleOutput + `<br><br><span style='color: #54a0ff'>Grading completed! See results panel.</span>`
+      }));
+    } else {
+      // Fallback to displaying raw data
+      setWorkbenchData(prev => ({
+        ...prev,
+        consoleOutput: prev.consoleOutput + `<br><br><span style='color: #54a0ff'>🔄 Grading Response: ${JSON.stringify(data)}</span>`
+      }));
+    }
+  })
+  .catch((error) => {
+    console.error('Error submitting for grading:', error);
+    setWorkbenchData(prev => ({
+      ...prev,
+      consoleOutput: prev.consoleOutput + "<br><br><span style='color: #ff6b6b'>❌ Error submitting for grading. Please try again.</span>"
+    }));
+  });
+};
 
   // Validate code in component
   const validateCodeInComponent = (code, syntax) => {
@@ -527,41 +762,134 @@ const CodeWorkbench = ({
             
       {/* Fixed height container for the editor */}
       <MonacoEditorWrapper
-        height={isFullscreen ? "calc(100vh - 120px)" : "300px"}
-        language={workbenchData.syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
-        theme="vs-light"
-        value={workbenchData.code}
-        onChange={(value) => {
-          setWorkbenchData(prev => ({...prev, code: value, isCodeModified: true}));
-        }}
-        options={{
-          automaticLayout: true,
-          padding: { top: 10, bottom: 10 },
-        }}
-        onMount={(editor, monaco) => {
-          // Configure language support
-          if (!monaco.languages.getLanguages().some(lang => lang.id === 'java')) {
-            monaco.languages.register({ id: 'java' });
-          }
+      height={isFullscreen ? "calc(100vh - 120px)" : "300px"}
+      language={workbenchData.syntax === SYNTAX_TYPES.JAVA ? 'java' : 'python'}
+      theme="vs-light"
+      value={workbenchData.code}
+      onChange={(value) => {
+        setWorkbenchData(prev => ({...prev, code: value, isCodeModified: true}));
+      }}
+      options={{
+        automaticLayout: true,
+        padding: { top: 10, bottom: 10 },
+      }}
+      onKeyDown={(e) => {
+        // Make sure the event doesn't bubble up
+        e.stopPropagation();
+      }}
+      onMount={(editor, monaco) => {
+        // Store references to editor and monaco
+        setEditorInstance(editor);
+        setMonacoInstance(monaco);
+
+        // Add keyboard event handler to the editor DOM node
+      const editorDomNode = editor.getDomNode();
+      if (editorDomNode) {
+        editorDomNode.addEventListener('keydown', (e) => {
+          e.stopPropagation();
+        });
+      }
+        
+        // Configure language support
+        if (!monaco.languages.getLanguages().some(lang => lang.id === 'java')) {
+          monaco.languages.register({ id: 'java' });
+        }
+        
+        if (!monaco.languages.getLanguages().some(lang => lang.id === 'python')) {
+          monaco.languages.register({ id: 'python' });
+        }
+
+        // Add custom handler for backspace
+    editor.onKeyDown((e) => {
+      // If backspace is pressed
+      if (e.keyCode === monaco.KeyCode.Backspace) {
+        const selection = editor.getSelection();
+        
+        // If there's a selection, let Monaco handle it
+        if (!selection.isEmpty()) {
+          return;
+        }
+        
+        const position = selection.getPosition();
+        const model = editor.getModel();
+        
+        // If at beginning of file, nothing to do
+        if (position.lineNumber === 1 && position.column === 1) {
+          return;
+        }
+        
+        // If at beginning of line, join with previous line
+        if (position.column === 1) {
+          const prevLineNumber = position.lineNumber - 1;
+          const prevLineLength = model.getLineLength(prevLineNumber);
           
-          if (!monaco.languages.getLanguages().some(lang => lang.id === 'python')) {
-            monaco.languages.register({ id: 'python' });
-          }
+          // Create a selection from end of previous line to start of current line
+          const range = new monaco.Range(
+            prevLineNumber, prevLineLength + 1,
+            position.lineNumber, position.column
+          );
           
-          // Set up a listener for model changes to check for errors
-          editor.onDidChangeModelContent(() => {
-            setTimeout(() => {
+          // Replace the selection with empty string
+          const operation = {
+            range: range,
+            text: ''
+          };
+          
+          // Execute the edit
+          editor.executeEdits('backspace-handler', [operation]);
+          
+          // Move cursor to end of previous line
+          editor.setPosition({
+            lineNumber: prevLineNumber,
+            column: prevLineLength + 1
+          });
+          
+          // Prevent default backspace
+          e.preventDefault();
+        }
+      }
+    });
+        
+        // Set up live validation with backend
+        let validationTimeout = null;
+        editor.onDidChangeModelContent(() => {
+          // Use a debounce mechanism to avoid too many requests
+          clearTimeout(validationTimeout);
+          validationTimeout = setTimeout(() => {
+            // Get current code
+            const code = editor.getValue();
+            if (!code.trim()) {
+              // Clear markers if code is empty
+              monaco.editor.setModelMarkers(editor.getModel(), 'backend-validation', []);
+              return;
+            }
+            
+            // Determine endpoint based on syntax
+            const endpoint = workbenchData.syntax === SYNTAX_TYPES.JAVA 
+              ? 'http://127.0.0.1:5000/api/validate/java'
+              : 'http://127.0.0.1:5000/api/validate/python';
+            
+            // Call the backend validation API
+            fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code }),
+            })
+            .then(response => response.json())
+            .then(data => {
+              // Add markers to the editor
               const model = editor.getModel();
               if (!model) return;
               
-              // Run custom validation
-              const { isValid, messages, errors } = validateCodeInComponent(editor.getValue(), workbenchData.syntax);
+              // Clear previous markers
+              monaco.editor.setModelMarkers(model, 'backend-validation', []);
               
-              // Add diagnostic markers based on our custom validation
-              const markers = errors.map(err => ({
-                severity: err.severity === 'error' ? monaco.MarkerSeverity.Error : 
-                        err.severity === 'warning' ? monaco.MarkerSeverity.Warning : 
-                        monaco.MarkerSeverity.Info,
+              // Add new markers
+              const markers = data.errors.map(err => ({
+                severity: 
+                  err.severity === 'error' ? monaco.MarkerSeverity.Error : 
+                  err.severity === 'warning' ? monaco.MarkerSeverity.Warning : 
+                  monaco.MarkerSeverity.Info,
                 message: err.message,
                 startLineNumber: err.line,
                 startColumn: 1,
@@ -569,62 +897,67 @@ const CodeWorkbench = ({
                 endColumn: model.getLineMaxColumn(err.line) || 1
               }));
               
-              // Set markers on the model
-              monaco.editor.setModelMarkers(model, 'custom-validation', markers);
-              
-              // Update the console output with error messages
-              if (messages.length > 0) {
-                setWorkbenchData(prev => ({
-                  ...prev,
-                  consoleOutput: messages.join('<br>')
-                }));
-              }
-            }, 300); // Small delay to ensure Monaco has processed the changes
-          });
-        }}
-      />
-      
-      <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-      <Button
-        variant="contained"
-        color="primary"
-        size="small"
-        onClick={prepareDiagramSubmission}
-        sx={{ fontSize: '0.8rem' }}
-      >
-        Generate
-      </Button>
-      <Button
-        variant="contained"
-        color="secondary"
-        size="small"
-        onClick={handleUpdate}
-        disabled={!workbenchData.isCodeModified}
-        sx={{ fontSize: '0.8rem' }}
-      >
-        Update
-      </Button>
-      <Button
-        variant="contained"
-        color="success"
-        size="small"
-        onClick={handleTestRun}
-        sx={{ fontSize: '0.8rem' }}
-      >
-        Test Run
-      </Button>
-      <Button
-        variant="contained"
-        color="primary"
-        size="small"
-        onClick={handleSubmitForGrading}
-        disabled={!workbenchData.questionId || !workbenchData.code}
-        sx={{ fontSize: '0.8rem' }}
-      >
-        Submit for Grading
-      </Button>
-    </Box>
+              monaco.editor.setModelMarkers(model, 'backend-validation', markers);
+            })
+            .catch(error => {
+              console.error('Error validating code:', error);
+            });
+          }, 1000); // 1 second delay after typing stops
+        });
+      }}
+    />
 
+    <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+    <Button
+      variant="contained"
+      color="primary"
+      size="small"
+      onClick={handleGenerate}
+      sx={{ fontSize: '0.8rem' }}
+    >
+      Generate
+    </Button>
+    <Button
+      variant="contained"
+      color="secondary"
+      size="small"
+      onClick={handleUpdate}
+      disabled={!workbenchData.isCodeModified}
+      sx={{ fontSize: '0.8rem' }}
+    >
+      Update
+    </Button>
+    <Button
+      variant="contained"
+      color="success"
+      size="small"
+      onClick={handleTestRun}
+      sx={{ fontSize: '0.8rem' }}
+    >
+      Test Run
+    </Button>
+    <Button
+      variant="contained"
+      color="primary"
+      size="small"
+      onClick={handleSubmitForGrading}
+      disabled={!workbenchData.questionId || !workbenchData.code}
+      sx={{ fontSize: '0.8rem' }}
+    >
+      Submit for Grading
+    </Button>
+    {/* Added Clear Errors button */}
+    <Button
+      variant="contained"
+      color="error"
+      size="small"
+      onClick={clearErrors}
+      disabled={!workbenchData.consoleOutput}
+      sx={{ fontSize: '0.8rem' }}
+    >
+      Clear Errors
+    </Button>
+  </Box>  
     {/* Console output */}
     {workbenchData.consoleOutput && (
       <Box 
@@ -650,7 +983,7 @@ const CodeWorkbench = ({
       </Box>
     )}
 
-    {/* Floating Grade Results Panel */}
+    {/* Floating Grade Results Panel with improved visibility */}
     {gradeResults.visible && (
       <Box
         sx={{
@@ -658,48 +991,40 @@ const CodeWorkbench = ({
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: '600px',
-          maxHeight: '80vh',
+          width: '800px',
+          maxHeight: '85vh',
           overflow: 'auto',
-          backgroundColor: '#1e1e1e',
-          color: '#f0f0f0',
+          backgroundColor: '#1a1a1a', // Slightly darker background
+          color: '#ffffff',
           borderRadius: '8px',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-          padding: '20px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+          padding: '0',
           zIndex: 2000,
         }}
       >
-        {/* Close button */}
+        {/* Close button - moved to upper right with better visibility */}
         <IconButton
-          sx={{ position: 'absolute', top: 10, right: 10, color: 'white' }}
+          sx={{ 
+            position: 'absolute', 
+            top: 10, 
+            right: 10, 
+            color: 'white',
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            zIndex: 2100,
+            '&:hover': {
+              backgroundColor: 'rgba(255,255,255,0.2)',
+            }
+          }}
           onClick={() => setGradeResults(prev => ({ ...prev, visible: false }))}
         >
           ✖️
         </IconButton>
         
-        {/* Grade header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h6" sx={{ fontSize: '1.3rem', color: 'white' }}>
-            UML Diagram Assessment
-          </Typography>
-          <Box 
-            sx={{ 
-              backgroundColor: gradeResults.score > 70 ? '#2ecc71' : gradeResults.score > 50 ? '#f39c12' : '#e74c3c',
-              padding: '8px 16px',
-              borderRadius: '20px',
-              fontWeight: 'bold'
-            }}
-          >
-            {gradeResults.score}%
-          </Box>
-        </Box>
-        
-        {/* Feedback content */}
-        <Box sx={{ mt: 2, lineHeight: 1.6 }}>
-          <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-            {gradeResults.feedback}
-          </Typography>
-        </Box>
+        {/* Use our custom UML Assessment Component with improved visibility */}
+        <UMLAssessmentDisplay assessmentData={{
+          score: gradeResults.score,
+          feedback: gradeResults.feedback
+        }} />
       </Box>
     )}
     </Box>

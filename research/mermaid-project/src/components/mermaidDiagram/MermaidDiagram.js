@@ -375,7 +375,7 @@ const handleAddAttribute = () => {
     const attrType = prompt('Enter attribute type (optional):');
     
     if (attrName) {
-      addAttribute(entityName, attrName, '', attrType || '');
+      addAttribute(entityName, attrName, attrType || '', '');
       setNeedsRender(true);
     }
   }
@@ -384,22 +384,38 @@ const handleAddAttribute = () => {
 // Handler function for adding a method
 const handleAddMethod = () => {
   if (activeElement) {
-    // If activeElement is a complex object with entity and method properties
     const entityName = typeof activeElement === 'object' && activeElement.entity 
       ? activeElement.entity 
       : activeElement;
     
-    const methodName = prompt('Enter method name:');
-    if (!methodName) return;
+    const methodNameInput = prompt('Enter method name (prefix with + for public, - for private, # for protected):');
+    if (!methodNameInput) return;
     
-    const returnType = prompt('Enter return type (optional):');
-    const params = prompt('Enter parameters (optional, comma separated):');
+    // Parse visibility from method name
+    let methodName = methodNameInput;
+    let visibility = 'public';
+    
+    if (methodNameInput.startsWith('+')) {
+      methodName = methodNameInput.substring(1);
+      visibility = 'public';
+    } else if (methodNameInput.startsWith('-')) {
+      methodName = methodNameInput.substring(1);
+      visibility = 'private';
+    } else if (methodNameInput.startsWith('#')) {
+      methodName = methodNameInput.substring(1);
+      visibility = 'protected';
+    }
+    
+    const returnType = prompt('Enter return type (default is "void" - just press Enter if method returns void):');
+    const params = prompt(
+      'Enter parameters (optional):\nFormat: "Type name" for each parameter, separate multiple parameters with commas\nExample: "Kentucky kentucky" or "String name, int age"'
+    );
     
     const method = {
       name: methodName,
       returnType: returnType || 'void',
       parameters: params ? params.split(',').map(p => p.trim()) : [],
-      visibility: 'public'
+      visibility: visibility
     };
     
     addMethod(entityName, method);
@@ -863,6 +879,8 @@ const handleMethodAction = () => {
             addAttribute={addAttribute}
             addMethod={addMethod}
             addMethodsFromParsedCode={addMethodsFromParsedCode}
+            removeAttribute={removeAttribute} 
+            removeEntity={removeEntity}       
             currentQuestion={currentQuestion}
             onClose={() => setShowWorkbench(false)}
             isFullscreen={isWorkbenchFullscreen}

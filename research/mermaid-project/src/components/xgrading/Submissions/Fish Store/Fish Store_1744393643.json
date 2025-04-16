@@ -1,0 +1,16 @@
+{
+  "questionId": "Fish Store",
+  "code": "classDiagram\nclass tank {\n  -weight: String\n  -species:int\n  +addFish(Fish fish): void\n}\n",
+  "schema": [
+    [
+      "tank",
+      {
+        "entity": "tank",
+        "attribute": {},
+        "methods": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "timestamp": 1744393643
+}

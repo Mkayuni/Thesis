@@ -233,9 +233,12 @@ export const syncJavaCodeWithSchema = (
   addAttribute, 
   addMethod, 
   addMethodsFromParsedCode,
-  questionId = null
+  questionId = null,
+  schema,
+  removeAttribute,
+  removeEntity
 ) => {
-     // Log the association for tracking purposes
+  // Log the association for tracking purposes
   if (questionId) {
     console.log(`Parsing code for question: ${questionId}`);
   }
@@ -244,25 +247,83 @@ export const syncJavaCodeWithSchema = (
   const parsedSchema = parseCodeToSchema(javaCode, syntaxType, addMethod, addMethodsFromParsedCode);
   console.log("Parsed Schema:", parsedSchema);
 
-  // First pass: Create all entities and add attributes
-  parsedSchema.forEach((newEntity, entityName) => {
-    addEntity(entityName);
-    console.log(`First pass - Created entity: ${entityName}`);
+  // Check if this is an empty update (code generated from diagram with no attributes)
+  const isEmptyUpdate = parsedSchema.size > 0 && 
+    Array.from(parsedSchema.values()).every(entity => entity.attribute.size === 0);
+  
+  // If it's an empty update, don't remove existing attributes
+  if (isEmptyUpdate) {
+    console.log("Detected empty update - preserving existing attributes");
     
-    // Add attributes
+    // Just update methods since attributes should be preserved
+    parsedSchema.forEach((newEntity, entityName) => {
+      // Ensure entity exists
+      addEntity(entityName);
+      
+      // Update methods
+      if (newEntity.methods && newEntity.methods.length > 0) {
+        addMethodsFromParsedCode(entityName, newEntity.methods);
+      } else {
+        // Clear methods if there are none in the parsed code
+        const existingEntity = schema.get(entityName);
+        if (existingEntity && existingEntity.methods && existingEntity.methods.length > 0) {
+          addMethodsFromParsedCode(entityName, []);
+          console.log(`Cleared all methods for ${entityName}`);
+        }
+      }
+    });
+    
+    return;
+  }
+
+  // Normal update (with attributes) - proceed with full sync
+  // First pass: Create all entities and add/update attributes
+  parsedSchema.forEach((newEntity, entityName) => {
+    // Add entity (will ignore if already exists)
+    addEntity(entityName);
+    console.log(`First pass - Created/Updated entity: ${entityName}`);
+    
+    // Get existing attributes for this entity
+    const existingEntity = schema.get(entityName);
+    const existingAttributes = existingEntity ? 
+      Array.from(existingEntity.attribute.keys()) : [];
+    
+    // Track which attributes we're keeping
+    const newAttributes = [];
+    
+    // Add/update attributes from parsed code
     newEntity.attribute.forEach((attr, attrName) => {
-      addAttribute(entityName, attrName, attr.type);
-      console.log(`Added attribute: ${attrName} to ${entityName}`);
+      newAttributes.push(attrName);
+      // This will overwrite any existing attribute with the same name
+      addAttribute(entityName, attrName, attr.type, '');
+      console.log(`Added/Updated attribute: ${attrName} to ${entityName}`);
+    });
+    
+    // Remove attributes that no longer exist in the code
+    existingAttributes.forEach(attrName => {
+      if (!newAttributes.includes(attrName)) {
+        removeAttribute(entityName, attrName);
+        console.log(`Removed attribute: ${attrName} from ${entityName}`);
+      }
     });
   });
   
-  // Second pass: Now that all entities exist, add methods
+  // Second pass: Update methods for all entities
   parsedSchema.forEach((newEntity, entityName) => {
     if (newEntity.methods && newEntity.methods.length > 0) {
-      console.log(`Second pass - Adding ${newEntity.methods.length} methods to ${entityName}`);
+      console.log(`Second pass - Updating all methods for ${entityName}`);
+      // This call should replace all existing methods with the new list
       addMethodsFromParsedCode(entityName, newEntity.methods);
+    } else {
+      // Clear methods if there are none in the parsed code
+      const existingEntity = schema.get(entityName);
+      if (existingEntity && existingEntity.methods && existingEntity.methods.length > 0) {
+        addMethodsFromParsedCode(entityName, []);
+        console.log(`Cleared all methods for ${entityName}`);
+      }
     }
   });
+  
   // If you'd like to store this association, you could do something like:
   if (questionId) {
     // Store in localStorage for persistence
@@ -377,6 +438,11 @@ export const renderMermaidDiagram = async ({
     },
     classDigram: {
       defaultRenderer: 'dagre-wrapper',
+      // Add these standardization settings:
+      diagramPadding: 20,
+      useMaxWidth: false,
+      width: 200, // Standard width for all class boxes
+      height: 100, // Minimum height (will expand if needed)
     }
   });
 
@@ -427,306 +493,47 @@ export const renderMermaidDiagram = async ({
               rect.setAttribute('stroke-width', '1px');
             });
 
-  
-            // 1. Add custom icons to nodes but initially hide them
-              const nodes = svgElement.querySelectorAll('g[class^="node"], .classGroup');
-              nodes.forEach((node) => {
-                const nodeId = node.getAttribute('id');
-                if (nodeId) {
-                  const entityName = extractEntityName(nodeId);
-                  const normalizedEntityName = normalizeEntityName(entityName);
-                  
-                  // Only proceed if the entity exists in schema
-                  if (schema.has(normalizedEntityName)) {
-                    const bbox = node.getBBox();
-                    
-                    // Make the node clickable to show the toolbar
-                    node.style.cursor = 'pointer';
-                    
-                    // Create a vertical toolbar at the right edge of the node
-                    const toolbarGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                    toolbarGroup.classList.add('toolbar-group');
-                    
-                    // Initially hide the toolbar
-                    toolbarGroup.style.opacity = '0';
-                    toolbarGroup.style.pointerEvents = 'none';
-                    toolbarGroup.setAttribute('data-entity', normalizedEntityName);
-
-                    // Toolbar background - adjust height since we're removing icons
-                    const toolbarBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                    toolbarBg.setAttribute('x', bbox.x + bbox.width + 5);
-                    toolbarBg.setAttribute('y', bbox.y - 5);
-                    toolbarBg.setAttribute('width', '25');
-                    toolbarBg.setAttribute('height', '165'); // Height for 6 icons
-                    toolbarBg.setAttribute('rx', '4');
-                    toolbarBg.setAttribute('ry', '4');
-                    toolbarBg.setAttribute('fill', '#f8f9fa');
-                    toolbarBg.setAttribute('stroke', '#dee2e6');
-                    toolbarBg.setAttribute('stroke-width', '1');
-
-                    // Add the background first (so it's behind the icons)
-                    toolbarGroup.appendChild(toolbarBg);
-
-                    // Define toolbar icons with their positions, actions, and tooltips
-                    const toolbarIcons = [
-                      { 
-                        emoji: '🗑️', 
-                        y: bbox.y + 15, 
-                        color: '#dc3545', 
-                        tooltip: 'Delete Entity',
-                        action: () => {
-                          if (schema.has(normalizedEntityName)) {
-                            console.log(`Removing entity via toolbar: ${normalizedEntityName}`);
-                            removeEntity(normalizedEntityName);
-                            setTimeout(() => {
-                              clearDiagram();
-                              setNeedsRender(true);
-                            }, 10);
-                          }
-                        }
-                      },
-                      { 
-                        emoji: '🔍', 
-                        y: bbox.y + 40, 
-                        color: '#007bff', 
-                        tooltip: 'Inspect Entity',
-                        action: () => {
-                          console.log(`Inspecting entity: ${normalizedEntityName}`);
-                          // Implementation for inspection
-                        }
-                      },
-                      { 
-                        emoji: '➕', 
-                        y: bbox.y + 65, 
-                        color: '#28a745', 
-                        tooltip: 'Add Attribute',
-                        action: () => {
-                          const attrName = prompt('Enter attribute name:');
-                          const attrType = prompt('Enter attribute type (optional):');
-                          
-                          if (attrName && typeof addAttribute === 'function') {
-                            addAttribute(normalizedEntityName, attrName, '', attrType || '');
-                            setTimeout(() => {
-                              clearDiagram();
-                              setNeedsRender(true);
-                            }, 10);
-                          }
-                        }
-                      },
-                      { 
-                        emoji: '➖', 
-                        y: bbox.y + 90, 
-                        color: '#ff9800', 
-                        tooltip: 'Remove Attribute',
-                        action: () => {
-                          const entity = schema.get(normalizedEntityName);
-                          if (entity && entity.attribute && entity.attribute.size > 0) {
-                            const lastAttribute = Array.from(entity.attribute.keys()).pop();
-                            if (lastAttribute) {
-                              removeAttribute(normalizedEntityName, lastAttribute);
-                              setTimeout(() => {
-                                clearDiagram();
-                                setNeedsRender(true);
-                              }, 10);
-                            }
-                          }
-                        }
-                      },
-                      { 
-                        emoji: '📝', 
-                        y: bbox.y + 115, 
-                        color: '#6610f2', 
-                        tooltip: 'Add Method',
-                        action: () => {
-                          const methodName = prompt('Enter method name:');
-                          if (!methodName) return;
-                          
-                          const returnType = prompt('Enter return type (optional):');
-                          const params = prompt('Enter parameters (optional, comma separated):');
-                          
-                          const method = {
-                            name: methodName,
-                            returnType: returnType || 'void',
-                            parameters: params ? params.split(',').map(p => p.trim()) : [],
-                            visibility: 'public'
-                          };
-                          
-                          if (typeof addMethod === 'function') {
-                            addMethod(normalizedEntityName, method);
-                            setTimeout(() => {
-                              clearDiagram();
-                              setNeedsRender(true);
-                            }, 10);
-                          }
-                        }
-                      },
-                      { 
-                        emoji: '🧹', 
-                        y: bbox.y + 140, 
-                        color: '#e83e8c', 
-                        tooltip: 'Remove Method',
-                        action: () => {
-                          const entity = schema.get(normalizedEntityName);
-                          if (entity && entity.methods && entity.methods.length > 0) {
-                            const lastMethod = entity.methods[entity.methods.length - 1];
-                            if (lastMethod && lastMethod.name) {
-                              console.log(`Removing method '${lastMethod.name}' from entity '${normalizedEntityName}'`);
-                              removeMethod(normalizedEntityName, lastMethod.name);
-                              setTimeout(() => {
-                                clearDiagram();
-                                setNeedsRender(true);
-                              }, 10);
-                            } else {
-                              console.log(`No methods available to remove from entity '${normalizedEntityName}'`);
-                            }
-                          } else {
-                            console.log(`No methods available to remove from entity '${normalizedEntityName}'`);
-                          }
-                        }
-                      },
-                    ];
-
-                   // Add each icon to the toolbar
-                  toolbarIcons.forEach(({ emoji, y, color, action }) => {
-                    const iconGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                    iconGroup.classList.add('toolbar-icon');
-                    
-                    // Create the icon
-                    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                    icon.setAttribute('x', bbox.x + bbox.width + 17);
-                    icon.setAttribute('y', y);
-                    icon.setAttribute('fill', color);
-                    icon.setAttribute('text-anchor', 'middle');
-                    icon.style.fontSize = '14px';
-                    icon.style.cursor = 'pointer';
-                    icon.textContent = emoji;
-                    
-                    // Create tooltip (hidden by default)
-                    const tooltipGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                    tooltipGroup.style.opacity = '0';
-                    tooltipGroup.style.pointerEvents = 'none';
-                    
-                    const tooltipBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                    tooltipBg.setAttribute('x', bbox.x + bbox.width + 30);
-                    tooltipBg.setAttribute('y', y - 12);
-                    tooltipBg.setAttribute('width', (emoji === '🗑️' ? 'Delete Entity' : 
-                                          emoji === '➖' ? 'Remove Attribute' : 
-                                          emoji === '🧹' ? 'Remove Method' : 'Action').length * 6 + 10);
-                    tooltipBg.setAttribute('height', '20');
-                    tooltipBg.setAttribute('rx', '3');
-                    tooltipBg.setAttribute('fill', '#333');
-                    
-                    const tooltipText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                    tooltipText.setAttribute('x', bbox.x + bbox.width + 35);
-                    tooltipText.setAttribute('y', y + 2);
-                    tooltipText.setAttribute('fill', '#fff');
-                    tooltipText.style.fontSize = '11px';
-                    tooltipText.textContent = emoji === '🗑️' ? 'Delete Entity' : 
-                                            emoji === '➖' ? 'Remove Attribute' : 
-                                            emoji === '🧹' ? 'Remove Method' : 'Action';
-                    
-                    tooltipGroup.appendChild(tooltipBg);
-                    tooltipGroup.appendChild(tooltipText);
-                    
-                    // Show tooltip on hover
-                    icon.addEventListener('mouseover', () => {
-                      tooltipGroup.style.opacity = '1';
-                      tooltipGroup.style.transition = 'opacity 0.2s';
-                    });
-                    
-                    icon.addEventListener('mouseout', () => {
-                      tooltipGroup.style.opacity = '0';
-                    });
-                    
-                    // Add click handler
-                    icon.addEventListener('click', (e) => {
-                      e.stopPropagation();
-                      if (action) {
-                        action();
-                      }
-                    });
-                    
-                    // Add all elements to the group
-                    iconGroup.appendChild(tooltipGroup);
-                    iconGroup.appendChild(icon);
-                    toolbarGroup.appendChild(iconGroup);
-                  });
-
-                  // Add the toolbar to the node
-                  node.appendChild(toolbarGroup);
-
-
-                  // Hide all other toolbars when clicking anywhere in the document
-                  document.addEventListener('click', (e) => {
-                    // Check if the click is outside any class node
-                    const isClassNode = e.target.closest('.classGroup');
-                    if (!isClassNode || isPanning) {
-                      // Hide all toolbars
-                      const allToolbars = svgElement.querySelectorAll('.toolbar-group');
-                      allToolbars.forEach(toolbar => {
-                        toolbar.style.opacity = '0';
-                        toolbar.style.pointerEvents = 'none';
-                      });
-                    }
-                  });
-                  
-                  // Add click event to the node to show its toolbar
-                  node.addEventListener('click', (e) => {
-                    if (isPanning) return; // Don't activate when panning
-                    
-                    e.stopPropagation(); // Prevent document click from immediately hiding
-                    
-                    // Get node ID and entity name first
-                    const nodeId = node.id || '';
-                    const entityName = extractEntityName(nodeId);
-                    const normalizedEntityName = normalizeEntityName(entityName);
-                    
-                    // First hide all toolbars
-                    const allToolbars = svgElement.querySelectorAll('.toolbar-group');
-                    allToolbars.forEach(toolbar => {
-                      toolbar.style.opacity = '0';
-                      toolbar.style.pointerEvents = 'none';
-                    });
-                    
-                    // Then show only this node's toolbar with a transition effect
-                    const toolbar = node.querySelector('.toolbar-group');
-                    if (toolbar) {
-                      // Toggle visibility
-                      const isCurrentlyVisible = toolbar.style.opacity === '1';
-                      
-                      if (!isCurrentlyVisible) {
-                        // Show this toolbar
-                        toolbar.style.opacity = '1';
-                        toolbar.style.pointerEvents = 'auto';
-                        toolbar.style.transition = 'opacity 0.2s ease-in-out';
-                        if (typeof setVisibleToolbarEntity === 'function') {
-                          setVisibleToolbarEntity(normalizedEntityName);
-                        }
-                      } else {
-                        // Hide this toolbar too
-                        toolbar.style.opacity = '0';
-                        toolbar.style.pointerEvents = 'none';
-                        if (typeof setVisibleToolbarEntity === 'function') {
-                          setVisibleToolbarEntity(null);
-                        }
-                      }
-                    }
-                    
-                    // Get diagram dimensions for centered positioning
-                    const diagramRect = diagramRef.current.getBoundingClientRect();
-                    const containerRect = containerRef.current.getBoundingClientRect();
-                    
-                    setActiveElement(normalizedEntityName);
-                    
-                    // Position action bar at the top of the diagram, centered
-                    setActionBarPosition({
-                      x: (diagramRect.width / 2 - 120) / scale, // Center it, adjusting for approx. toolbar width
-                      y: 10 / scale // Position at top with a small margin
-                    });
-                  });
-                }
-              }
-            });
+        // 1. Add custom icons to nodes but initially hide them
+        const nodes = svgElement.querySelectorAll('g[class^="node"], .classGroup');
+        nodes.forEach((node) => {
+          const nodeId = node.getAttribute('id');
+          if (nodeId) {
+            const entityName = extractEntityName(nodeId);
+            const normalizedEntityName = normalizeEntityName(entityName);
+            
+            // Only proceed if the entity exists in schema
+            if (schema.has(normalizedEntityName)) {
+              const bbox = node.getBBox();
+              
+              // Make the node clickable to show the toolbar
+              node.style.cursor = 'pointer';
+              
+              // Add click event to the node to activate the top action bar
+              node.addEventListener('click', (e) => {
+                if (isPanning) return; // Don't activate when panning
+                
+                e.stopPropagation(); // Prevent document click from immediately hiding
+                
+                // Get node ID and entity name first
+                const nodeId = node.id || '';
+                const entityName = extractEntityName(nodeId);
+                const normalizedEntityName = normalizeEntityName(entityName);
+                
+                // Get diagram dimensions for centered positioning
+                const diagramRect = diagramRef.current.getBoundingClientRect();
+                const containerRect = containerRef.current.getBoundingClientRect();
+                
+                setActiveElement(normalizedEntityName);
+                
+                // Position action bar at the top of the diagram, centered
+                setActionBarPosition({
+                  x: (diagramRect.width / 2 - 120) / scale, // Center it, adjusting for approx. toolbar width
+                  y: 10 / scale // Position at top with a small margin
+                });
+              });
+            }
+          }
+        });
             
             // 3. Add event listeners for methods - find and make methods clickable
             const methodElements = [];

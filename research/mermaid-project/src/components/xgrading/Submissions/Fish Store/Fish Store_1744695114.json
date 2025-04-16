@@ -38,7 +38,26 @@
       "tank",
       {
         "entity": "tank",
-        "attribute": {},
+        "attribute": {
+          "number": {
+            "attribute": "number",
+            "type": "int",
+            "key": "",
+            "visibility": "private"
+          },
+          "volume": {
+            "attribute": "volume",
+            "type": "float",
+            "key": "",
+            "visibility": "private"
+          },
+          "fishList": {
+            "attribute": "fishList",
+            "type": "List<Fish>",
+            "key": "",
+            "visibility": "private"
+          }
+        },
         "methods": [
           {
             "visibility": "public",
@@ -87,7 +106,32 @@
       "fish",
       {
         "entity": "fish",
-        "attribute": {},
+        "attribute": {
+          "name": {
+            "attribute": "name",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          },
+          "weight": {
+            "attribute": "weight",
+            "type": "float",
+            "key": "",
+            "visibility": "private"
+          },
+          "species": {
+            "attribute": "species",
+            "type": "Species",
+            "key": "",
+            "visibility": "private"
+          },
+          "events": {
+            "attribute": "events",
+            "type": "List<Event>",
+            "key": "",
+            "visibility": "private"
+          }
+        },
         "methods": [
           {
             "visibility": "public",
@@ -137,7 +181,20 @@
       "species",
       {
         "entity": "species",
-        "attribute": {},
+        "attribute": {
+          "name": {
+            "attribute": "name",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          },
+          "preferredFood": {
+            "attribute": "preferredFood",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          }
+        },
         "methods": [
           {
             "visibility": "public",
@@ -164,7 +221,20 @@
       "event",
       {
         "entity": "event",
-        "attribute": {},
+        "attribute": {
+          "date": {
+            "attribute": "date",
+            "type": "Date",
+            "key": "",
+            "visibility": "private"
+          },
+          "note": {
+            "attribute": "note",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          }
+        },
         "methods": [
           {
             "visibility": "public",
@@ -197,5 +267,5 @@
     ]
   ],
   "relationships": [],
-  "timestamp": 1744170450
+  "timestamp": 1744695114
 }

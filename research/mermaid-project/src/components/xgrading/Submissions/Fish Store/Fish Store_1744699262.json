@@ -1,0 +1,44 @@
+{
+  "questionId": "Fish Store",
+  "code": "public class tank {\n    private String name;\n\n}\n\npublic class fish {\n    private string species;\n    private Int number;\n\n}",
+  "schema": [
+    [
+      "tank",
+      {
+        "entity": "tank",
+        "attribute": {
+          "name": {
+            "attribute": "name",
+            "type": "String",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": []
+      }
+    ],
+    [
+      "fish",
+      {
+        "entity": "fish",
+        "attribute": {
+          "species": {
+            "attribute": "species",
+            "type": "string",
+            "key": "",
+            "visibility": "private"
+          },
+          "number": {
+            "attribute": "number",
+            "type": "Int",
+            "key": "",
+            "visibility": "private"
+          }
+        },
+        "methods": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "timestamp": 1744699262
+}

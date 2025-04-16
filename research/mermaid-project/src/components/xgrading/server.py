@@ -5,10 +5,14 @@ import re
 import json
 import time
 from bs4 import BeautifulSoup
+from validate import setup_validation_routes
 
 
 app = Flask(__name__)
 CORS(app)
+
+# Set up validation routes
+setup_validation_routes(app)
 
 @app.route('/api/diagram', methods=['GET'])
 def get_diagram():
@@ -347,17 +351,14 @@ def parse_mermaid_schema(mermaid_text):
     
     return entities, relationships
 
-
-
-def grade_entities(submitted_entities, ref_entities, marking_criteria):
+def grade_entities(submitted_entities, ref_entities, marking_criteria, ref_relationships):
     """
     Grade the entities in the submission.
-    
     Args:
         submitted_entities (dict): The submitted entities
         ref_entities (dict): The reference entities
         marking_criteria (dict): The marking criteria
-    
+        ref_relationships (list): The reference relationships to check for interfaces
     Returns:
         dict: Grading results for entities
     """
@@ -368,7 +369,7 @@ def grade_entities(submitted_entities, ref_entities, marking_criteria):
     # Points for entity names
     entity_name_points = marking_criteria.get('entity-name', 0.2)
     max_entity_score += len(ref_entities) * entity_name_points
-    
+
     # Check for required entities
     for entity_name, entity_data in ref_entities.items():
         if entity_name.lower() in [e.lower() for e in submitted_entities]:
@@ -376,19 +377,14 @@ def grade_entities(submitted_entities, ref_entities, marking_criteria):
             feedback.append(f"✓ Found required entity: {entity_name}")
         else:
             feedback.append(f"✗ Missing required entity: {entity_name}")
-    
+
     # Points for entity attributes
     attribute_points = marking_criteria.get('entity-attributes', 0.1)
-    
-    # Check attributes for each entity
     for entity_name, entity_data in ref_entities.items():
         if entity_name in submitted_entities:
             ref_attrs = entity_data.get('attribute', {})
             submitted_attrs = submitted_entities[entity_name].get('attribute', {})
-            
-            # Count matching attributes
             max_entity_score += len(ref_attrs) * attribute_points
-            
             for attr_name in ref_attrs:
                 if attr_name in submitted_attrs:
                     entity_score += attribute_points
@@ -396,15 +392,67 @@ def grade_entities(submitted_entities, ref_entities, marking_criteria):
                 else:
                     feedback.append(f"✗ Entity {entity_name} is missing attribute: {attr_name}")
     
-    # Check for extra entities (penalty)
-    extra_entity_penalty = marking_criteria.get('extra-entity-penalty', 0.25)
-    extra_entities = [e for e in submitted_entities if e not in ref_entities]
+    # NEW CODE: Check for extra attributes
+    extra_attribute_penalty = marking_criteria.get('extra-attribute-penalty', 0.1)
+    extra_attributes = []
     
+    for entity_name, entity_data in submitted_entities.items():
+        # Find matching reference entity (case-insensitive)
+        matching_ref_entity = None
+        for ref_name in ref_entities:
+            if ref_name.lower() == entity_name.lower():
+                matching_ref_entity = ref_name
+                break
+        
+        if matching_ref_entity:
+            submitted_attrs = entity_data.get('attribute', {})
+            ref_attrs = ref_entities[matching_ref_entity].get('attribute', {})
+            
+            # Check for attributes in submission that aren't in reference
+            for attr_name in submitted_attrs:
+                if attr_name not in ref_attrs:
+                    extra_attributes.append(f"{attr_name} in entity {entity_name}")
+    
+    # Apply penalty for extra attributes
+    if extra_attributes:
+        extra_attr_penalty = min(len(extra_attributes) * extra_attribute_penalty, max_entity_score * 0.3)
+        entity_score = max(0, entity_score - extra_attr_penalty)
+        feedback.append(f"! Found {len(extra_attributes)} extra attributes: {', '.join(extra_attributes)}")
+
+    # Extract interface names from reference relationships
+    interface_entities = []
+    for rel in ref_relationships:
+        if rel.get('type') == 'implementation':
+            source = rel.get('source', '').lower()  # Interface name (e.g., cleanable)
+            target = rel.get('target', '').lower()  # Target entity (e.g., tank)
+            interface_entities.append(source)  # Add the interface name to the list
+            print(f"DEBUG: Found interface entity in reference: {source} implements {target}")
+
+    # Print submitted entity names and interface entities
+    print("DEBUG: Submitted entity names:", [e.lower() for e in submitted_entities])
+    print("DEBUG: Reference entity names:", [e.lower() for e in ref_entities])
+    print("DEBUG: Interface entities detected:", interface_entities)
+
+    # Only count as extra if not an interface and not in reference
+    extra_entities = []
+    for entity_name in submitted_entities:
+        entity_name_lower = entity_name.lower()
+        if (entity_name_lower not in [e.lower() for e in ref_entities] and 
+            entity_name_lower not in interface_entities):
+            extra_entities.append(entity_name)
+            print(f"DEBUG: Identified as extra entity: {entity_name}")
+        elif entity_name_lower in interface_entities:
+            print(f"DEBUG: Recognized as interface entity: {entity_name}")
+        else:
+            print(f"DEBUG: Found as regular entity: {entity_name}")
+
+    # Apply penalty for extra entities
     if extra_entities:
+        extra_entity_penalty = marking_criteria.get('extra-entity-penalty', 0.25)
         penalty = min(len(extra_entities) * extra_entity_penalty, max_entity_score * 0.5)  # Cap penalty at 50% of max score
         entity_score = max(0, entity_score - penalty)
         feedback.append(f"! Found {len(extra_entities)} extra entities: {', '.join(extra_entities)}")
-    
+
     return {
         "score": entity_score,
         "max_score": max_entity_score,
@@ -431,15 +479,18 @@ def grade_relationships(submitted_relationships, ref_relationships, marking_crit
     relationship_points = marking_criteria.get('relationship', 0.5)
     cardinality_points = marking_criteria.get('cardinality', 0.25)
     
-    # Convert submitted relationships to a more comparable format
+    # Convert submitted relationships to a more comparable format with case-insensitive types
     formatted_submitted_rels = []
     for rel_key, rel_data in submitted_relationships:
         # Handle different possible formats from frontend
-        rel_type = rel_data.get('type', '')
-        source = rel_data.get('relationA', rel_data.get('source', ''))
-        target = rel_data.get('relationB', rel_data.get('target', ''))
+        rel_type = rel_data.get('type', '').lower()  # Convert to lowercase
+        source = rel_data.get('relationA', rel_data.get('source', '')).lower()  # Convert to lowercase
+        target = rel_data.get('relationB', rel_data.get('target', '')).lower()  # Convert to lowercase
         cardinality = rel_data.get('cardinalityA', rel_data.get('cardinality', ''))
         label = rel_data.get('label', '')
+        
+        # Print debug information for each relationship
+        print(f"DEBUG: Processing submitted relationship: type={rel_type}, source={source}, target={target}")
         
         formatted_submitted_rels.append({
             "type": rel_type,
@@ -449,32 +500,31 @@ def grade_relationships(submitted_relationships, ref_relationships, marking_crit
             "label": label
         })
     
-    # Check for required relationships
+    # Also convert reference relationships to lowercase for comparison
+    formatted_ref_rels = []
     for ref_rel in ref_relationships:
+        formatted_ref_rels.append({
+            "type": ref_rel.get('type', '').lower(),
+            "source": ref_rel.get('source', '').lower(),
+            "target": ref_rel.get('target', '').lower(),
+            "cardinality": ref_rel.get('cardinality', '')
+        })
+        print(f"DEBUG: Reference relationship: type={ref_rel.get('type', '').lower()}, source={ref_rel.get('source', '').lower()}, target={ref_rel.get('target', '').lower()}")
+    
+    # Check for required relationships
+    for ref_rel in formatted_ref_rels:
         max_relationship_score += relationship_points
         
         # Look for matching relationship in submission
         found_match = False
         for sub_rel in formatted_submitted_rels:
             if (sub_rel.get('type') == ref_rel.get('type') and
-                (sub_rel.get('source') == ref_rel.get('source') or sub_rel.get('target') == ref_rel.get('source')) and
-                (sub_rel.get('target') == ref_rel.get('target') or sub_rel.get('source') == ref_rel.get('target'))):
+                ((sub_rel.get('source') == ref_rel.get('source') and sub_rel.get('target') == ref_rel.get('target')) or
+                 (sub_rel.get('source') == ref_rel.get('target') and sub_rel.get('target') == ref_rel.get('source')))):
                 
                 found_match = True
                 relationship_score += relationship_points
                 feedback.append(f"✓ Found relationship: {ref_rel.get('type')} between {ref_rel.get('source')} and {ref_rel.get('target')}")
-                
-                # Check cardinality if applicable
-                if 'cardinality' in ref_rel and 'cardinality' in sub_rel:
-                    max_relationship_score += cardinality_points
-                    
-                    if ref_rel['cardinality'] == sub_rel['cardinality']:
-                        relationship_score += cardinality_points
-                        feedback.append(f"✓ Correct cardinality: {ref_rel['cardinality']}")
-                    else:
-                        feedback.append(f"✗ Incorrect cardinality: expected {ref_rel['cardinality']}, got {sub_rel['cardinality']}")
-                
-                break
         
         if not found_match:
             feedback.append(f"✗ Missing relationship: {ref_rel.get('type')} between {ref_rel.get('source')} and {ref_rel.get('target')}")
@@ -486,14 +536,16 @@ def grade_relationships(submitted_relationships, ref_relationships, marking_crit
     for sub_rel in formatted_submitted_rels:
         # Check if this relationship exists in the reference
         found_match = False
-        for ref_rel in ref_relationships:
-            if ((sub_rel.get('type') == ref_rel.get('type')) and
+        for ref_rel in formatted_ref_rels:
+            if (sub_rel.get('type') == ref_rel.get('type') and
                 ((sub_rel.get('source') == ref_rel.get('source') and sub_rel.get('target') == ref_rel.get('target')) or
                  (sub_rel.get('source') == ref_rel.get('target') and sub_rel.get('target') == ref_rel.get('source')))):
                 found_match = True
+                print(f"DEBUG: Matched relationship: {sub_rel.get('type')} between {sub_rel.get('source')} and {sub_rel.get('target')}")
                 break
         
         if not found_match:
+            print(f"DEBUG: No match found for: {sub_rel.get('type')} between {sub_rel.get('source')} and {sub_rel.get('target')}")
             extra_rels.append(f"{sub_rel.get('type')} between {sub_rel.get('source')} and {sub_rel.get('target')}")
     
     if extra_rels:
@@ -506,6 +558,7 @@ def grade_relationships(submitted_relationships, ref_relationships, marking_crit
         "max_score": max_relationship_score,
         "feedback": feedback
     }
+    
 def grade_methods(submitted_entities, ref_entities, marking_criteria):
     """
     Grade the methods in the submission.
@@ -547,23 +600,53 @@ def grade_methods(submitted_entities, ref_entities, marking_criteria):
                     if sub_method.get('name') == ref_method_name:
                         found_method = True
                         method_score += method_points
-                        feedback.append(f"✓ Entity {entity_name} has required method: {ref_method_name}")
+                        feedback.append(f"✓ Class {entity_name} has required method: {ref_method_name}")
                         break
                 
                 if not found_method:
-                    feedback.append(f"✗ Entity {entity_name} is missing required method: {ref_method_name}")
+                    feedback.append(f"✗ Class {entity_name} is missing required method: {ref_method_name}")
         else:
             # If the entity is missing, all its methods are missing
             max_method_score += len(ref_methods) * method_points
             for ref_method in ref_methods:
-                feedback.append(f"✗ Missing method: {ref_method.get('name')} (entity {entity_name} not found)")
+                feedback.append(f"✗ Missing method: {ref_method.get('name')} (class {entity_name} not found)")
+    
+    # NEW CODE: Check for extra methods in each submitted entity
+    extra_method_penalty = marking_criteria.get('extra-method-penalty', 0.25)  # You can add this to marking criteria
+    extra_methods = []
+    
+    for submitted_name, submitted_data in submitted_entities.items():
+        submitted_methods = submitted_data.get('methods', [])
+        
+        # Find the matching reference entity
+        matching_ref_entity = None
+        for ref_name in ref_entities:
+            if ref_name.lower() == submitted_name.lower():
+                matching_ref_entity = ref_name
+                break
+        
+        if matching_ref_entity:
+            ref_methods = ref_entities[matching_ref_entity].get('methods', [])
+            ref_method_names = [m.get('name') for m in ref_methods]
+            
+            # Check each submitted method to see if it's extra
+            for sub_method in submitted_methods:
+                sub_method_name = sub_method.get('name')
+                if sub_method_name not in ref_method_names:
+                    extra_methods.append(f"{sub_method_name} in class {submitted_name}")
+    
+    # Apply penalty for extra methods
+    if extra_methods:
+        penalty = min(len(extra_methods) * extra_method_penalty, max_method_score * 0.5)  # Cap penalty at 50% of max
+        method_score = max(0, method_score - penalty)
+        feedback.append(f"! Found {len(extra_methods)} extra methods: {', '.join(extra_methods)}")
     
     return {
         "score": method_score,
         "max_score": max_method_score,
         "feedback": feedback
     }
-    
+ 
 def generate_feedback(grading_result):
     """
     Generate detailed feedback based on grading results.
@@ -590,48 +673,64 @@ def generate_feedback(grading_result):
     total_max = entity_max + relationship_max + method_max
     total_percent = (total_score / total_max * 100) if total_max > 0 else 0
     
-    # Format detailed feedback
+    # Format detailed feedback with consistent formatting
     feedback = [
         f"### UML Diagram Grading Results",
         f"",
         f"**Overall Score**: {total_score:.1f}/{total_max:.1f} ({total_percent:.1f}%)",
         f"",
-        f"#### Entity Assessment: {entity_score:.1f}/{entity_max:.1f} ({entity_percent:.1f}%)",
+        f"#### Class Assessment: {entity_score:.1f}/{entity_max:.1f} ({entity_percent:.1f}%)",  # Changed from Entity to Class
     ]
     
-    # Add up to 3 entity feedback items
+    # Add entity feedback items with consistent icons
     entity_feedback = grading_result["entity_score"]["feedback"]
-    for item in entity_feedback[:3]:
-        feedback.append(f"- {item}")
-    
-    if len(entity_feedback) > 3:
-        feedback.append(f"- *...and {len(entity_feedback) - 3} more entity observations*")
+    for item in entity_feedback:
+        # Replace Entity with Class in the feedback items
+        modified_item = item.replace("Entity", "Class").replace("entity", "class")
+        if modified_item.startswith("✓"):
+            feedback.append(f"- {modified_item}")
+        elif modified_item.startswith("✗"):
+            feedback.append(f"- {modified_item}")
+        elif modified_item.startswith("!"):
+            feedback.append(f"- {modified_item}")
+        else:
+            feedback.append(f"- {modified_item}")
     
     feedback.extend([
         f"",
         f"#### Relationship Assessment: {relationship_score:.1f}/{relationship_max:.1f} ({relationship_percent:.1f}%)",
     ])
     
-    # Add up to 3 relationship feedback items
+    # Add relationship feedback items with consistent icons
     relationship_feedback = grading_result["relationship_score"]["feedback"]
-    for item in relationship_feedback[:3]:
-        feedback.append(f"- {item}")
-    
-    if len(relationship_feedback) > 3:
-        feedback.append(f"- *...and {len(relationship_feedback) - 3} more relationship observations*")
+    for item in relationship_feedback:
+        if item.startswith("✓"):
+            feedback.append(f"- {item}")
+        elif item.startswith("✗"):
+            feedback.append(f"- {item}")
+        elif item.startswith("!"):
+            feedback.append(f"- {item}")
+        else:
+            feedback.append(f"- {item}")
     
     feedback.extend([
         f"",
         f"#### Method Assessment: {method_score:.1f}/{method_max:.1f} ({method_percent:.1f}%)",
     ])
     
-    # Add up to 3 method feedback items
+    # Add method feedback items with consistent icons
     method_feedback = grading_result["method_score"]["feedback"]
-    for item in method_feedback[:3]:
-        feedback.append(f"- {item}")
-    
-    if len(method_feedback) > 3:
-        feedback.append(f"- *...and {len(method_feedback) - 3} more method observations*")
+    for item in method_feedback:
+        # Replace entity with class in method feedback where relevant
+        modified_item = item.replace("entity", "class")
+        if modified_item.startswith("✓"):
+            feedback.append(f"- {modified_item}")
+        elif modified_item.startswith("✗"):
+            feedback.append(f"- {modified_item}")
+        elif modified_item.startswith("!"):
+            feedback.append(f"- {modified_item}")
+        else:
+            feedback.append(f"- {modified_item}")
     
     # Add summary feedback based on score
     feedback.extend([
@@ -640,18 +739,18 @@ def generate_feedback(grading_result):
     ])
     
     if total_percent >= 90:
-        feedback.append("Excellent work! Your UML diagram accurately represents the required system. The entities, relationships, and methods are well-defined and properly structured.")
+        feedback.append("Excellent work! Your UML diagram accurately represents the required system. The classes, relationships, and methods are well-defined and properly structured.")
     elif total_percent >= 80:
         feedback.append("Good job! Your UML diagram covers most of the required elements. Review the feedback above to make minor improvements to your design.")
     elif total_percent >= 70:
         feedback.append("Your UML diagram is on the right track but needs improvements. Pay attention to the relationship types and make sure all required methods are placed in the correct classes.")
     elif total_percent >= 60:
-        feedback.append("Your diagram needs substantial improvement. Focus on correctly implementing all the required entities and their relationships. Make sure you've included all required methods.")
+        feedback.append("Your diagram needs substantial improvement. Focus on correctly implementing all the required classes and their relationships. Make sure you've included all required methods.")
     else:
-        feedback.append("Your diagram requires significant revision. Review the UML notation and make sure you understand the requirements. Start by ensuring you have all the required entities and then focus on their relationships and methods.")
+        feedback.append("Your diagram requires significant revision. Review the UML notation and make sure you understand the requirements. Start by ensuring you have all the required classes and then focus on their relationships and methods.")
     
     return "\n".join(feedback)
-
+ 
 def grade_submission(question_id, code, schema, relationships):
     """
     Grade a UML diagram submission by comparing it to the reference solution.
@@ -695,10 +794,10 @@ def grade_submission(question_id, code, schema, relationships):
     # Convert our submitted schema list to a dict for easier access
     submitted_entities = {name: data for name, data in schema}
     
-    # Grade entities and methods
-    entity_score_result = grade_entities(submitted_entities, ref_entities, marking_criteria)
+   # Grade entities and methods
+    entity_score_result = grade_entities(submitted_entities, ref_entities, marking_criteria, ref_relationships)
     method_score_result = grade_methods(submitted_entities, ref_entities, marking_criteria)
-    
+        
     # Only grade relationships if they were submitted
     relationship_score_result = {"score": 0, "max_score": 0, "feedback": []}
     if relationships and len(relationships) > 0:
